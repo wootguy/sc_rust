@@ -6,6 +6,7 @@ class PlayerState
 	CTextMenu@ menu;
 	int useState = 0;
 	int codeTime = 0; // time left to input lock code
+	int numParts = 0; // number of unbroken build parts owned by the player
 	array<EHandle> authedLocks; // locked objects the player can use
 	EHandle currentLock; // lock currently being interacted with
 	
@@ -63,7 +64,8 @@ class BuildPart
 		{
 			return e.pev.origin.ToString() + '"' + e.pev.angles.ToString() + '"' + e.pev.colormap + '"' +
 				   id + '"' + parent  + '"' + e.pev.button + '"' + e.pev.body + '"' + e.pev.vuser1.ToString() + '"' + 
-				   e.pev.vuser2.ToString() + '"' + e.pev.health + '"' + e.pev.classname + '"' + e.pev.model;
+				   e.pev.vuser2.ToString() + '"' + e.pev.health + '"' + e.pev.classname + '"' + e.pev.model + '"' +
+				   e.pev.groupinfo;
 		}
 		else
 			return "";
@@ -78,6 +80,7 @@ array<BuildPart> g_build_parts; // every build structure/item in the map
 dictionary g_build_parts_dict;
 float g_tool_cupboard_radius = 512;
 int g_part_id = 0;
+bool debug_mode = false;
 
 int MAX_SAVE_DATA_LENGTH = 1015; // Maximum length of a value saved with trigger_save. Discovered through testing
 
@@ -126,6 +129,15 @@ void MapInit()
 	g_Game.PrecacheModel( "models/woodgibs.mdl" );
 }
 
+void debug_stability(Vector start, Vector end)
+{
+	if (getPartAtPos(end) !is null)
+		te_beampoints(start, end, "sprites/laserbeam.spr", 0, 100, 255,1,0,GREEN);
+	else
+		te_beampoints(start, end, "sprites/laserbeam.spr", 0, 100, 255,1,0,Color(255, 0, 0, 0));
+}
+
+Vector oldSearchPos = Vector(0,0,0);
 bool searchFromFloorPos(Vector pos)
 {
 	string posKey = "" + int(pos.x + 0.5f) + int(pos.y + 0.5f) + int(pos.z + 0.5f);
@@ -136,24 +148,45 @@ bool searchFromFloorPos(Vector pos)
 	}
 	visited_pos[posKey] = true;
 	
+	// TODO: Tri to square checks
+
 	numChecks++;
 	CBaseEntity@ part = getPartAtPos(pos);
 	if (part !is null) {
-		if (part.pev.colormap == B_FOUNDATION) {
+		if (part.pev.colormap == B_FOUNDATION or part.pev.colormap == B_FOUNDATION_TRI) {
 			return true;
 		}
+		pos = part.pev.origin;
 		if (part.pev.colormap == B_FLOOR or part.pev.colormap == B_LADDER_HATCH) {
 			// search for walls underneath or adjacent floors
 			g_EngineFuncs.MakeVectors(part.pev.angles);
+			Vector v_forward = g_Engine.v_forward;
+			Vector v_right = g_Engine.v_right;
 			 
-			return searchFromWallPos(pos + g_Engine.v_forward*64 + Vector(0,0,-128)) or
-					searchFromWallPos(pos + g_Engine.v_forward*-64 + Vector(0,0,-128)) or
-					searchFromWallPos(pos + g_Engine.v_right*64 + Vector(0,0,-128)) or
-					searchFromWallPos(pos + g_Engine.v_right*-64 + Vector(0,0,-128)) or
-					searchFromFloorPos(pos + g_Engine.v_forward*128) or
-					searchFromFloorPos(pos + g_Engine.v_forward*-128) or
-					searchFromFloorPos(pos + g_Engine.v_right*128) or
-					searchFromFloorPos(pos + g_Engine.v_right*-128);
+			return searchFromWallPos(pos + v_forward*64 + Vector(0,0,-128)) or
+					searchFromWallPos(pos + v_forward*-64 + Vector(0,0,-128)) or
+					searchFromWallPos(pos + v_right*64 + Vector(0,0,-128)) or
+					searchFromWallPos(pos + v_right*-64 + Vector(0,0,-128)) or
+					searchFromFloorPos(pos + v_forward*128) or
+					searchFromFloorPos(pos + v_forward*-128) or
+					searchFromFloorPos(pos + v_right*128) or
+					searchFromFloorPos(pos + v_right*-128);
+		}
+		if (part.pev.colormap == B_FLOOR_TRI) {
+			// search for walls underneath or adjacent floors
+			g_EngineFuncs.MakeVectors(part.pev.angles);
+			Vector v_forward = g_Engine.v_forward;
+			Vector v_right = g_Engine.v_right;
+
+			return searchFromWallPos(pos + v_right*-32 + v_forward*18.476) or
+					searchFromWallPos(pos + v_right*32 + v_forward*18.476) or
+					searchFromWallPos(pos + v_forward*-36.95) or
+					searchFromWallPos(pos + Vector(0,0,-128) + v_right*-32 + v_forward*18.476) or
+					searchFromWallPos(pos + Vector(0,0,-128) + v_right*32 + v_forward*18.476) or
+					searchFromWallPos(pos + Vector(0,0,-128) + v_forward*-36.95) or
+					searchFromFloorPos(pos + v_forward*-73.9) or
+					searchFromFloorPos(pos + v_right*64 + v_forward*36.95) or
+					searchFromFloorPos(pos + v_right*-64 + v_forward*36.95);
 		}
 	}
 	return false;
@@ -171,22 +204,32 @@ bool searchFromWallPos(Vector pos)
 	
 	numChecks++;
 	CBaseEntity@ part = getPartAtPos(pos);
-	if (part !is null) {		
+	if (part !is null) {
+		pos = part.pev.origin;
 		if (socketType(part.pev.colormap) == SOCKET_WALL) {
 			// search adjacent floor positions or wall underneath
 			g_EngineFuncs.MakeVectors(part.pev.angles);
+			Vector v_forward = g_Engine.v_forward;
+			Vector v_right = g_Engine.v_right;
 			
 			// adjacent walls or walls connected by corners
-			return searchFromFloorPos(pos + g_Engine.v_forward*64) or 
-					searchFromFloorPos(pos - g_Engine.v_forward*64) or
-					searchFromWallPos(pos - Vector(0,0,128)) or
+			return searchFromFloorPos(pos + v_forward*64) or 
+					searchFromFloorPos(pos - v_forward*64) or
+					searchFromWallPos(pos + Vector(0,0,-128)) or
 					searchFromWallPos(pos + Vector(0,0,128)) or
-					searchFromWallPos(pos + g_Engine.v_right*128) or
-					searchFromWallPos(pos + g_Engine.v_right*-128) or
-					searchFromWallPos(pos + g_Engine.v_right*64 + g_Engine.v_forward*64) or
-					searchFromWallPos(pos + g_Engine.v_right*64 + g_Engine.v_forward*-64) or
-					searchFromWallPos(pos + g_Engine.v_right*-64 + g_Engine.v_forward*64) or
-					searchFromWallPos(pos + g_Engine.v_right*-64 + g_Engine.v_forward*-64);
+					searchFromWallPos(pos + v_right*128) or
+					searchFromWallPos(pos + v_right*-128) or
+					searchFromWallPos(pos + v_right*64 + v_forward*64) or
+					searchFromWallPos(pos + v_right*64 + v_forward*-64) or
+					searchFromWallPos(pos + v_right*-64 + v_forward*64) or
+					searchFromWallPos(pos + v_right*-64 + v_forward*-64) or
+					// triangle checks
+					searchFromWallPos(pos + v_right*96 + v_forward*55.43) or
+					searchFromWallPos(pos + v_right*96 + v_forward*-55.43) or
+					searchFromWallPos(pos + v_right*-96 + v_forward*55.43) or
+					searchFromWallPos(pos + v_right*-96 + v_forward*-55.43) or 
+					searchFromFloorPos(pos + v_forward*36.95) or 
+					searchFromFloorPos(pos + v_forward*-36.95);
 		}
 	}
 	return false;
@@ -210,21 +253,69 @@ void propogate_part_destruction(CBaseEntity@ ent)
 		EHandle wall2 = getPartAtPos(pos + g_Engine.v_forward*-64);
 		EHandle wall3 = getPartAtPos(pos + g_Engine.v_right*64);
 		EHandle wall4 = getPartAtPos(pos + g_Engine.v_right*-64);
+		// steps/floors
 		EHandle steps1 = getPartAtPos(pos + g_Engine.v_right*128);
 		EHandle steps2 = getPartAtPos(pos + g_Engine.v_right*-128);
 		EHandle steps3 = getPartAtPos(pos + g_Engine.v_forward*128);
 		EHandle steps4 = getPartAtPos(pos + g_Engine.v_forward*-128);
+		// square -> tri
+		EHandle tri1 = getPartAtPos(pos + g_Engine.v_right*(64+36.95));
+		EHandle tri2 = getPartAtPos(pos + g_Engine.v_right*-(64+36.95));
+		EHandle tri3 = getPartAtPos(pos + g_Engine.v_forward*(64+36.95));
+		EHandle tri4 = getPartAtPos(pos + g_Engine.v_forward*-(64+36.95));
 		EHandle middle = getPartAtPos(pos + Vector(0,0,64));
 		
-		if (wall1) stability_ents.insertLast(wall1);
-		if (wall2) stability_ents.insertLast(wall2);
-		if (wall3) stability_ents.insertLast(wall3);
-		if (wall4) stability_ents.insertLast(wall4);
 		if (steps1) stability_ents.insertLast(steps1);
 		if (steps2) stability_ents.insertLast(steps2);
 		if (steps3) stability_ents.insertLast(steps3);
 		if (steps4) stability_ents.insertLast(steps4);
+		if (wall1) stability_ents.insertLast(wall1);
+		if (wall2) stability_ents.insertLast(wall2);
+		if (wall3) stability_ents.insertLast(wall3);
+		if (wall4) stability_ents.insertLast(wall4);
 		if (middle) stability_ents.insertLast(middle);
+		if (tri1) stability_ents.insertLast(tri1);
+		if (tri2) stability_ents.insertLast(tri2);
+		if (tri3) stability_ents.insertLast(tri3);
+		if (tri4) stability_ents.insertLast(tri4);
+	}
+	if (type == B_FOUNDATION_TRI or type == B_FLOOR_TRI)
+	{
+		EHandle wall1 = getPartAtPos(pos + g_Engine.v_right*-32 + g_Engine.v_forward*18.476);
+		EHandle wall2 = getPartAtPos(pos + g_Engine.v_right*32 + g_Engine.v_forward*18.476);
+		EHandle wall3 = getPartAtPos(pos + g_Engine.v_forward*-36.95);
+		
+		if (type == B_FOUNDATION_TRI)
+		{
+			// TODO: the 87/51 numbers are just estimates
+			EHandle steps1 = getPartAtPos(pos + g_Engine.v_forward*-(36.95+64));
+			EHandle steps2 = getPartAtPos(pos + g_Engine.v_right*87 + g_Engine.v_forward*51);
+			EHandle steps3 = getPartAtPos(pos + g_Engine.v_right*-87 + g_Engine.v_forward*51);
+			if (steps1) stability_ents.insertLast(steps1);
+			if (steps2) stability_ents.insertLast(steps2);
+			if (steps3) stability_ents.insertLast(steps3);
+		}
+		if (type == B_FLOOR_TRI)
+		{
+			// tri -> tri
+			EHandle floor1 = getPartAtPos(pos + g_Engine.v_forward*-73.9);
+			EHandle floor2 = getPartAtPos(pos + g_Engine.v_right*64 + g_Engine.v_forward*36.95);
+			EHandle floor3 = getPartAtPos(pos + g_Engine.v_right*-64 + g_Engine.v_forward*36.95);
+			// tri -> square
+			EHandle floor4 = getPartAtPos(pos + g_Engine.v_forward*-(36.95+64));
+			EHandle floor5 = getPartAtPos(pos + g_Engine.v_right*87 + g_Engine.v_forward*51);
+			EHandle floor6 = getPartAtPos(pos + g_Engine.v_right*-87 + g_Engine.v_forward*51);
+			if (floor1) stability_ents.insertLast(floor1);
+			if (floor2) stability_ents.insertLast(floor2);
+			if (floor3) stability_ents.insertLast(floor3);
+			if (floor4) stability_ents.insertLast(floor4);
+			if (floor5) stability_ents.insertLast(floor5);
+			if (floor6) stability_ents.insertLast(floor6);
+		}
+		
+		if (wall1) stability_ents.insertLast(wall1);
+		if (wall2) stability_ents.insertLast(wall2);
+		if (wall3) stability_ents.insertLast(wall3);
 	}
 	if (socket == SOCKET_WALL)
 	{
@@ -242,6 +333,18 @@ void propogate_part_destruction(CBaseEntity@ ent)
 		EHandle floor4 = getPartAtPos(pos + g_Engine.v_forward*-64 + Vector(0,0,128));
 		EHandle roof1 = getPartAtPos(pos + g_Engine.v_forward*64 + Vector(0,0,192));
 		EHandle roof2 = getPartAtPos(pos - g_Engine.v_forward*64 + Vector(0,0,192));
+		
+		//triangle connections
+		EHandle tri1 = getPartAtPos(pos + g_Engine.v_forward*36.95);
+		EHandle tri2 = getPartAtPos(pos + g_Engine.v_forward*-36.95);
+		EHandle tri3 = getPartAtPos(pos + g_Engine.v_forward*36.95 + Vector(0,0,128));
+		EHandle tri4 = getPartAtPos(pos + g_Engine.v_forward*-36.95 + Vector(0,0,128));
+		EHandle wall9 = getPartAtPos(pos + g_Engine.v_right*96 + g_Engine.v_forward*55.43);
+		EHandle wall10 = getPartAtPos(pos + g_Engine.v_right*96 + g_Engine.v_forward*-55.43);
+		EHandle wall11 = getPartAtPos(pos + g_Engine.v_right*-96 + g_Engine.v_forward*55.43);
+		EHandle wall12 = getPartAtPos(pos + g_Engine.v_right*-96 + g_Engine.v_forward*-55.43);
+		EHandle floor5 = getPartAtPos(pos + g_Engine.v_forward*36.95);
+		EHandle floor6 = getPartAtPos(pos + g_Engine.v_forward*-36.95);
 
 		if (wall1) stability_ents.insertLast(wall1);
 		if (wall2) stability_ents.insertLast(wall2);
@@ -251,12 +354,22 @@ void propogate_part_destruction(CBaseEntity@ ent)
 		if (wall6) stability_ents.insertLast(wall6);
 		if (wall7) stability_ents.insertLast(wall7);
 		if (wall8) stability_ents.insertLast(wall8);
+		if (wall9) stability_ents.insertLast(wall9);
+		if (wall10) stability_ents.insertLast(wall10);
+		if (wall11) stability_ents.insertLast(wall11);
+		if (wall12) stability_ents.insertLast(wall12);
 		if (floor1) stability_ents.insertLast(floor1);
 		if (floor2) stability_ents.insertLast(floor2);
 		if (floor3) stability_ents.insertLast(floor3);
 		if (floor4) stability_ents.insertLast(floor4);
+		if (floor5) stability_ents.insertLast(floor5);
+		if (floor6) stability_ents.insertLast(floor6);
 		if (roof1) stability_ents.insertLast(roof1);
 		if (roof2) stability_ents.insertLast(roof2);
+		if (tri1) stability_ents.insertLast(tri1);
+		if (tri2) stability_ents.insertLast(tri2);
+		if (tri3) stability_ents.insertLast(tri3);
+		if (tri4) stability_ents.insertLast(tri4);
 	}
 	
 	// destroy objects parented to this one
@@ -299,7 +412,6 @@ void stabilityCheck()
 {
 	int numIter = 0;
 	
-	
 	// check for destroyed ents
 	for (uint i = 0; i < g_build_parts.length(); i++)
 	{
@@ -338,7 +450,7 @@ void stabilityCheck()
 		int socket = socketType(type);
 		Vector pos = src_part.pev.origin;
 		
-		if (src_part.pev.colormap == B_FOUNDATION or socket == SOCKET_HIGH_WALL)
+		if (src_part.pev.colormap == B_FOUNDATION or socket == SOCKET_HIGH_WALL or src_part.pev.colormap == B_FOUNDATION_TRI)
 		{
 			stability_ents.removeAt(0);
 			continue;
@@ -370,7 +482,7 @@ void stabilityCheck()
 		{
 			supported = searchFromFloorPos(pos - Vector(0,0,64));
 		}
-		else if (type == B_FLOOR or (type == B_LADDER_HATCH and src_part.pev.classname == "func_breakable")) 
+		else if (type == B_FLOOR or (type == B_LADDER_HATCH and src_part.pev.classname == "func_breakable") or type == B_FLOOR_TRI) 
 		{
 			supported = searchFromFloorPos(pos);
 		}
@@ -556,11 +668,20 @@ void inventoryCheck()
 		@e_plr = g_EntityFuncs.FindEntityByClassname(e_plr, "player");
 		if (e_plr !is null)
 		{
+			CBasePlayer@ plr = cast<CBasePlayer@>(e_plr);
 			if (e_plr.pev.button & IN_RELOAD != 0 and e_plr.pev.button & IN_USE != 0) {
-				CBasePlayer@ plr = cast<CBasePlayer@>(e_plr);
 				openCraftMenu(plr, "");
 				println("OPEN MENU");
 			}
+			/*
+			if (e_plr.pev.button & IN_CANCEL != 0) {
+				println("FAST");
+				plr.pev.speed = plr.pev.maxspeed = 1000;
+			} else {
+				println("BAD");
+				plr.pev.speed = plr.pev.maxspeed = 100;
+			}
+			*/
 		}
 	} while(e_plr !is null);
 }
@@ -593,9 +714,7 @@ void rotate_door(CBaseEntity@ door, bool playSound)
 	
 	if (playSound) {
 		g_SoundSystem.PlaySound(door.edict(), CHAN_ITEM, soundFile, 1.0f, 1.0f, 0, 90 + Math.RandomLong(0, 20));
-	}
-	
-	
+	}	
 	
 	if (dest != door.pev.angles) {
 		AngularMove(door, dest, speed);
@@ -1078,7 +1197,7 @@ void loadPart(int idx)
 	if (data.Length() > 0) {
 		array<string> values = data.Split('"');
 		
-		if (values.length() == 12) {
+		if (values.length() == 13) {
 			println("Loading part " + idx);
 			Vector origin = parseVector(values[0]);
 			Vector angles = parseVector(values[1]);
@@ -1092,6 +1211,7 @@ void loadPart(int idx)
 			float health = atof( values[9] );
 			string classname = values[10];
 			string model = values[11];
+			int groupinfo = atoi( values[12] );
 			
 			dictionary keys;
 			keys["origin"] = origin.ToString();
@@ -1108,12 +1228,17 @@ void loadPart(int idx)
 				keys["distance"] = "9999";
 				keys["speed"] = "0.00000001";
 				keys["breakable"] = "1";
-				keys["targetname"] = "locked";
+				keys["targetname"] = "locked" + id;
 				
 			}
 			if (type == "func_ladder")
 			{
 				keys["spawnflags"] = "1";
+			}
+			if (type == B_LADDER)
+			{
+				keys["rendermode"] = "4";
+				keys["renderamt"] = "255";
 			}
 			
 			CBaseEntity@ ent = g_EntityFuncs.CreateEntity(classname, keys, true);
@@ -1123,6 +1248,7 @@ void loadPart(int idx)
 			ent.pev.body = body;
 			ent.pev.vuser1 = vuser1;
 			ent.pev.vuser2 = vuser2;
+			ent.pev.groupinfo = groupinfo;
 			ent.pev.team = id;
 			
 			if (classname == "func_door_rotating")
@@ -1161,7 +1287,7 @@ void loadMapData()
 	{
 		g_EntityFuncs.Remove(g_build_parts[i].ent);
 	}
-	println("NUM PARTS: " + numParts);
+	println("Loading " + numParts + " parts...");
 	
 	float waitTime = 0.01;
 	float delay = initialWait + waitTime;

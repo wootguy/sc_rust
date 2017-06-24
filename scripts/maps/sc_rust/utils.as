@@ -201,6 +201,22 @@ CBaseEntity@ getPartAtPos(Vector pos, float dist=2)
 		}
 	} while (ent !is null);
 	return null;
+	/*
+	float d = dist*dist;
+	for (uint i = 0; i < g_build_parts.length(); i++)
+	{
+		if (g_build_parts[i].ent)
+		{
+			CBaseEntity@ ent = g_build_parts[i].ent;
+			
+			if ((ent.pev.origin - pos).Length() < dist)
+			{
+				return ent;
+			}
+		}
+	}
+	return null;
+	*/
 }
 
 array<EHandle> getPartsByID(int id)
@@ -239,7 +255,7 @@ int socketType(int partType)
 {				
 	switch(partType)
 	{
-		case B_FOUNDATION: case B_FOUNDATION_STEPS:
+		case B_FOUNDATION: case B_FOUNDATION_STEPS: case B_FOUNDATION_TRI:
 			return SOCKET_FOUNDATION;
 			
 		case B_WALL: case B_WINDOW: case B_DOORWAY: case B_LOW_WALL:
@@ -263,10 +279,23 @@ int socketType(int partType)
 	return -1;
 }
 
+bool isFoundation(CBaseEntity@ ent)
+{
+	int type = ent.pev.colormap;
+	return type == B_FOUNDATION or type == B_FOUNDATION_TRI;
+}
+
+bool isTriangular(CBaseEntity@ ent)
+{
+	int type = ent.pev.colormap;
+	return (ent.pev.classname == "func_breakable" or ent.pev.classname == "func_illusionary") and type == B_FOUNDATION_TRI or type == B_FLOOR_TRI;
+}
+
 bool isFloorPiece(CBaseEntity@ ent)
 {
 	int type = ent.pev.colormap;
-	return type == B_FOUNDATION or type == B_FLOOR or (type == B_LADDER_HATCH and ent.pev.classname == "func_breakable");
+	return type == B_FOUNDATION or type == B_FLOOR or type == B_FOUNDATION_TRI or type == B_FLOOR_TRI or
+			(type == B_LADDER_HATCH and ent.pev.classname == "func_breakable");
 }
 
 bool canPlaceOnTerrain(int partType)
@@ -308,49 +337,54 @@ TraceResult TraceLook(CBasePlayer@ plr, float dist)
 }
 
 // collision between 2 oriented 2D boxes using the separating axis theorem 
-bool collisionSA(CBaseEntity@ b1, CBaseEntity@ b2) {
-
-	int b1NumVerts = 4;
-	int b2NumVerts = 4;
-	int numAxes = b1NumVerts + b2NumVerts; // sum of verts on both objects
-	array<Vector2D> axes;
-	axes.resize(numAxes);
-	int idx = 0;
-	
+float collisionSA(CBaseEntity@ b1, CBaseEntity@ b2)
+{
 	Vector2D b1Ori = Vector2D(b1.pev.origin.x, b1.pev.origin.y);
 	Vector2D b2Ori = Vector2D(b2.pev.origin.x, b2.pev.origin.y);
 	
+	Vector b1Angles = b1.pev.angles;
+	Vector b2Angles = b2.pev.angles;
+	if (b1.pev.classname == "func_door_rotating")
+		b1Angles.y += 180;
+	if (b2.pev.classname == "func_door_rotating")
+		b2Angles.y += 180;
+	
 	// counter-clockwise starting at back right vertex
 	array<Vector2D> b1Verts;
-	g_EngineFuncs.MakeVectors(b1.pev.angles);
+	g_EngineFuncs.MakeVectors(b1Angles);
 	Vector2D v_forward = Vector2D(g_Engine.v_forward.x, g_Engine.v_forward.y);
 	Vector2D v_right = Vector2D(g_Engine.v_right.x, g_Engine.v_right.y);
 	b1Verts.insertLast(b1Ori + v_right*b1.pev.maxs.y + v_forward*b1.pev.mins.x);
 	b1Verts.insertLast(b1Ori + v_right*b1.pev.mins.y + v_forward*b1.pev.mins.x);
-	b1Verts.insertLast(b1Ori + v_right*b1.pev.mins.y + v_forward*b1.pev.maxs.x);
-	b1Verts.insertLast(b1Ori + v_right*b1.pev.maxs.y + v_forward*b1.pev.maxs.x);
+	if (isTriangular(b1))
+		b1Verts.insertLast(b1Ori + v_forward*b1.pev.maxs.x);
+	else
+	{
+		b1Verts.insertLast(b1Ori + v_right*b1.pev.mins.y + v_forward*b1.pev.maxs.x);
+		b1Verts.insertLast(b1Ori + v_right*b1.pev.maxs.y + v_forward*b1.pev.maxs.x);
+	}
 
 	// counter-clockwise starting at back right vertex
 	array<Vector2D> b2Verts;
-	g_EngineFuncs.MakeVectors(b2.pev.angles);
+	g_EngineFuncs.MakeVectors(b2Angles);
 	v_forward = Vector2D(g_Engine.v_forward.x, g_Engine.v_forward.y);
 	v_right = Vector2D(g_Engine.v_right.x, g_Engine.v_right.y);
 	b2Verts.insertLast(b2Ori + v_right*b2.pev.maxs.y + v_forward*b2.pev.mins.x);
 	b2Verts.insertLast(b2Ori + v_right*b2.pev.mins.y + v_forward*b2.pev.mins.x);
-	b2Verts.insertLast(b2Ori + v_right*b2.pev.mins.y + v_forward*b2.pev.maxs.x);
-	b2Verts.insertLast(b2Ori + v_right*b2.pev.maxs.y + v_forward*b2.pev.maxs.x);
-
-	/*
-	te_beampoints(Vector(b1Verts[0].x, b1Verts[0].y, b1.pev.origin.z + 64), Vector(b1Verts[1].x, b1Verts[1].y, b1.pev.origin.z + 64));
-	te_beampoints(Vector(b1Verts[1].x, b1Verts[1].y, b1.pev.origin.z + 64), Vector(b1Verts[2].x, b1Verts[2].y, b1.pev.origin.z + 64));
-	te_beampoints(Vector(b1Verts[2].x, b1Verts[2].y, b1.pev.origin.z + 64), Vector(b1Verts[3].x, b1Verts[3].y, b1.pev.origin.z + 64));
-	te_beampoints(Vector(b1Verts[3].x, b1Verts[3].y, b1.pev.origin.z + 64), Vector(b1Verts[0].x, b1Verts[0].y, b1.pev.origin.z + 64));
-
-	te_beampoints(Vector(b2Verts[0].x, b2Verts[0].y, b1.pev.origin.z + 64), Vector(b2Verts[1].x, b2Verts[1].y, b1.pev.origin.z + 64));
-	te_beampoints(Vector(b2Verts[1].x, b2Verts[1].y, b1.pev.origin.z + 64), Vector(b2Verts[2].x, b2Verts[2].y, b1.pev.origin.z + 64));
-	te_beampoints(Vector(b2Verts[2].x, b2Verts[2].y, b1.pev.origin.z + 64), Vector(b2Verts[3].x, b2Verts[3].y, b1.pev.origin.z + 64));
-	te_beampoints(Vector(b2Verts[3].x, b2Verts[3].y, b1.pev.origin.z + 64), Vector(b2Verts[0].x, b2Verts[0].y, b1.pev.origin.z + 64));
-	*/
+	if (isTriangular(b2))
+		b2Verts.insertLast(b2Ori + v_forward*b2.pev.maxs.x);
+	else
+	{
+		b2Verts.insertLast(b2Ori + v_right*b2.pev.mins.y + v_forward*b2.pev.maxs.x);
+		b2Verts.insertLast(b2Ori + v_right*b2.pev.maxs.y + v_forward*b2.pev.maxs.x);
+	}
+	
+	int b1NumVerts = b1Verts.length();
+	int b2NumVerts = b2Verts.length();
+	int numAxes = b1NumVerts + b2NumVerts;
+	array<Vector2D> axes;
+	axes.resize(numAxes);
+	int idx = 0;
 	
 	for (int i = 1; i < b1NumVerts; i++)
 		axes[idx++] = getPerp(b1Verts[i] - b1Verts[i-1]);
@@ -362,21 +396,17 @@ bool collisionSA(CBaseEntity@ b1, CBaseEntity@ b2) {
 
 	float minPen = 1E9; // minimum penetration vector;
 	Vector2D fix; // vector for fixing the collision
-	int b1Contact; // contact point for body 1
-	int b2Contact; // contact point for body 1
-	float b1ContactDot;
-	float b2ContactDot;
 
 	for (int a = 0; a < numAxes; a++)
 	{
-		axes[a].Normalize();
+		axes[a] = axes[a].Normalize();
 
 		BodyAxis ba1 = calcExtents(b1Verts, b1Ori, axes[a]);
 		BodyAxis ba2 = calcExtents(b2Verts, b1Ori, axes[a]);
 		if (ba1.minIdx == -1 || ba1.maxIdx == -1 || ba2.minIdx == -1 || ba2.maxIdx == -1)
 		{
 			// can't work with this object
-			return false;
+			return 0;
 		}
 
 		if (ba1.min < ba2.max && ba2.min < ba1.max) // collision along this axis!
@@ -388,10 +418,6 @@ bool collisionSA(CBaseEntity@ b1, CBaseEntity@ b2) {
 				{
 					minPen = pen;
 					fix = axes[a];
-					b1Contact = ba1.maxIdx;
-					b2Contact = ba2.minIdx;
-					b1ContactDot = ba1.max;
-					b2ContactDot = ba2.min;
 				}
 			}
 			else
@@ -401,75 +427,65 @@ bool collisionSA(CBaseEntity@ b1, CBaseEntity@ b2) {
 				{
 					minPen = pen;
 					fix = axes[a];
-					b1Contact = ba1.minIdx;
-					b2Contact = ba2.maxIdx;
-					b1ContactDot = ba1.min;
-					b2ContactDot = ba2.max;
 				}
 			}
 		}
 		else
 		{
 			// this is the separating axis!
-			return false;
+			return 0;
 		}
 	}
-
-	int b1edgeidx = findEdge(b1Verts, b1Contact, b1ContactDot, fix, b1Ori);
-	int b2edgeidx = findEdge(b2Verts, b2Contact, b2ContactDot, fix, b2Ori);
-	Vector2D contact;
-
-	if (b1edgeidx != -1 && b2edgeidx != -1)
+	
+	float overlap = minPen / fix.Length();
+	
+	Vector fix3 = Vector(fix.x, fix.y, 0);
+	
+	if (abs(overlap) > 9.9f)
 	{
-		// SPECIAL EDGEvEDGE CONTACT :OOO
-		array<Vector2D> points;
-		points.resize(4);
-		points[0] = b1Verts[b1Contact];
-		points[1] = b1Verts[b1edgeidx];
-		points[2] = b2Verts[b2Contact];
-		points[3] = b2Verts[b2edgeidx];
-		contact = findEdgeContact(points, b1Ori, getPerp(fix));
+		for (uint i = 0; i < b1Verts.length(); i++)
+		{
+			uint k = (i+1) % b1Verts.length();
+			te_beampoints(Vector(b1Verts[i].x, b1Verts[i].y, b1.pev.origin.z + 64), Vector(b1Verts[k].x, b1Verts[k].y, b1.pev.origin.z + 64));
+		}
+		for (uint i = 0; i < b2Verts.length(); i++)
+		{
+			uint k = (i+1) % b2Verts.length();
+			te_beampoints(Vector(b2Verts[i].x, b2Verts[i].y, b2.pev.origin.z + 64), Vector(b2Verts[k].x, b2Verts[k].y, b2.pev.origin.z + 64));
+		}
+		
+		te_beampoints(b1.pev.origin + Vector(0,0,64), b1.pev.origin + Vector(0,0,64) + fix3.Normalize()*overlap);
+		te_beampoints(b1.pev.origin, b2.pev.origin);
+		
+		
 	}
-	else
-	{
-		if (b1edgeidx == -1)
-			contact = b1Verts[b1Contact];
-		else
-			contact = b2Verts[b1Contact];
-	}
-
-	// move bodies away from each other
-	/*
-	//fix.normalize(minPen/fix.length());
-	fix.normalize(minPen*0.5f);
-
-	b1Ori += fix;
-	if (!b2->fixed)
-		b2Ori -= fix;
-	else
-		b1Ori += fix;
-
-	fix.normalize(1.0f);
-	b2->push(b1, contact, fix);
-	*/
-	return true;
+	
+	return overlap;
 }
 
 // collision between 2 oriented 3D boxes. Only boxes rotated on the yaw axis are allows
-bool collisionBoxesYaw(CBaseEntity@ b1, CBaseEntity@ b2) {
+float collisionBoxesYaw(CBaseEntity@ b1, CBaseEntity@ b2) {
 	// check vertical collision first
 	
 	float b1zmin = b1.pev.mins.z;
 	if (b1.pev.colormap == B_LADDER_HATCH)
 		b1zmin = -4;
 	
-	if (b1.pev.origin.z + b1.pev.maxs.z >= b2.pev.origin.z + b2.pev.mins.z and
-		b1.pev.origin.z + b1zmin <= b2.pev.origin.z + b2.pev.maxs.z)
-	{		
+	// 1 added since bounding box is larger than it should be
+	float min1 = b1.pev.origin.z + b1zmin;
+	float min2 = b2.pev.origin.z + b2.pev.mins.z;
+	float max1 = b1.pev.origin.z + b1.pev.maxs.z;
+	float max2 = b2.pev.origin.z + b2.pev.maxs.z;
+	
+	
+	if (max1 > min2 and min1 < max2)
+	{	
+		float overlapXY = collisionSA(b1, b2);
+		float overlapZ = Math.max(0, Math.min(max1, max2) - Math.max(min1, min2));
 		// check 2D top-down collision
-		return collisionSA(b1, b2);
+		return Math.min(abs(overlapZ), abs(overlapXY));
 	}
-	return false;
+	return 0;
 }
 
 // ported from HLSDK with minor adjustments
@@ -477,12 +493,13 @@ void AngularMove( CBaseEntity@ ent, Vector vecDestAngle, float flSpeed )
 {	
 	Vector m_vecFinalAngle = vecDestAngle;
 	
+	EHandle h_ent = ent;
 	ent.pev.iuser1 = 1;
 
 	// Already there?
 	if (vecDestAngle == ent.pev.angles)
 	{
-		AngularMoveDone(ent, m_vecFinalAngle);
+		AngularMoveDone(h_ent, m_vecFinalAngle);
 		return;
 	}
 	
@@ -493,18 +510,22 @@ void AngularMove( CBaseEntity@ ent, Vector vecDestAngle, float flSpeed )
 	float flTravelTime = vecDestDelta.Length() / flSpeed;
 
 	// set nextthink to trigger a call to AngularMoveDone when dest is reached
-	g_Scheduler.SetTimeout("AngularMoveDone", flTravelTime, @ent, m_vecFinalAngle);
+	g_Scheduler.SetTimeout("AngularMoveDone", flTravelTime, h_ent, m_vecFinalAngle);
 
 	// scale the destdelta vector by the time spent traveling to get velocity
 	ent.pev.avelocity = vecDestDelta / flTravelTime;
 }
 
 // ported from HLSDK with minor adjustments
-void AngularMoveDone( CBaseEntity@ ent, Vector finalAngle )
+void AngularMoveDone( EHandle h_ent, Vector finalAngle )
 {
-	ent.pev.iuser1 = 0;
-	ent.pev.angles = finalAngle;
-	ent.pev.avelocity = g_vecZero;
+	if (h_ent)
+	{
+		CBaseEntity@ ent = h_ent;
+		ent.pev.iuser1 = 0;
+		ent.pev.angles = finalAngle;
+		ent.pev.avelocity = g_vecZero;
+	}
 }
 
 // Will create a new state if the requested one does not exit
