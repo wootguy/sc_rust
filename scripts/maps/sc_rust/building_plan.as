@@ -96,7 +96,7 @@ enum socket_types
 int B_TYPES = B_FOUNDATION_STEPS+1;
 int B_ITEM_TYPES = B_LADDER_HATCH+1;
 
-array<BuildPartInfo> BuildPartInfos = {
+array<BuildPartInfo> g_part_info = {
 	BuildPartInfo(B_FOUNDATION, "Square Foundation", "b_foundation"),
 	BuildPartInfo(B_FOUNDATION_TRI, "Triangle Foundation", "b_foundation_tri"),
 	BuildPartInfo(B_WALL, "Wall", "b_wall"),
@@ -151,6 +151,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 	int buildType = B_FOUNDATION;
 	float nextCycle = 0;
 	float nextAlternate = 0;
+	float lastHudUpdate = 0;
 	int nextSnd = 0;
 	bool alternateBuild = false;
 	
@@ -227,7 +228,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 		
 		TraceResult look = TraceLook(getPlayer(), 280);
 		
-		CBaseEntity@ copy_ent = g_EntityFuncs.FindEntityByTargetname(null, BuildPartInfos[buildType].copy_ent);
+		CBaseEntity@ copy_ent = g_EntityFuncs.FindEntityByTargetname(null, g_part_info[buildType].copy_ent);
 		
 		dictionary keys;
 		keys["origin"] = look.vecEndPos.ToString();
@@ -247,7 +248,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 		@buildEnt2 = @ent2;
 		ent2.pev.scale = 0.5f;
 		
-		g_PlayerFuncs.PrintKeyBindingString(getPlayer(), BuildPartInfos[buildType].title);
+		g_PlayerFuncs.PrintKeyBindingString(getPlayer(), g_part_info[buildType].title);
 	}
 	
 	void Holster(int iSkipLocal = 0) 
@@ -441,7 +442,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 						float oriDist = 73.9;
 						if (partSocket == SOCKET_WALL)
 							oriDist = 36.95;
-						if (buildType == B_FOUNDATION or buildType == B_FOUNDATION_STEPS or buildType == B_FLOOR)
+						if (buildType == B_FOUNDATION or buildType == B_FOUNDATION_STEPS or buildType == B_FLOOR or buildType == B_LADDER_HATCH)
 							oriDist = 64 + 36.95;
 						attachYaw = part.pev.angles.y;
 						minDist = dl;
@@ -699,6 +700,25 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 					continue;
 				if (partSocket == SOCKET_DOORWAY and getPartsByParent(part.pev.team).length() > 0)
 					continue;
+					
+				if (buildType == B_FOUNDATION_TRI or buildType == B_FLOOR_TRI)
+				{
+					CBaseEntity@ ent = getPartAtPos(attachOri, 28);
+					if (ent !is null and (ent.pev.colormap == B_FOUNDATION or ent.pev.colormap == B_FLOOR))
+					{
+						// triangle would be completely inside a square piece
+						continue;
+					}
+				}
+				if (buildType == B_LADDER_HATCH)
+				{
+					CBaseEntity@ ent = getPartAtPos(attachOri + Vector(0,0,-64), 2);
+					if (ent !is null and socketType(ent.pev.colormap) == SOCKET_MIDDLE)
+					{
+						// ladder hatch opens into stairs or something
+						continue;
+					}
+				}
 				
 				bestDist = minDist;
 					
@@ -859,7 +879,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 					continue;
 				if (ent.pev.solid == SOLID_NOT or ent.pev.solid == SOLID_TRIGGER)
 					continue;
-				if (buildType == B_CODE_LOCK)
+				if (buildType == B_CODE_LOCK or buildType == B_LADDER)
 					continue;
 
 				string cname = string(ent.pev.classname);
@@ -873,13 +893,14 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 						break;
 					} 
 				}
-				
 				float overlap = collisionBoxesYaw(buildEnt, ent);
 				if (overlap > 9.9f) {
-					println("BLOCKED BY: " + cname + " overlap " + overlap);
+					if (debug_mode)
+						println("BLOCKED BY: " + cname + " overlap " + overlap);
 					validBuild = false;
 					break;
-				} else if (overlap > 0)
+				} 
+				else if (debug_mode and overlap > 0)
 				{
 					println("OVERLAP BY: " + cname + " overlap " + overlap);
 				}
@@ -908,6 +929,26 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 				canShootAgain = true;
 			}
 			
+			if (lastHudUpdate < g_Engine.time + 0.05f)
+			{
+				lastHudUpdate = g_Engine.time;
+				PlayerState@ state = getPlayerState(plr);
+			
+				HUDTextParams params;
+				params.x = 0.6;
+				params.y = 0.88;
+				params.effect = 0;
+				params.r1 = 255;
+				params.g1 = 255;
+				params.b1 = 255;
+				params.fadeinTime = 0;
+				params.fadeoutTime = 0;
+				params.holdTime = 0.2f;
+				params.channel = 0;
+				
+				g_PlayerFuncs.HudMessage(plr, params, "Build Points:\n" + (state.maxPoints()-state.numParts) + " / " + state.maxPoints());
+			}	
+			
 			updateBuildPlaceholder();
 		}
 		
@@ -926,10 +967,9 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 		string brushModel = roof.pev.model;
 		g_EngineFuncs.MakeVectors(roof.pev.angles);
 		Vector roofCheckR = roof.pev.origin + g_Engine.v_right*128;
-		Vector roofCheckL = roof.pev.origin + -g_Engine.v_right*128;
+		Vector roofCheckL = roof.pev.origin + g_Engine.v_right*-128;
 		Vector wallCheckR = roof.pev.origin + g_Engine.v_right*64 + Vector(0,0,-192);
-		Vector wallCheckL = roof.pev.origin + -g_Engine.v_right*64 + Vector(0,0,-192);
-		
+		Vector wallCheckL = roof.pev.origin + g_Engine.v_right*-64 + Vector(0,0,-192);
 		
 		CBaseEntity@ wallR = getPartAtPos(wallCheckR);
 		bool hasWallR = wallR !is null and 
@@ -954,6 +994,9 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 		} else if (hasWallR and !hasRoofR) {
 			CBaseEntity@ copy_ent = g_EntityFuncs.FindEntityByTargetname(null, "b_roof_wall_right");
 			brushModel = copy_ent.pev.model;
+		} else {
+			CBaseEntity@ copy_ent = g_EntityFuncs.FindEntityByTargetname(null, "b_roof");
+			brushModel = copy_ent.pev.model;
 		}
 		
 		int oldcolormap = roof.pev.colormap;
@@ -962,7 +1005,8 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 	}
 	
 	void Build()
-	{		
+	{
+		PlayerState@ state = getPlayerState(getPlayer());
 		if (buildEnt !is null and forbidden)
 		{
 			g_PlayerFuncs.PrintKeyBindingString(getPlayer(), "Building blocked by tool cupboard");
@@ -1002,7 +1046,6 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 					newModel = "b_metal_door_unlock";
 				if (attachEnt.pev.colormap == B_LADDER_HATCH)
 					newModel = "b_ladder_hatch_door_unlock";
-				println("SET NEW MODEL: " + newModel);
 					
 				CBaseEntity@ copy_ent = g_EntityFuncs.FindEntityByTargetname(null, newModel);
 				
@@ -1047,10 +1090,6 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 			CBaseEntity@ ent = null;
 			if (buildType == B_WOOD_SHUTTERS)
 			{
-				/*
-				keys["rendermode"] = "4";
-				keys["renderamt"] = "255";
-				*/
 				CBaseEntity@ l_shutter = g_EntityFuncs.FindEntityByTargetname(null, "b_wood_shutter_l");
 				keys["origin"] = (buildEnt.pev.origin + g_Engine.v_right*47).ToString();
 				keys["model"] = string(l_shutter.pev.model);
@@ -1079,6 +1118,9 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 				g_build_parts.insertLast(BuildPart(ent, g_part_id, parent));
 				g_build_parts.insertLast(BuildPart(ent2, g_part_id, parent));
 				g_part_id++;
+				
+				state.addPart(ent);
+				state.addPart(ent2);
 			}
 			else
 			{				
@@ -1089,6 +1131,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 				
 				EHandle h_ent = ent;
 				g_build_parts.insertLast(BuildPart(ent, g_part_id++, parent));
+				state.addPart(ent);
 				
 				if (buildType == B_TOOL_CUPBOARD) {
 					g_tool_cupboards.insertLast(h_ent);
@@ -1133,12 +1176,14 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 					CBaseEntity@ ent3 = g_EntityFuncs.CreateEntity("func_ladder", keys, true);	
 					ent3.pev.angles = buildEnt.pev.angles;
 					g_build_parts.insertLast(BuildPart(ent3, g_part_id - 1, g_part_id - 1));
+					
+					state.addPart(ent2);
 				}
 				
 				if (buildSocket == SOCKET_DOORWAY)
 				{
 					ent.pev.vuser1 = buildEnt.pev.angles;
-					ent.pev.vuser2 = buildEnt.pev.angles + Vector(0,-110,0);
+					ent.pev.vuser2 = buildEnt.pev.angles + Vector(0,-95,0);
 					
 					ent.Use(@ent, @ent, USE_TOGGLE, 0.0F); // start door think function (otherwise rotation won't be animated)
 				}

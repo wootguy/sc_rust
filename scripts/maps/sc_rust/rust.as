@@ -35,6 +35,43 @@ class PlayerState
 		}
 		return false;
 	}
+
+	void addPart(CBaseEntity@ part)
+	{
+		part.pev.noise1 = g_EngineFuncs.GetPlayerAuthId( plr.GetEntity().edict() );
+		part.pev.noise2 = plr.GetEntity().pev.netname;
+		numParts++;
+	}
+	
+	// number of points available in the current build zone
+	int maxPoints()
+	{
+		return 100;
+	}
+	
+	// Points exist because of the 500 visibile entity limit. After reserving about 100 for items/players/trees/etc, only
+	// 400 are left for players to build with. If this were split up evenly among 32 players, then each player only
+	// only get ~12 parts to build with. This is too small to be fun, so we created multiple zones separated by mountains.
+	// Each zone can have 500 ents inside, so if players are split up into these zones they will have a lot more freedom.
+	//
+	// Point rules:
+	// 1) 400 max build points per zone. ~100 are reserved for items/players/trees/etc.
+	// 2) Max of 4 players per zone, each getting 75 build points
+	//    2a) New players can still build, but they are counted as raiders and their parts get deteriorate.
+	// 3) Raiders allowed to build 100 things total in enemy zones.
+	//    3a) All raiders share this value, so it could be as bad as 3 parts per raider (32 players and 30 are raiders)
+	//    3b) Raider parts deteriorate quickly, so new raiders can have points to build with
+	//    3c) Raider parts cannot be repaired.
+	//    3d) Raider parts deteriorate faster when near the limit.
+	//			0-25  = 60 minutes
+	//			25-50 = 30 minutes
+	//			50-75 = 10 minutes
+	//			75-90 = 5 minutes
+	//			90-100 = 1 minute
+	// 4) Zone residents can share points with each other to build super bases
+	//    4a) Unsharing is immediate, but if the sharee has already built something, then the sharer has to wait for
+	//        any of the sharee's parts to be destroyed. This can be used to sabotage their base, since they won't have
+	//        the points to repair a gaping hole in their wall.
 }
 
 class BuildPart
@@ -65,7 +102,7 @@ class BuildPart
 			return e.pev.origin.ToString() + '"' + e.pev.angles.ToString() + '"' + e.pev.colormap + '"' +
 				   id + '"' + parent  + '"' + e.pev.button + '"' + e.pev.body + '"' + e.pev.vuser1.ToString() + '"' + 
 				   e.pev.vuser2.ToString() + '"' + e.pev.health + '"' + e.pev.classname + '"' + e.pev.model + '"' +
-				   e.pev.groupinfo;
+				   e.pev.groupinfo + '"' + e.pev.noise1 + '"' + e.pev.noise2 + '"' + e.pev.noise3;
 		}
 		else
 			return "";
@@ -77,10 +114,10 @@ dictionary player_states;
 array<EHandle> g_tool_cupboards;
 array<BuildPart> g_build_parts; // every build structure/item in the map
 
-dictionary g_build_parts_dict;
+dictionary g_part_models;
 float g_tool_cupboard_radius = 512;
 int g_part_id = 0;
-bool debug_mode = false;
+bool debug_mode = true;
 
 int MAX_SAVE_DATA_LENGTH = 1015; // Maximum length of a value saved with trigger_save. Discovered through testing
 
@@ -129,6 +166,62 @@ void MapInit()
 	g_Game.PrecacheModel( "models/woodgibs.mdl" );
 }
 
+void MapActivate()
+{
+	array<string> part_names = {
+		"b_foundation",
+		"b_foundation_tri",
+		"b_wall",
+		"b_doorway",
+		"b_window",
+		"b_low_wall",
+		"b_floor",
+		"b_floor_tri",
+		"b_roof",
+		"b_stairs",
+		"b_stairs_l",
+		"b_foundation_steps",
+		
+		"b_roof_wall_left",
+		"b_roof_wall_right",
+		"b_roof_wall_both",
+		
+		"b_wood_door",
+		"b_metal_door",
+		"b_wood_bars",
+		"b_metal_bars",
+		"b_wood_shutters",
+		"b_code_lock",
+		"b_tool_cupboard",
+		"b_high_wood_wall",
+		"b_high_stone_wall",
+		"b_ladder",
+		"b_ladder_hatch",
+		
+		"b_wood_shutter_r",
+		"b_wood_shutter_l",
+		"b_wood_door_lock",
+		"b_wood_door_unlock",
+		"b_metal_door_unlock",
+		"b_metal_door_lock",
+		"b_ladder_box",
+		"b_ladder_hatch_ladder",
+		"b_ladder_hatch_door",
+		"b_ladder_hatch_door_unlock",
+		"b_ladder_hatch_door_lock",
+	};
+	
+	for (uint i = 0; i < part_names.length(); i++)
+	{
+		CBaseEntity@ copy_ent = g_EntityFuncs.FindEntityByTargetname(null, part_names[i]);
+		if (copy_ent !is null) {
+			g_part_models[string(copy_ent.pev.model)] = part_names[i];
+		}
+		else
+			println("Missing entity: " + part_names[i]);
+	} 
+}
+
 void debug_stability(Vector start, Vector end)
 {
 	if (getPartAtPos(end) !is null)
@@ -137,7 +230,6 @@ void debug_stability(Vector start, Vector end)
 		te_beampoints(start, end, "sprites/laserbeam.spr", 0, 100, 255,1,0,Color(255, 0, 0, 0));
 }
 
-Vector oldSearchPos = Vector(0,0,0);
 bool searchFromFloorPos(Vector pos)
 {
 	string posKey = "" + int(pos.x + 0.5f) + int(pos.y + 0.5f) + int(pos.z + 0.5f);
@@ -170,7 +262,11 @@ bool searchFromFloorPos(Vector pos)
 					searchFromFloorPos(pos + v_forward*128) or
 					searchFromFloorPos(pos + v_forward*-128) or
 					searchFromFloorPos(pos + v_right*128) or
-					searchFromFloorPos(pos + v_right*-128);
+					searchFromFloorPos(pos + v_right*-128) or
+					searchFromFloorPos(pos + v_forward*(64+36.95)) or
+					searchFromFloorPos(pos + v_forward*-(64+36.95)) or
+					searchFromFloorPos(pos + v_right*(64+36.95)) or
+					searchFromFloorPos(pos + v_right*-(64+36.95));
 		}
 		if (part.pev.colormap == B_FLOOR_TRI) {
 			// search for walls underneath or adjacent floors
@@ -186,7 +282,10 @@ bool searchFromFloorPos(Vector pos)
 					searchFromWallPos(pos + Vector(0,0,-128) + v_forward*-36.95) or
 					searchFromFloorPos(pos + v_forward*-73.9) or
 					searchFromFloorPos(pos + v_right*64 + v_forward*36.95) or
-					searchFromFloorPos(pos + v_right*-64 + v_forward*36.95);
+					searchFromFloorPos(pos + v_right*-64 + v_forward*36.95) or
+					searchFromFloorPos(pos + v_forward*-(36.95+64)) or
+					searchFromFloorPos(pos + v_right*87 + v_forward*51) or
+					searchFromFloorPos(pos + v_right*-87 + v_forward*51);
 		}
 	}
 	return false;
@@ -241,8 +340,18 @@ dictionary visited_pos; // used to mark positions as already visited when doing 
 array<EHandle> stability_ents; // list of ents to check for stability
 int wait_stable_check = 0; // frames to wait before next stability check (so broken parts aren't detected)
 
-void propogate_part_destruction(CBaseEntity@ ent)
+void checkStabilityEnt(EHandle ent)
 {
+	for (uint i = 0; i < stability_ents.length(); i++)
+	{
+		if (stability_ents[i] and stability_ents[i].GetEntity().entindex() == ent.GetEntity().entindex())
+			return;
+	}
+	stability_ents.insertLast(ent);
+}
+
+void propogate_part_destruction(CBaseEntity@ ent)
+{	
 	int type = ent.pev.colormap;
 	int socket = socketType(type);
 	Vector pos = ent.pev.origin;
@@ -265,19 +374,19 @@ void propogate_part_destruction(CBaseEntity@ ent)
 		EHandle tri4 = getPartAtPos(pos + g_Engine.v_forward*-(64+36.95));
 		EHandle middle = getPartAtPos(pos + Vector(0,0,64));
 		
-		if (steps1) stability_ents.insertLast(steps1);
-		if (steps2) stability_ents.insertLast(steps2);
-		if (steps3) stability_ents.insertLast(steps3);
-		if (steps4) stability_ents.insertLast(steps4);
-		if (wall1) stability_ents.insertLast(wall1);
-		if (wall2) stability_ents.insertLast(wall2);
-		if (wall3) stability_ents.insertLast(wall3);
-		if (wall4) stability_ents.insertLast(wall4);
-		if (middle) stability_ents.insertLast(middle);
-		if (tri1) stability_ents.insertLast(tri1);
-		if (tri2) stability_ents.insertLast(tri2);
-		if (tri3) stability_ents.insertLast(tri3);
-		if (tri4) stability_ents.insertLast(tri4);
+		if (steps1) checkStabilityEnt(steps1);
+		if (steps2) checkStabilityEnt(steps2);
+		if (steps3) checkStabilityEnt(steps3);
+		if (steps4) checkStabilityEnt(steps4);
+		if (wall1) checkStabilityEnt(wall1);
+		if (wall2) checkStabilityEnt(wall2);
+		if (wall3) checkStabilityEnt(wall3);
+		if (wall4) checkStabilityEnt(wall4);
+		if (middle) checkStabilityEnt(middle);
+		if (tri1) checkStabilityEnt(tri1);
+		if (tri2) checkStabilityEnt(tri2);
+		if (tri3) checkStabilityEnt(tri3);
+		if (tri4) checkStabilityEnt(tri4);
 	}
 	if (type == B_FOUNDATION_TRI or type == B_FLOOR_TRI)
 	{
@@ -291,9 +400,9 @@ void propogate_part_destruction(CBaseEntity@ ent)
 			EHandle steps1 = getPartAtPos(pos + g_Engine.v_forward*-(36.95+64));
 			EHandle steps2 = getPartAtPos(pos + g_Engine.v_right*87 + g_Engine.v_forward*51);
 			EHandle steps3 = getPartAtPos(pos + g_Engine.v_right*-87 + g_Engine.v_forward*51);
-			if (steps1) stability_ents.insertLast(steps1);
-			if (steps2) stability_ents.insertLast(steps2);
-			if (steps3) stability_ents.insertLast(steps3);
+			if (steps1) checkStabilityEnt(steps1);
+			if (steps2) checkStabilityEnt(steps2);
+			if (steps3) checkStabilityEnt(steps3);
 		}
 		if (type == B_FLOOR_TRI)
 		{
@@ -305,17 +414,17 @@ void propogate_part_destruction(CBaseEntity@ ent)
 			EHandle floor4 = getPartAtPos(pos + g_Engine.v_forward*-(36.95+64));
 			EHandle floor5 = getPartAtPos(pos + g_Engine.v_right*87 + g_Engine.v_forward*51);
 			EHandle floor6 = getPartAtPos(pos + g_Engine.v_right*-87 + g_Engine.v_forward*51);
-			if (floor1) stability_ents.insertLast(floor1);
-			if (floor2) stability_ents.insertLast(floor2);
-			if (floor3) stability_ents.insertLast(floor3);
-			if (floor4) stability_ents.insertLast(floor4);
-			if (floor5) stability_ents.insertLast(floor5);
-			if (floor6) stability_ents.insertLast(floor6);
+			if (floor1) checkStabilityEnt(floor1);
+			if (floor2) checkStabilityEnt(floor2);
+			if (floor3) checkStabilityEnt(floor3);
+			if (floor4) checkStabilityEnt(floor4);
+			if (floor5) checkStabilityEnt(floor5);
+			if (floor6) checkStabilityEnt(floor6);
 		}
 		
-		if (wall1) stability_ents.insertLast(wall1);
-		if (wall2) stability_ents.insertLast(wall2);
-		if (wall3) stability_ents.insertLast(wall3);
+		if (wall1) checkStabilityEnt(wall1);
+		if (wall2) checkStabilityEnt(wall2);
+		if (wall3) checkStabilityEnt(wall3);
 	}
 	if (socket == SOCKET_WALL)
 	{
@@ -346,30 +455,30 @@ void propogate_part_destruction(CBaseEntity@ ent)
 		EHandle floor5 = getPartAtPos(pos + g_Engine.v_forward*36.95);
 		EHandle floor6 = getPartAtPos(pos + g_Engine.v_forward*-36.95);
 
-		if (wall1) stability_ents.insertLast(wall1);
-		if (wall2) stability_ents.insertLast(wall2);
-		if (wall3) stability_ents.insertLast(wall3);
-		if (wall4) stability_ents.insertLast(wall4);
-		if (wall5) stability_ents.insertLast(wall5);
-		if (wall6) stability_ents.insertLast(wall6);
-		if (wall7) stability_ents.insertLast(wall7);
-		if (wall8) stability_ents.insertLast(wall8);
-		if (wall9) stability_ents.insertLast(wall9);
-		if (wall10) stability_ents.insertLast(wall10);
-		if (wall11) stability_ents.insertLast(wall11);
-		if (wall12) stability_ents.insertLast(wall12);
-		if (floor1) stability_ents.insertLast(floor1);
-		if (floor2) stability_ents.insertLast(floor2);
-		if (floor3) stability_ents.insertLast(floor3);
-		if (floor4) stability_ents.insertLast(floor4);
-		if (floor5) stability_ents.insertLast(floor5);
-		if (floor6) stability_ents.insertLast(floor6);
-		if (roof1) stability_ents.insertLast(roof1);
-		if (roof2) stability_ents.insertLast(roof2);
-		if (tri1) stability_ents.insertLast(tri1);
-		if (tri2) stability_ents.insertLast(tri2);
-		if (tri3) stability_ents.insertLast(tri3);
-		if (tri4) stability_ents.insertLast(tri4);
+		if (wall1) checkStabilityEnt(wall1);
+		if (wall2) checkStabilityEnt(wall2);
+		if (wall3) checkStabilityEnt(wall3);
+		if (wall4) checkStabilityEnt(wall4);
+		if (wall5) checkStabilityEnt(wall5);
+		if (wall6) checkStabilityEnt(wall6);
+		if (wall7) checkStabilityEnt(wall7);
+		if (wall8) checkStabilityEnt(wall8);
+		if (wall9) checkStabilityEnt(wall9);
+		if (wall10) checkStabilityEnt(wall10);
+		if (wall11) checkStabilityEnt(wall11);
+		if (wall12) checkStabilityEnt(wall12);
+		if (floor1) checkStabilityEnt(floor1);
+		if (floor2) checkStabilityEnt(floor2);
+		if (floor3) checkStabilityEnt(floor3);
+		if (floor4) checkStabilityEnt(floor4);
+		if (floor5) checkStabilityEnt(floor5);
+		if (floor6) checkStabilityEnt(floor6);
+		if (roof1) checkStabilityEnt(roof1);
+		if (roof2) checkStabilityEnt(roof2);
+		if (tri1) checkStabilityEnt(tri1);
+		if (tri2) checkStabilityEnt(tri2);
+		if (tri3) checkStabilityEnt(tri3);
+		if (tri4) checkStabilityEnt(tri4);
 	}
 	
 	// destroy objects parented to this one
@@ -405,6 +514,9 @@ void propogate_part_destruction(CBaseEntity@ ent)
 
 void part_broken(CBaseEntity@ pActivator, CBaseEntity@ pCaller, USE_TYPE useType, float flValue)
 {
+	PlayerState@ state = getPlayerStateBySteamID(pCaller.pev.noise1, pCaller.pev.noise2);
+	if (state !is null)
+		state.numParts--;
 	propogate_part_destruction(pCaller);
 }
 
@@ -673,15 +785,6 @@ void inventoryCheck()
 				openCraftMenu(plr, "");
 				println("OPEN MENU");
 			}
-			/*
-			if (e_plr.pev.button & IN_CANCEL != 0) {
-				println("FAST");
-				plr.pev.speed = plr.pev.maxspeed = 1000;
-			} else {
-				println("BAD");
-				plr.pev.speed = plr.pev.maxspeed = 100;
-			}
-			*/
 		}
 	} while(e_plr !is null);
 }
@@ -1197,7 +1300,7 @@ void loadPart(int idx)
 	if (data.Length() > 0) {
 		array<string> values = data.Split('"');
 		
-		if (values.length() == 13) {
+		if (values.length() == 16) {
 			println("Loading part " + idx);
 			Vector origin = parseVector(values[0]);
 			Vector angles = parseVector(values[1]);
@@ -1212,6 +1315,9 @@ void loadPart(int idx)
 			string classname = values[10];
 			string model = values[11];
 			int groupinfo = atoi( values[12] );
+			string steamid = values[13];
+			string netname = values[14];
+			string code = values[15];
 			
 			dictionary keys;
 			keys["origin"] = origin.ToString();
@@ -1249,7 +1355,16 @@ void loadPart(int idx)
 			ent.pev.vuser1 = vuser1;
 			ent.pev.vuser2 = vuser2;
 			ent.pev.groupinfo = groupinfo;
+			ent.pev.noise1 = steamid;
+			ent.pev.noise2 = netname;
+			ent.pev.noise3 = code;
 			ent.pev.team = id;
+			
+			PlayerState@ state = getPlayerStateBySteamID(steamid, netname);
+			if (state !is null)
+			{
+				state.numParts++;
+			}
 			
 			if (classname == "func_door_rotating")
 			{

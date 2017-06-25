@@ -249,6 +249,12 @@ array<EHandle> getPartsByParent(int parent)
 	return ents;
 }
 
+string getModelName(CBaseEntity@ part)
+{
+	string model;
+	g_part_models.get(string(part.pev.model), model);
+	return model;
+}
 
 // which type of part does this part attach to?
 int socketType(int partType)
@@ -296,6 +302,11 @@ bool isFloorPiece(CBaseEntity@ ent)
 	int type = ent.pev.colormap;
 	return type == B_FOUNDATION or type == B_FLOOR or type == B_FOUNDATION_TRI or type == B_FLOOR_TRI or
 			(type == B_LADDER_HATCH and ent.pev.classname == "func_breakable");
+}
+
+bool isFloorItem(CBaseEntity@ ent)
+{
+	return ent.pev.colormap == B_TOOL_CUPBOARD;
 }
 
 bool canPlaceOnTerrain(int partType)
@@ -441,7 +452,7 @@ float collisionSA(CBaseEntity@ b1, CBaseEntity@ b2)
 	
 	Vector fix3 = Vector(fix.x, fix.y, 0);
 	
-	if (abs(overlap) > 9.9f)
+	if (debug_mode and abs(overlap) > 9.9f)
 	{
 		for (uint i = 0; i < b1Verts.length(); i++)
 		{
@@ -463,20 +474,106 @@ float collisionSA(CBaseEntity@ b1, CBaseEntity@ b2)
 	return overlap;
 }
 
+// special roof collision
+bool objectThroughRoof(CBaseEntity@ roof, CBaseEntity@ obj)
+{
+	Vector pos = obj.pev.origin;
+	Vector mins = obj.pev.mins;
+	Vector maxs = obj.pev.maxs;
+	
+	g_EngineFuncs.MakeVectors(obj.pev.angles);
+	
+	array<Vector> verts;
+	verts.insertLast(pos + g_Engine.v_forward*mins.x + g_Engine.v_right*mins.y + g_Engine.v_up*mins.z);
+	verts.insertLast(pos + g_Engine.v_forward*mins.x + g_Engine.v_right*mins.y + g_Engine.v_up*maxs.z);
+	verts.insertLast(pos + g_Engine.v_forward*mins.x + g_Engine.v_right*maxs.y + g_Engine.v_up*mins.z);
+	verts.insertLast(pos + g_Engine.v_forward*mins.x + g_Engine.v_right*maxs.y + g_Engine.v_up*maxs.z);
+	verts.insertLast(pos + g_Engine.v_forward*maxs.x + g_Engine.v_right*mins.y + g_Engine.v_up*mins.z);
+	verts.insertLast(pos + g_Engine.v_forward*maxs.x + g_Engine.v_right*mins.y + g_Engine.v_up*maxs.z);
+	verts.insertLast(pos + g_Engine.v_forward*maxs.x + g_Engine.v_right*maxs.y + g_Engine.v_up*mins.z);
+	verts.insertLast(pos + g_Engine.v_forward*maxs.x + g_Engine.v_right*maxs.y + g_Engine.v_up*maxs.z);
+
+	
+	g_EngineFuncs.MakeVectors(roof.pev.angles);
+	Vector plane = roof.pev.origin;
+	Vector normal = (g_Engine.v_forward + g_Engine.v_up).Normalize(); // roof is at perfectly 45 deg angle
+	
+	te_beampoints(plane + normal*-64, plane + normal*64, "sprites/laserbeam.spr", 0, 100, 1, 1, 0, PURPLE);
+	 
+	int sign = 0;
+	for (int i = 0; i < int(verts.length()); i++)
+	{
+		float dist = DotProduct(normal, verts[i] - plane);
+		sign += dist >= 0 ? 1 : -1;
+	}
+		
+	// were all points on one side of the plane?
+	if (abs(sign) != int(verts.length()))
+		return true;
+		
+	string model = getModelName(roof);
+	if (model.Find("roof_wall_left") >= 0 or model.Find("roof_wall_both") >= 0)
+	{
+		plane = roof.pev.origin + g_Engine.v_right*64;
+		normal = (g_Engine.v_right).Normalize();
+		sign = 0;
+		for (int i = 0; i < int(verts.length()); i++)
+		{
+			float dist = DotProduct(normal, verts[i] - plane);
+			sign += dist >= 0 ? 1 : -1;
+		}
+		if (abs(sign) != int(verts.length()))
+			return true;
+	}
+	if (model.Find("roof_wall_right") >= 0 or model.Find("roof_wall_both") >= 0)
+	{
+		plane = roof.pev.origin + g_Engine.v_right*-64;
+		normal = (-g_Engine.v_right).Normalize();
+		sign = 0;
+		for (int i = 0; i < int(verts.length()); i++)
+		{
+			float dist = DotProduct(normal, verts[i] - plane);
+			sign += dist >= 0 ? 1 : -1;
+		}
+		if (abs(sign) != int(verts.length()))
+			return true;
+	}
+	
+		
+	// now check against roof side walls, if any exist
+	return false;
+}
+
 // collision between 2 oriented 3D boxes. Only boxes rotated on the yaw axis are allows
 float collisionBoxesYaw(CBaseEntity@ b1, CBaseEntity@ b2) {
 	// check vertical collision first
 	
 	float b1zmin = b1.pev.mins.z;
-	if (b1.pev.colormap == B_LADDER_HATCH)
-		b1zmin = -4;
 	
 	// 1 added since bounding box is larger than it should be
-	float min1 = b1.pev.origin.z + b1zmin;
+	float min1 = b1.pev.origin.z + b1.pev.mins.z;
 	float min2 = b2.pev.origin.z + b2.pev.mins.z;
 	float max1 = b1.pev.origin.z + b1.pev.maxs.z;
 	float max2 = b2.pev.origin.z + b2.pev.maxs.z;
 	
+	if (b1.pev.colormap == B_LADDER_HATCH)
+		min1 = b1.pev.origin.z - 4;
+		
+	if (b1.pev.colormap == B_ROOF and isFloorItem(b2))
+		return objectThroughRoof(b1, b2) ? 1000 : 0;
+	if (b2.pev.colormap == B_ROOF and isFloorItem(b1))
+		return objectThroughRoof(b2, b1) ? 1000 : 0;
+		
+	if (b1.pev.colormap == B_ROOF)
+	{
+		min1 = b1.pev.origin.z - 60;
+		max1 = b1.pev.origin.z + 60;
+	}
+	if (b2.pev.colormap == B_ROOF)
+	{
+		min2 = b2.pev.origin.z - 60;
+		max2 = b2.pev.origin.z + 60;
+	}
 	
 	if (max1 > min2 and min1 < max2)
 	{	
@@ -543,6 +640,19 @@ PlayerState@ getPlayerState(CBasePlayer@ plr)
 		player_states[steamId] = state;
 	}
 	return cast<PlayerState@>( player_states[steamId] );
+}
+
+PlayerState@ getPlayerStateBySteamID(string steamId, string netname)
+{
+	if (steamId == 'STEAM_ID_LAN') {
+		steamId = netname;
+	}
+	
+	if ( player_states.exists(steamId) )
+	{
+		return cast<PlayerState@>( player_states[steamId] );
+	}
+	return null;
 }
 
 void PrecacheSound(string snd)
