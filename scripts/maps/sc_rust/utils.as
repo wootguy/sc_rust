@@ -195,7 +195,7 @@ CBaseEntity@ getPartAtPos(Vector pos, float dist=2)
 	CBaseEntity@ ent = null;
 	do {
 		@ent = g_EntityFuncs.FindEntityInSphere(ent, pos, dist, "*", "classname"); // faster than dist^2 checks in AS
-		if (ent !is null and ent.IsBSPModel())
+		if (ent !is null and ent.pev.classname == "func_breakable")
 		{
 			return ent;
 		}
@@ -256,6 +256,88 @@ string getModelName(CBaseEntity@ part)
 	return model;
 }
 
+string getModelSize(CBaseEntity@ part)
+{
+	string modelName = getModelName(part);
+	if (int(modelName.Find("_1x2")) > 0) return "_1x2";
+	if (int(modelName.Find("_1x3")) > 0) return "_1x3";
+	if (int(modelName.Find("_1x4")) > 0) return "_1x4";
+	if (int(modelName.Find("_2x1")) > 0) return "_2x1";
+	if (int(modelName.Find("_2x2")) > 0) return "_2x2";
+	if (int(modelName.Find("_3x1")) > 0) return "_3x1";
+	if (int(modelName.Find("_4x1")) > 0) return "_4x1";
+	
+	return "_1x1";
+}
+
+string getMaterialType(CBaseEntity@ ent)
+{
+	string material = "_twig";
+	string modelName = getModelName(ent);
+	if (int(modelName.Find("_wood")) > 0)
+		material = "_wood";
+	if (int(modelName.Find("_stone")) > 0)
+		material = "_stone";
+	if (int(modelName.Find("_metal")) > 0)
+		material = "_metal";
+	if (int(modelName.Find("_armor")) > 0)
+		material = "_armor";
+		
+	return material;
+}
+
+int getModelSizei(CBaseEntity@ part)
+{
+	string modelName = getModelName(part);
+	if (int(modelName.Find("_1x2")) > 0) return 2;
+	if (int(modelName.Find("_1x3")) > 0) return 3;
+	if (int(modelName.Find("_1x4")) > 0) return 4;
+	if (int(modelName.Find("_2x1")) > 0) return 2;
+	if (int(modelName.Find("_2x2")) > 0) return 4;
+	if (int(modelName.Find("_3x1")) > 0) return 3;
+	if (int(modelName.Find("_4x1")) > 0) return 4;
+	return 1;
+}
+
+CBaseEntity@ respawnPart(int id)
+{
+	for (uint i = 0; i < g_build_parts.size(); i++)
+	{	
+		CBaseEntity@ part = g_build_parts[i].ent;
+		if (part !is null and g_build_parts[i].id == id) 
+		{
+			dictionary keys;
+			keys["origin"] = part.pev.origin.ToString();
+			keys["model"] = string(part.pev.model);
+			keys["material"] = "1";
+			keys["target"] = "break_part_script";
+			keys["fireonbreak"] = "break_part_script";
+			keys["rendermode"] = "" + part.pev.rendermode;
+			keys["renderamt"] = "" + part.pev.renderamt;
+			
+			CBaseEntity@ ent = g_EntityFuncs.CreateEntity(part.pev.classname, keys, true);
+			ent.pev.angles = part.pev.angles;
+			ent.pev.team = part.pev.team;
+			ent.pev.button = part.pev.button;
+			ent.pev.body = part.pev.body;
+			ent.pev.vuser1 = part.pev.vuser1;
+			ent.pev.vuser2 = part.pev.vuser2;
+			ent.pev.groupinfo = part.pev.groupinfo;
+			ent.pev.noise1 = part.pev.noise1;
+			ent.pev.noise2 = part.pev.noise2;
+			ent.pev.noise3 = part.pev.noise3;
+			ent.pev.health = part.pev.health;
+			ent.pev.max_health = part.pev.max_health;
+			ent.pev.colormap = part.pev.colormap;
+			
+			g_EntityFuncs.Remove(part);
+			g_build_parts[i].ent = ent;
+			return @ent;
+		}
+	}
+	return null;
+}
+
 // which type of part does this part attach to?
 int socketType(int partType)
 {				
@@ -309,11 +391,66 @@ bool isFloorItem(CBaseEntity@ ent)
 	return ent.pev.colormap == B_TOOL_CUPBOARD;
 }
 
+bool isUpgradable(CBaseEntity@ ent)
+{
+	int type = ent.pev.colormap;
+	int socket = socketType(type);
+	return ent.pev.classname == "func_breakable" and socket != SOCKET_WINDOW and type != B_LADDER_HATCH and
+			type != B_LADDER and socket != SOCKET_HIGH_WALL and !isFloorItem(ent);
+}
+
 bool canPlaceOnTerrain(int partType)
 {
 	return partType == B_HIGH_WOOD_WALL or partType == B_HIGH_STONE_WALL or partType == B_FOUNDATION;
 }
 
+void updateRoofWalls(CBaseEntity@ roof)
+{
+	if (roof is null)
+		return;
+	// put walls under roofs when there are no adjacent roofs and there is a wall underneath one/both edges
+	string brushModel = roof.pev.model;
+	g_EngineFuncs.MakeVectors(roof.pev.angles);
+	Vector roofCheckR = roof.pev.origin + g_Engine.v_right*128;
+	Vector roofCheckL = roof.pev.origin + g_Engine.v_right*-128;
+	Vector wallCheckR = roof.pev.origin + g_Engine.v_right*64 + Vector(0,0,-192);
+	Vector wallCheckL = roof.pev.origin + g_Engine.v_right*-64 + Vector(0,0,-192);
+	
+	CBaseEntity@ wallR = getPartAtPos(wallCheckR);
+	bool hasWallR = wallR !is null and 
+				(wallR.pev.colormap == B_WALL or wallR.pev.colormap == B_WINDOW or wallR.pev.colormap == B_DOORWAY);
+
+	CBaseEntity@ wallL = getPartAtPos(wallCheckL);
+	bool hasWallL = wallL !is null and 
+				(wallL.pev.colormap == B_WALL or wallL.pev.colormap == B_WINDOW or wallL.pev.colormap == B_DOORWAY);
+
+	CBaseEntity@ roofR = getPartAtPos(roofCheckR);
+	bool hasRoofR = roofR !is null and roofR.pev.colormap == B_ROOF;
+		
+	CBaseEntity@ roofL = getPartAtPos(roofCheckL);
+	bool hasRoofL = roofL !is null and roofL.pev.colormap == B_ROOF;
+	
+	string material = getMaterialType(roof);
+	
+	if (hasWallL and hasWallR and !hasRoofL and !hasRoofR) {
+		CBaseEntity@ copy_ent = g_EntityFuncs.FindEntityByTargetname(null, "b_roof_wall_both" + material);
+		brushModel = copy_ent.pev.model;
+	} else if (hasWallL and !hasRoofL) {
+		CBaseEntity@ copy_ent = g_EntityFuncs.FindEntityByTargetname(null, "b_roof_wall_left" + material);
+		brushModel = copy_ent.pev.model;
+	} else if (hasWallR and !hasRoofR) {
+		CBaseEntity@ copy_ent = g_EntityFuncs.FindEntityByTargetname(null, "b_roof_wall_right" + material);
+		brushModel = copy_ent.pev.model;
+	} else {
+		CBaseEntity@ copy_ent = g_EntityFuncs.FindEntityByTargetname(null, "b_roof" + material);
+		brushModel = copy_ent.pev.model;
+	}
+	
+	int oldcolormap = roof.pev.colormap;
+	g_EntityFuncs.SetModel(roof, brushModel);
+	roof.pev.colormap = oldcolormap;
+}
+	
 bool forbiddenByCupboard(CBasePlayer@ plr, Vector buildPos)
 {
 	for (uint i = 0; i < g_tool_cupboards.length(); i++)
@@ -336,15 +473,90 @@ bool forbiddenByCupboard(CBasePlayer@ plr, Vector buildPos)
 	return false;
 }
 
-TraceResult TraceLook(CBasePlayer@ plr, float dist)
+TraceResult TraceLook(CBasePlayer@ plr, float dist=128, bool bigHull=false)
 {
 	Vector vecSrc = plr.GetGunPosition();
 	Math.MakeVectors( plr.pev.v_angle ); // todo: monster angles
 	
 	TraceResult tr;
 	Vector vecEnd = vecSrc + g_Engine.v_forward * dist;
-	g_Utility.TraceLine( vecSrc, vecEnd, dont_ignore_monsters, plr.edict(), tr );
+	if (bigHull)
+		g_Utility.TraceHull( vecSrc, vecEnd, dont_ignore_monsters, head_hull, plr.edict(), tr );
+	else
+		g_Utility.TraceLine( vecSrc, vecEnd, dont_ignore_monsters, plr.edict(), tr );
 	return tr;
+}
+
+
+// actual center of the part, not the origin
+Vector getCentroid(CBaseEntity@ ent)
+{
+	array<Vector2D> verts = getBoundingVerts2D(ent);
+	Vector2D centroid2D;
+	for (uint i = 0; i < verts.length(); i++)
+	{
+		centroid2D = centroid2D + verts[i];
+	}
+	centroid2D = centroid2D / verts.length();
+	Vector centroid = Vector(centroid2D.x, centroid2D.y, 0);
+	centroid.z = ent.pev.origin.z + ((ent.pev.mins.z + ent.pev.maxs.z) / 2);
+	return centroid;
+	
+}
+
+array<Vector2D> getBoundingVerts2D(CBaseEntity@ ent)
+{
+	// counter-clockwise starting at back right vertex
+	array<Vector2D> verts;
+	g_EngineFuncs.MakeVectors(ent.pev.angles);
+	Vector2D ori = Vector2D(ent.pev.origin.x, ent.pev.origin.y);
+	Vector2D v_forward = Vector2D(g_Engine.v_forward.x, g_Engine.v_forward.y);
+	Vector2D v_right = Vector2D(g_Engine.v_right.x, g_Engine.v_right.y);
+	verts.insertLast(ori + v_right*-ent.pev.maxs.y + v_forward*ent.pev.mins.x);
+	verts.insertLast(ori + v_right*-ent.pev.mins.y + v_forward*ent.pev.mins.x);
+	if (isTriangular(ent))
+	{
+		string size = getModelSize(ent);
+		if (size == "_1x1")
+		{
+			verts.insertLast(ori + v_forward*ent.pev.maxs.x + v_right*-(ent.pev.maxs.y + ent.pev.mins.y));
+		}
+		else if (size == "_2x2")
+		{
+			verts.insertLast(ori + v_forward*ent.pev.maxs.x + v_right*64);
+		}
+		else if (size == "_2x1")
+		{
+			verts[1] = ori + v_forward*ent.pev.mins.x + v_right*64;
+			verts.insertLast(ori + v_forward*ent.pev.maxs.x + v_right*128);
+			verts.insertLast(ori + v_forward*ent.pev.maxs.x);
+		}
+		else if (size == "_3x1")
+		{
+			verts[1] = ori + v_forward*ent.pev.mins.x + v_right*192;
+			verts.insertLast(ori + v_forward*ent.pev.maxs.x + v_right*128);
+			verts.insertLast(ori + v_forward*ent.pev.maxs.x);
+		}
+		else if (size == "_4x1")
+		{
+			verts[1] = ori + v_forward*ent.pev.mins.x + v_right*192;
+			verts.insertLast(ori + v_forward*ent.pev.maxs.x + v_right*256);
+			verts.insertLast(ori + v_forward*ent.pev.maxs.x);
+		}
+		else if (size == "_1x4")
+		{
+			verts[0] = ori + v_forward*ent.pev.mins.x + v_right*-192;
+			verts[1] = ori + v_forward*ent.pev.mins.x + v_right*64;
+			verts.insertLast(ori + v_forward*ent.pev.maxs.x);
+			verts.insertLast(ori + v_forward*ent.pev.maxs.x + v_right*-256);
+		}
+	}
+	else
+	{
+		verts.insertLast(ori + v_right*-ent.pev.mins.y + v_forward*ent.pev.maxs.x);
+		verts.insertLast(ori + v_right*-ent.pev.maxs.y + v_forward*ent.pev.maxs.x);
+	}
+	return verts;
 }
 
 // collision between 2 oriented 2D boxes using the separating axis theorem 
@@ -361,34 +573,10 @@ float collisionSA(CBaseEntity@ b1, CBaseEntity@ b2)
 		b2Angles.y += 180;
 	
 	// counter-clockwise starting at back right vertex
-	array<Vector2D> b1Verts;
-	g_EngineFuncs.MakeVectors(b1Angles);
-	Vector2D v_forward = Vector2D(g_Engine.v_forward.x, g_Engine.v_forward.y);
-	Vector2D v_right = Vector2D(g_Engine.v_right.x, g_Engine.v_right.y);
-	b1Verts.insertLast(b1Ori + v_right*b1.pev.maxs.y + v_forward*b1.pev.mins.x);
-	b1Verts.insertLast(b1Ori + v_right*b1.pev.mins.y + v_forward*b1.pev.mins.x);
-	if (isTriangular(b1))
-		b1Verts.insertLast(b1Ori + v_forward*b1.pev.maxs.x);
-	else
-	{
-		b1Verts.insertLast(b1Ori + v_right*b1.pev.mins.y + v_forward*b1.pev.maxs.x);
-		b1Verts.insertLast(b1Ori + v_right*b1.pev.maxs.y + v_forward*b1.pev.maxs.x);
-	}
+	array<Vector2D> b1Verts = getBoundingVerts2D(b1);
 
-	// counter-clockwise starting at back right vertex
-	array<Vector2D> b2Verts;
-	g_EngineFuncs.MakeVectors(b2Angles);
-	v_forward = Vector2D(g_Engine.v_forward.x, g_Engine.v_forward.y);
-	v_right = Vector2D(g_Engine.v_right.x, g_Engine.v_right.y);
-	b2Verts.insertLast(b2Ori + v_right*b2.pev.maxs.y + v_forward*b2.pev.mins.x);
-	b2Verts.insertLast(b2Ori + v_right*b2.pev.mins.y + v_forward*b2.pev.mins.x);
-	if (isTriangular(b2))
-		b2Verts.insertLast(b2Ori + v_forward*b2.pev.maxs.x);
-	else
-	{
-		b2Verts.insertLast(b2Ori + v_right*b2.pev.mins.y + v_forward*b2.pev.maxs.x);
-		b2Verts.insertLast(b2Ori + v_right*b2.pev.maxs.y + v_forward*b2.pev.maxs.x);
-	}
+	
+	array<Vector2D> b2Verts = getBoundingVerts2D(b2);
 	
 	int b1NumVerts = b1Verts.length();
 	int b2NumVerts = b2Verts.length();
@@ -467,8 +655,6 @@ float collisionSA(CBaseEntity@ b1, CBaseEntity@ b2)
 		
 		te_beampoints(b1.pev.origin + Vector(0,0,64), b1.pev.origin + Vector(0,0,64) + fix3.Normalize()*overlap);
 		te_beampoints(b1.pev.origin, b2.pev.origin);
-		
-		
 	}
 	
 	return overlap;
@@ -492,7 +678,6 @@ bool objectThroughRoof(CBaseEntity@ roof, CBaseEntity@ obj)
 	verts.insertLast(pos + g_Engine.v_forward*maxs.x + g_Engine.v_right*mins.y + g_Engine.v_up*maxs.z);
 	verts.insertLast(pos + g_Engine.v_forward*maxs.x + g_Engine.v_right*maxs.y + g_Engine.v_up*mins.z);
 	verts.insertLast(pos + g_Engine.v_forward*maxs.x + g_Engine.v_right*maxs.y + g_Engine.v_up*maxs.z);
-
 	
 	g_EngineFuncs.MakeVectors(roof.pev.angles);
 	Vector plane = roof.pev.origin;
@@ -511,6 +696,7 @@ bool objectThroughRoof(CBaseEntity@ roof, CBaseEntity@ obj)
 	if (abs(sign) != int(verts.length()))
 		return true;
 		
+	// now check against roof side walls, if any exist
 	string model = getModelName(roof);
 	if (model.Find("roof_wall_left") >= 0 or model.Find("roof_wall_both") >= 0)
 	{
@@ -539,18 +725,15 @@ bool objectThroughRoof(CBaseEntity@ roof, CBaseEntity@ obj)
 			return true;
 	}
 	
-		
-	// now check against roof side walls, if any exist
 	return false;
 }
 
-// collision between 2 oriented 3D boxes. Only boxes rotated on the yaw axis are allows
-float collisionBoxesYaw(CBaseEntity@ b1, CBaseEntity@ b2) {
+// collision between 2 oriented 3D boxes. Only boxes rotated on the yaw axis are allowed
+float collisionBoxesYaw(CBaseEntity@ b1, CBaseEntity@ b2) 
+{
 	// check vertical collision first
-	
 	float b1zmin = b1.pev.mins.z;
 	
-	// 1 added since bounding box is larger than it should be
 	float min1 = b1.pev.origin.z + b1.pev.mins.z;
 	float min2 = b2.pev.origin.z + b2.pev.mins.z;
 	float max1 = b1.pev.origin.z + b1.pev.maxs.z;

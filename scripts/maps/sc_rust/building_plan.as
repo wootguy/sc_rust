@@ -183,9 +183,9 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 		info.iMaxAmmo1 	= 20;
 		info.iMaxAmmo2 	= -1;
 		info.iMaxClip 	= 0;
-		info.iSlot 		= 3;
+		info.iSlot 		= 0;
 		info.iPosition 	= 6;
-		info.iFlags 	= 0;
+		info.iFlags 	= 6;
 		info.iWeight 	= 5;
 		
 		return true;
@@ -227,26 +227,22 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 		}
 		
 		TraceResult look = TraceLook(getPlayer(), 280);
-		
-		CBaseEntity@ copy_ent = g_EntityFuncs.FindEntityByTargetname(null, g_part_info[buildType].copy_ent);
+		string suffix = alternateBuild ? "" : "_twig";
+		CBaseEntity@ copy_ent = g_EntityFuncs.FindEntityByTargetname(null, g_part_info[buildType].copy_ent + suffix);
 		
 		dictionary keys;
-		keys["origin"] = look.vecEndPos.ToString();
+		keys["origin"] = (look.vecEndPos + Vector(0,0,16)).ToString();
 		keys["model"] = string(copy_ent.pev.model);
 		keys["rendermode"] = "1";
 		keys["renderamt"] = "128";
 		keys["rendercolor"] = "0 255 255";
 		keys["colormap"] = "" + buildType;
 			
-		CBaseEntity@ ent = g_EntityFuncs.CreateEntity("func_illusionary", keys, false);	
-		g_EntityFuncs.DispatchSpawn(ent.edict());
-		@buildEnt = @ent;
+		@buildEnt = g_EntityFuncs.CreateEntity("func_illusionary", keys, true);	
 		
 		keys["rendermode"] = "2";
-		CBaseEntity@ ent2 = g_EntityFuncs.CreateEntity("func_illusionary", keys, false);	
-		g_EntityFuncs.DispatchSpawn(ent2.edict());
-		@buildEnt2 = @ent2;
-		ent2.pev.scale = 0.5f;
+		@buildEnt2 = g_EntityFuncs.CreateEntity("func_illusionary", keys, true);	
+		buildEnt2.pev.scale = 0.5f;
 		
 		g_PlayerFuncs.PrintKeyBindingString(getPlayer(), g_part_info[buildType].title);
 	}
@@ -622,10 +618,12 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 				}
 				else if (attachSocket == SOCKET_WALL and attachType != B_LOW_WALL and buildType == B_ROOF) // roof
 				{
-					Vector front = part.pev.origin + g_Engine.v_forward*64 + Vector(0,0,128);
-					Vector back = part.pev.origin +  g_Engine.v_forward*-64 + Vector(0,0,128);
+					Vector front = part.pev.origin + g_Engine.v_forward*16 + Vector(0,0,128);
+					Vector back = part.pev.origin + g_Engine.v_forward*-16 + Vector(0,0,128);
 					float df = (front - tr.vecEndPos).Length();
 					float db = (back - tr.vecEndPos).Length();
+					
+					//attachDist = 112;
 					
 					if (df > attachDist or db > attachDist)
 						continue;
@@ -636,13 +634,13 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 					minDist = df;
 					if (df < db)
 					{
-						attachOri = front + Vector(0,0,64);
+						attachOri = part.pev.origin + g_Engine.v_forward*64 + Vector(0,0,192);
 						attachYaw = Math.VecToAngles(part.pev.origin - front).y;
 						minDist = df;
 					}
 					else if (db < df)
 					{
-						attachOri = back + Vector(0,0,64);
+						attachOri = part.pev.origin + g_Engine.v_forward*-64 + Vector(0,0,192);
 						attachYaw = Math.VecToAngles(part.pev.origin - back).y;
 						minDist = db;
 					}
@@ -868,7 +866,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 		// check collision
 		CBaseEntity@ ent = null;
 		do {
-			@ent = g_EntityFuncs.FindEntityInSphere(ent, newOri, 300, "*", "classname"); 
+			@ent = g_EntityFuncs.FindEntityInSphere(ent, newOri, 300, "*", "classname");
 			if (ent !is null)
 			{
 				if (ent.entindex() == buildEnt.entindex() or ent.entindex() == buildEnt2.entindex())
@@ -894,7 +892,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 					} 
 				}
 				float overlap = collisionBoxesYaw(buildEnt, ent);
-				if (overlap > 9.9f) {
+				if (overlap > 10.01f) {
 					if (debug_mode)
 						println("BLOCKED BY: " + cname + " overlap " + overlap);
 					validBuild = false;
@@ -935,7 +933,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 				PlayerState@ state = getPlayerState(plr);
 			
 				HUDTextParams params;
-				params.x = 0.6;
+				params.x = 0.8;
 				params.y = 0.88;
 				params.effect = 0;
 				params.r1 = 255;
@@ -959,49 +957,6 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 	{
 		CBaseEntity@ e_plr = self.m_hPlayer;
 		return cast<CBasePlayer@>(e_plr);
-	}
-	
-	void updateRoofWalls(CBaseEntity@ roof)
-	{
-		// put walls under roofs when there are no adjacent roofs and there is a wall underneath one/both edges
-		string brushModel = roof.pev.model;
-		g_EngineFuncs.MakeVectors(roof.pev.angles);
-		Vector roofCheckR = roof.pev.origin + g_Engine.v_right*128;
-		Vector roofCheckL = roof.pev.origin + g_Engine.v_right*-128;
-		Vector wallCheckR = roof.pev.origin + g_Engine.v_right*64 + Vector(0,0,-192);
-		Vector wallCheckL = roof.pev.origin + g_Engine.v_right*-64 + Vector(0,0,-192);
-		
-		CBaseEntity@ wallR = getPartAtPos(wallCheckR);
-		bool hasWallR = wallR !is null and 
-					(wallR.pev.colormap == B_WALL or wallR.pev.colormap == B_WINDOW or wallR.pev.colormap == B_DOORWAY);
-
-		CBaseEntity@ wallL = getPartAtPos(wallCheckL);
-		bool hasWallL = wallL !is null and 
-					(wallL.pev.colormap == B_WALL or wallL.pev.colormap == B_WINDOW or wallL.pev.colormap == B_DOORWAY);
-
-		CBaseEntity@ roofR = getPartAtPos(roofCheckR);
-		bool hasRoofR = roofR !is null and roofR.pev.colormap == B_ROOF;
-			
-		CBaseEntity@ roofL = getPartAtPos(roofCheckL);
-		bool hasRoofL = roofL !is null and roofL.pev.colormap == B_ROOF;
-		
-		if (hasWallL and hasWallR and !hasRoofL and !hasRoofR) {
-			CBaseEntity@ copy_ent = g_EntityFuncs.FindEntityByTargetname(null, "b_roof_wall_both");
-			brushModel = copy_ent.pev.model;
-		} else if (hasWallL and !hasRoofL) {
-			CBaseEntity@ copy_ent = g_EntityFuncs.FindEntityByTargetname(null, "b_roof_wall_left");
-			brushModel = copy_ent.pev.model;
-		} else if (hasWallR and !hasRoofR) {
-			CBaseEntity@ copy_ent = g_EntityFuncs.FindEntityByTargetname(null, "b_roof_wall_right");
-			brushModel = copy_ent.pev.model;
-		} else {
-			CBaseEntity@ copy_ent = g_EntityFuncs.FindEntityByTargetname(null, "b_roof");
-			brushModel = copy_ent.pev.model;
-		}
-		
-		int oldcolormap = roof.pev.colormap;
-		g_EntityFuncs.SetModel(roof, brushModel);
-		roof.pev.colormap = oldcolormap;
 	}
 	
 	void Build()
@@ -1035,6 +990,8 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 			if (buildType == B_TOOL_CUPBOARD) soundFile = "sc_rust/tool_cupboard_place.ogg";					
 			if (buildType == B_LADDER) soundFile = "sc_rust/ladder_place.ogg";					
 			if (buildType == B_LADDER_HATCH) soundFile = "sc_rust/ladder_hatch_place.ogg";					
+			if (buildType == B_HIGH_STONE_WALL) soundFile = "sc_rust/high_wall_place_stone.ogg";					
+			if (buildType == B_HIGH_WOOD_WALL) soundFile = "sc_rust/high_wall_place_wood.ogg";					
 			
 			if (buildType == B_CODE_LOCK)
 			{
@@ -1069,6 +1026,9 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 			keys["material"] = "1";
 			keys["target"] = "break_part_script";
 			keys["fireonbreak"] = "break_part_script";
+			keys["health"] = "100";
+			keys["rendermode"] = "4";
+			keys["renderamt"] = "255";
 				
 			if (buildSocket == SOCKET_DOORWAY or buildType == B_WOOD_SHUTTERS)
 			{

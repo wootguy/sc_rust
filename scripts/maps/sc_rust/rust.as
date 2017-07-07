@@ -1,4 +1,7 @@
 #include "building_plan"
+#include "hammer"
+
+void dummyCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextMenuItem@ item) {}
 
 class PlayerState
 {
@@ -16,12 +19,31 @@ class PlayerState
 		@menu = @temp;
 	}
 	
-	void openMenu(CBasePlayer@ plr) 
+	void openMenu(CBasePlayer@ plr, int time=60) 
 	{
 		if ( menu.Register() == false ) {
 			g_Game.AlertMessage( at_console, "Oh dear menu registration failed\n");
 		}
-		menu.Open(60, 0, plr);
+		menu.Open(time, 0, plr);
+	}
+	
+	void closeMenus()
+	{
+		if (menu !is null)
+		{
+			menu.Unregister();
+			@menu = null;
+		}
+		
+		if (plr)
+		{
+			
+			CBasePlayer@ p = cast<CBasePlayer@>(plr.GetEntity());
+			initMenu(p, dummyCallback);
+			menu.AddItem("Closing menu...", any(""));
+			openMenu(p, 1);
+		
+		}
 	}
 
 	bool isAuthed(CBaseEntity@ lock)
@@ -56,22 +78,22 @@ class PlayerState
 	//
 	// Point rules:
 	// 1) 400 max build points per zone. ~100 are reserved for items/players/trees/etc.
-	// 2) Max of 4 players per zone, each getting 75 build points
-	//    2a) New players can still build, but they are counted as raiders and their parts get deteriorate.
+	// 2) Max of 6 players per zone, each getting 50 build points
+	//    2a) New players can still build, but they are counted as raiders and their parts deteriorate.
 	// 3) Raiders allowed to build 100 things total in enemy zones.
 	//    3a) All raiders share this value, so it could be as bad as 3 parts per raider (32 players and 30 are raiders)
 	//    3b) Raider parts deteriorate quickly, so new raiders can have points to build with
 	//    3c) Raider parts cannot be repaired.
 	//    3d) Raider parts deteriorate faster when near the limit.
-	//			0-25  = 60 minutes
-	//			25-50 = 30 minutes
-	//			50-75 = 10 minutes
-	//			75-90 = 5 minutes
+	//			0-50  = indefinate
+	//			50-75 = 60 minutes
+	//			75-90 = 10 minutes
 	//			90-100 = 1 minute
 	// 4) Zone residents can share points with each other to build super bases
 	//    4a) Unsharing is immediate, but if the sharee has already built something, then the sharer has to wait for
 	//        any of the sharee's parts to be destroyed. This can be used to sabotage their base, since they won't have
 	//        the points to repair a gaping hole in their wall.
+	// 5) Reserved points
 }
 
 class BuildPart
@@ -102,7 +124,7 @@ class BuildPart
 			return e.pev.origin.ToString() + '"' + e.pev.angles.ToString() + '"' + e.pev.colormap + '"' +
 				   id + '"' + parent  + '"' + e.pev.button + '"' + e.pev.body + '"' + e.pev.vuser1.ToString() + '"' + 
 				   e.pev.vuser2.ToString() + '"' + e.pev.health + '"' + e.pev.classname + '"' + e.pev.model + '"' +
-				   e.pev.groupinfo + '"' + e.pev.noise1 + '"' + e.pev.noise2 + '"' + e.pev.noise3;
+				   e.pev.groupinfo + '"' + e.pev.noise1 + '"' + e.pev.noise2 + '"' + e.pev.noise3 + '"' + e.pev.effects;
 		}
 		else
 			return "";
@@ -113,18 +135,30 @@ dictionary player_states;
 
 array<EHandle> g_tool_cupboards;
 array<BuildPart> g_build_parts; // every build structure/item in the map
+array<string> g_upgrade_suffixes = {
+	"_twig",
+	"_wood",
+	"_stone",
+	"_metal",
+	"_armor"
+};
 
 dictionary g_part_models;
 float g_tool_cupboard_radius = 512;
 int g_part_id = 0;
 bool debug_mode = true;
 
+
+
 int MAX_SAVE_DATA_LENGTH = 1015; // Maximum length of a value saved with trigger_save. Discovered through testing
 
 void MapInit()
 {
 	g_CustomEntityFuncs.RegisterCustomEntity( "weapon_building_plan", "weapon_building_plan" );
-	g_ItemRegistry.RegisterWeapon( "weapon_building_plan", "sc_rust", "9mm" );
+	g_ItemRegistry.RegisterWeapon( "weapon_building_plan", "sc_rust", "" );
+	
+	g_CustomEntityFuncs.RegisterCustomEntity( "weapon_hammer", "weapon_hammer" );
+	g_ItemRegistry.RegisterWeapon( "weapon_hammer", "sc_rust", "" );
 	
 	g_Hooks.RegisterHook( Hooks::Player::PlayerUse, @PlayerUse );
 	g_Hooks.RegisterHook( Hooks::Player::ClientSay, @ClientSay );
@@ -156,6 +190,8 @@ void MapInit()
 	PrecacheSound("sc_rust/ladder_hatch_place.ogg");
 	PrecacheSound("sc_rust/ladder_hatch_open.ogg");
 	PrecacheSound("sc_rust/ladder_hatch_close.ogg");
+	PrecacheSound("sc_rust/high_wall_place_stone.ogg");
+	PrecacheSound("sc_rust/high_wall_place_wood.ogg");
 	
 	// precache breakable object assets
 	PrecacheSound("debris/bustcrate1.wav");
@@ -168,15 +204,57 @@ void MapInit()
 
 void MapActivate()
 {
-	array<string> part_names = {
+	array<string> construct_part_names = {
 		"b_foundation",
+		"b_foundation_2x1",
+		"b_foundation_2x2",
+		"b_foundation_3x1",
+		"b_foundation_4x1",
 		"b_foundation_tri",
+		"b_foundation_tri_2x1",
+		"b_foundation_tri_2x2", // big tri
+		"b_foundation_tri_3x1",
+		"b_foundation_tri_4x1",
+		"b_foundation_tri_1x4",
 		"b_wall",
+		"b_wall_1x2",
+		"b_wall_1x3",
+		"b_wall_1x4",
+		"b_wall_2x1",
+		"b_wall_2x2",
+		"b_wall_3x1",
+		"b_wall_4x1",
 		"b_doorway",
+		"b_doorway_1x2",
+		"b_doorway_1x3",
+		"b_doorway_1x4",
+		"b_doorway_2x1",
+		"b_doorway_2x2",
+		"b_doorway_3x1",
+		"b_doorway_4x1",
 		"b_window",
+		"b_window_1x2",
+		"b_window_1x3",
+		"b_window_1x4",
+		"b_window_2x1",
+		"b_window_2x2",
+		"b_window_3x1",
+		"b_window_4x1",
 		"b_low_wall",
+		"b_low_wall_2x1",
+		"b_low_wall_3x1",
+		"b_low_wall_4x1",
 		"b_floor",
+		"b_floor_2x1",
+		"b_floor_2x2",
+		"b_floor_3x1",
+		"b_floor_4x1",
 		"b_floor_tri",
+		"b_floor_tri_2x1",
+		"b_floor_tri_2x2",
+		"b_floor_tri_3x1",
+		"b_floor_tri_4x1",
+		"b_floor_tri_1x4",
 		"b_roof",
 		"b_stairs",
 		"b_stairs_l",
@@ -184,8 +262,9 @@ void MapActivate()
 		
 		"b_roof_wall_left",
 		"b_roof_wall_right",
-		"b_roof_wall_both",
-		
+		"b_roof_wall_both"
+	};
+	array<string> part_names = {
 		"b_wood_door",
 		"b_metal_door",
 		"b_wood_bars",
@@ -208,7 +287,7 @@ void MapActivate()
 		"b_ladder_hatch_ladder",
 		"b_ladder_hatch_door",
 		"b_ladder_hatch_door_unlock",
-		"b_ladder_hatch_door_lock",
+		"b_ladder_hatch_door_lock"
 	};
 	
 	for (uint i = 0; i < part_names.length(); i++)
@@ -219,7 +298,21 @@ void MapActivate()
 		}
 		else
 			println("Missing entity: " + part_names[i]);
-	} 
+	}
+	
+	for (uint i = 0; i < construct_part_names.length(); i++)
+	{
+		for (uint k = 0; k < g_upgrade_suffixes.length(); k++)
+		{
+			string name = construct_part_names[i] + g_upgrade_suffixes[k];
+			CBaseEntity@ copy_ent = g_EntityFuncs.FindEntityByTargetname(null, name);
+			if (copy_ent !is null) {
+				g_part_models[string(copy_ent.pev.model)] = name;
+			}
+			else
+				println("Missing entity: " + name);
+		}
+	}
 }
 
 void debug_stability(Vector start, Vector end)
@@ -313,7 +406,9 @@ bool searchFromWallPos(Vector pos)
 			
 			// adjacent walls or walls connected by corners
 			return searchFromFloorPos(pos + v_forward*64) or 
-					searchFromFloorPos(pos - v_forward*64) or
+					searchFromFloorPos(pos + v_forward*-64) or
+					searchFromFloorPos(pos + v_forward*64 + Vector(0,0,128)) or
+					searchFromFloorPos(pos + v_forward*-64 + Vector(0,0,128)) or
 					searchFromWallPos(pos + Vector(0,0,-128)) or
 					searchFromWallPos(pos + Vector(0,0,128)) or
 					searchFromWallPos(pos + v_right*128) or
@@ -328,7 +423,9 @@ bool searchFromWallPos(Vector pos)
 					searchFromWallPos(pos + v_right*-96 + v_forward*55.43) or
 					searchFromWallPos(pos + v_right*-96 + v_forward*-55.43) or 
 					searchFromFloorPos(pos + v_forward*36.95) or 
-					searchFromFloorPos(pos + v_forward*-36.95);
+					searchFromFloorPos(pos + v_forward*-36.95) or 
+					searchFromFloorPos(pos + v_forward*36.95 + Vector(0,0,128)) or 
+					searchFromFloorPos(pos + v_forward*-36.95 + Vector(0,0,128));
 		}
 	}
 	return false;
@@ -362,6 +459,10 @@ void propogate_part_destruction(CBaseEntity@ ent)
 		EHandle wall2 = getPartAtPos(pos + g_Engine.v_forward*-64);
 		EHandle wall3 = getPartAtPos(pos + g_Engine.v_right*64);
 		EHandle wall4 = getPartAtPos(pos + g_Engine.v_right*-64);
+		EHandle wall5 = getPartAtPos(pos + g_Engine.v_forward*64 + Vector(0,0,-128));
+		EHandle wall6 = getPartAtPos(pos + g_Engine.v_forward*-64 + Vector(0,0,-128));
+		EHandle wall7 = getPartAtPos(pos + g_Engine.v_right*64 + Vector(0,0,-128));
+		EHandle wall8 = getPartAtPos(pos + g_Engine.v_right*-64 + Vector(0,0,-128));
 		// steps/floors
 		EHandle steps1 = getPartAtPos(pos + g_Engine.v_right*128);
 		EHandle steps2 = getPartAtPos(pos + g_Engine.v_right*-128);
@@ -382,6 +483,10 @@ void propogate_part_destruction(CBaseEntity@ ent)
 		if (wall2) checkStabilityEnt(wall2);
 		if (wall3) checkStabilityEnt(wall3);
 		if (wall4) checkStabilityEnt(wall4);
+		if (wall5) checkStabilityEnt(wall5);
+		if (wall6) checkStabilityEnt(wall6);
+		if (wall7) checkStabilityEnt(wall7);
+		if (wall8) checkStabilityEnt(wall8);
 		if (middle) checkStabilityEnt(middle);
 		if (tri1) checkStabilityEnt(tri1);
 		if (tri2) checkStabilityEnt(tri2);
@@ -393,6 +498,9 @@ void propogate_part_destruction(CBaseEntity@ ent)
 		EHandle wall1 = getPartAtPos(pos + g_Engine.v_right*-32 + g_Engine.v_forward*18.476);
 		EHandle wall2 = getPartAtPos(pos + g_Engine.v_right*32 + g_Engine.v_forward*18.476);
 		EHandle wall3 = getPartAtPos(pos + g_Engine.v_forward*-36.95);
+		EHandle wall4 = getPartAtPos(pos + g_Engine.v_right*-32 + g_Engine.v_forward*18.476 + Vector(0,0,-128));
+		EHandle wall5 = getPartAtPos(pos + g_Engine.v_right*32 + g_Engine.v_forward*18.476 + Vector(0,0,-128));
+		EHandle wall6 = getPartAtPos(pos + g_Engine.v_forward*-36.95 + Vector(0,0,-128));
 		
 		if (type == B_FOUNDATION_TRI)
 		{
@@ -425,6 +533,9 @@ void propogate_part_destruction(CBaseEntity@ ent)
 		if (wall1) checkStabilityEnt(wall1);
 		if (wall2) checkStabilityEnt(wall2);
 		if (wall3) checkStabilityEnt(wall3);
+		if (wall4) checkStabilityEnt(wall4);
+		if (wall5) checkStabilityEnt(wall5);
+		if (wall6) checkStabilityEnt(wall6);
 	}
 	if (socket == SOCKET_WALL)
 	{
@@ -514,9 +625,13 @@ void propogate_part_destruction(CBaseEntity@ ent)
 
 void part_broken(CBaseEntity@ pActivator, CBaseEntity@ pCaller, USE_TYPE useType, float flValue)
 {
-	PlayerState@ state = getPlayerStateBySteamID(pCaller.pev.noise1, pCaller.pev.noise2);
-	if (state !is null)
-		state.numParts--;
+	if (pCaller.pev.effects & EF_NODRAW == 0)
+	{
+		PlayerState@ state = getPlayerStateBySteamID(pCaller.pev.noise1, pCaller.pev.noise2);
+		if (state !is null)
+			state.numParts--;
+	}
+	
 	propogate_part_destruction(pCaller);
 }
 
@@ -533,11 +648,15 @@ void stabilityCheck()
 			g_build_parts.removeAt(i);
 			i--;
 		}
-		
-		if (ent !is null and ent.pev.team != g_build_parts[i].id)
+		else
 		{
-			println("UH OH BAD ID");
-			ent.pev.team = g_build_parts[i].id;
+			ent.pev.frame = 0;
+			ent.pev.framerate = 0;
+			if (ent.pev.team != g_build_parts[i].id)
+			{
+				println("UH OH BAD ID");
+				ent.pev.team = g_build_parts[i].id;
+			}
 		}
 	}
 	
@@ -785,6 +904,25 @@ void inventoryCheck()
 				openCraftMenu(plr, "");
 				println("OPEN MENU");
 			}
+			
+			TraceResult tr = TraceLook(plr, 96, true);
+			CBaseEntity@ phit = g_EntityFuncs.Instance( tr.pHit );
+			if (phit is null or phit.pev.classname == "worldspawn")
+				continue;
+
+			HUDTextParams params;
+			params.effect = 0;
+			params.fadeinTime = 0;
+			params.fadeoutTime = 0;
+			params.holdTime = 0.2f;
+			params.x = 0.5;
+			params.y = 0.7;
+			params.channel = 1;
+			params.r1 = 255;
+			params.g1 = 255;
+			params.b1 = 255;
+			g_PlayerFuncs.HudMessage(plr, params, 
+				string(phit.pev.model) + "\n" + int(phit.pev.health) + " / " + int(phit.pev.max_health));
 		}
 	} while(e_plr !is null);
 }
@@ -1300,7 +1438,7 @@ void loadPart(int idx)
 	if (data.Length() > 0) {
 		array<string> values = data.Split('"');
 		
-		if (values.length() == 16) {
+		if (values.length() == 17) {
 			println("Loading part " + idx);
 			Vector origin = parseVector(values[0]);
 			Vector angles = parseVector(values[1]);
@@ -1318,6 +1456,7 @@ void loadPart(int idx)
 			string steamid = values[13];
 			string netname = values[14];
 			string code = values[15];
+			int effects = atoi( values[16] );
 			
 			dictionary keys;
 			keys["origin"] = origin.ToString();
@@ -1327,6 +1466,9 @@ void loadPart(int idx)
 			keys["material"] = "1";
 			keys["target"] = "break_part_script";
 			keys["fireonbreak"] = "break_part_script";
+			keys["health"] = "100";
+			keys["rendermode"] = "4";
+			keys["renderamt"] = "255";
 			
 			int socket = socketType(type);
 			if (socket == SOCKET_DOORWAY or type == B_WOOD_SHUTTERS or type == B_LADDER_HATCH)
@@ -1359,6 +1501,9 @@ void loadPart(int idx)
 			ent.pev.noise2 = netname;
 			ent.pev.noise3 = code;
 			ent.pev.team = id;
+			ent.pev.effects = effects;
+			if (effects & EF_NODRAW != 0)
+				ent.pev.solid = SOLID_NOT;
 			
 			PlayerState@ state = getPlayerStateBySteamID(steamid, netname);
 			if (state !is null)
@@ -1372,6 +1517,9 @@ void loadPart(int idx)
 			}
 			
 			g_build_parts.insertLast(BuildPart(ent, id, parent));
+			
+			if (id >= g_part_id)
+				g_part_id = id+1;
 		} else {
 			println("Invalid data for part " + idx);
 		}
