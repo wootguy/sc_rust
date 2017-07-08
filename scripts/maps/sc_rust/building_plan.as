@@ -300,18 +300,18 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 			
 			for (uint i = 0; i < g_build_parts.size(); i++)
 			{	
-				CBaseEntity@ part = g_build_parts[i].ent;
+				CBaseEntity@ part = g_build_parts[i].GetEntity();
 				
 				if (part is null or socketType(part.pev.colormap) != SOCKET_HIGH_WALL)
 					continue;
 					
-				if ((part.pev.origin - buildEnt.pev.origin).Length() > 500)
+				if ((part.pev.origin - buildEnt.pev.origin + Vector(0,0,120)).Length() > 500)
 					continue;
 				
 				float attachDist = 64;
 				g_EngineFuncs.MakeVectors(part.pev.angles);
-				Vector attachLeft = part.pev.origin - g_Engine.v_right*128;
-				Vector attachRight = part.pev.origin + g_Engine.v_right*128;
+				Vector attachLeft = part.pev.origin + g_Engine.v_right*-128 + Vector(0,0,-120);
+				Vector attachRight = part.pev.origin + g_Engine.v_right*128 + Vector(0,0,-120);
 				
 				float ll = (attachLeft - left).Length();
 				float lr = (attachLeft - right).Length();
@@ -368,7 +368,8 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 						validBuild = false;
 					}
 				}
-			}				
+			}
+			newOri.z += 120;
 		}
 		else if (partSocket == SOCKET_FOUNDATION or partSocket == SOCKET_WALL or buildType == B_FLOOR or 
 				buildType == B_LADDER_HATCH or buildType == B_ROOF or partSocket == SOCKET_MIDDLE or
@@ -379,7 +380,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 			
 			for (uint i = 0; i < g_build_parts.size(); i++)
 			{	
-				CBaseEntity@ part = g_build_parts[i].ent;
+				CBaseEntity@ part = g_build_parts[i].GetEntity();
 				if (part is null)
 					continue;
 					
@@ -783,7 +784,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 		}
 			
 		
-		bool attachableEnt = phit.pev.classname == "func_breakable" or phit.pev.classname == "func_door_rotating";
+		bool attachableEnt = phit.pev.classname == "func_breakable_custom" or phit.pev.classname == "func_door_rotating";
 		if (attachableEnt and !attaching) {
 			int attachType = phit.pev.colormap;
 			int attachSocket = socketType(attachType);
@@ -814,7 +815,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 					g_Utility.TraceLine( tr.vecEndPos, vecEnd, ignore_monsters, null, tr2 );
 					CBaseEntity@ phit2 = g_EntityFuncs.Instance( tr2.pHit );
 					
-					if (phit2 !is null and phit.pev.classname == "func_breakable" and socketType(phit.pev.colormap) == SOCKET_WALL)
+					if (phit2 !is null and phit.pev.classname == "func_breakable_custom" and socketType(phit.pev.colormap) == SOCKET_WALL)
 					{
 						validBuild = true;
 						attaching = true;
@@ -828,7 +829,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 				g_EngineFuncs.MakeVectors(phit.pev.angles);
 				// only allow attaching to the top when looking at the front/back of doorway
 				if ((attachType == B_WOOD_DOOR or attachType == B_METAL_DOOR or attachType == B_LADDER_HATCH) and 
-					phit.pev.classname == "func_door_rotating")
+					phit.pev.targetname != "")
 				{
 					if (attachType == B_LADDER_HATCH and vecEqual(tr.vecPlaneNormal, g_Engine.v_up) or 
 						vecEqual(tr.vecPlaneNormal, -g_Engine.v_up))
@@ -866,7 +867,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 		// check collision
 		CBaseEntity@ ent = null;
 		do {
-			@ent = g_EntityFuncs.FindEntityInSphere(ent, newOri, 300, "*", "classname");
+			@ent = g_EntityFuncs.FindEntityInSphere(ent, newOri, 192, "*", "classname");
 			if (ent !is null)
 			{
 				if (ent.entindex() == buildEnt.entindex() or ent.entindex() == buildEnt2.entindex())
@@ -875,13 +876,13 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 					continue;
 				if (attachEnt !is null and ent.entindex() == attachEnt.entindex())
 					continue;
-				if (ent.pev.solid == SOLID_NOT or ent.pev.solid == SOLID_TRIGGER)
+				if (ent.pev.solid == SOLID_NOT or ent.pev.solid == SOLID_TRIGGER or ent.pev.effects == EF_NODRAW)
 					continue;
 				if (buildType == B_CODE_LOCK or buildType == B_LADDER)
 					continue;
 
 				string cname = string(ent.pev.classname);
-				if ((cname == "func_breakable" or cname == "func_door_rotating") && attaching) {
+				if ((cname == "func_breakable_custom" or cname == "func_door_rotating") && attaching) {
 					// still a small chance a separate base perfectly aligns, letting
 					// you build overlapping pieces, but that should be pretty rare.
 					float diff = (ent.pev.origin - buildEnt.pev.origin).Length();
@@ -892,7 +893,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 					} 
 				}
 				float overlap = collisionBoxesYaw(buildEnt, ent);
-				if (overlap > 10.01f) {
+				if (overlap > 9.95f) {
 					if (debug_mode)
 						println("BLOCKED BY: " + cname + " overlap " + overlap);
 					validBuild = false;
@@ -904,7 +905,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 				}
 			}
 		} while (ent !is null);
-		
+
 		forbidden = forbiddenByCupboard(plr, buildEnt.pev.origin);	
 		
 		if (forbidden and validBuild) {
@@ -1018,9 +1019,9 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 			}
 		
 			Vector origin = buildEnt.pev.origin;				
-			string classname = "func_breakable";
 			dictionary keys;
 			keys["origin"] = origin.ToString();
+			keys["angles"] = buildEnt.pev.angles.ToString();
 			keys["model"] = brushModel;
 			keys["colormap"] = "" + buildEnt.pev.colormap;
 			keys["material"] = "1";
@@ -1029,10 +1030,11 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 			keys["health"] = "100";
 			keys["rendermode"] = "4";
 			keys["renderamt"] = "255";
+			keys["id"] = "" + g_part_id;
+			keys["parent"] = "" + parent;
 				
 			if (buildSocket == SOCKET_DOORWAY or buildType == B_WOOD_SHUTTERS)
 			{
-				classname = "func_door_rotating";
 				keys["distance"] = "9999";
 				keys["speed"] = "0.00000001";
 				keys["breakable"] = "1";
@@ -1053,30 +1055,24 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 				CBaseEntity@ l_shutter = g_EntityFuncs.FindEntityByTargetname(null, "b_wood_shutter_l");
 				keys["origin"] = (buildEnt.pev.origin + g_Engine.v_right*47).ToString();
 				keys["model"] = string(l_shutter.pev.model);
-				@ent = g_EntityFuncs.CreateEntity(classname, keys, false);	
-				g_EntityFuncs.DispatchSpawn(ent.edict());
-				ent.pev.angles = buildEnt.pev.angles;
+				@ent = g_EntityFuncs.CreateEntity("func_breakable_custom", keys, true);	
 				
 				CBaseEntity@ r_shutter = g_EntityFuncs.FindEntityByTargetname(null, "b_wood_shutter_l");
 				keys["origin"] = (buildEnt.pev.origin + g_Engine.v_right*-47).ToString();
 				keys["model"] = string(r_shutter.pev.model);
-				CBaseEntity@ ent2 = g_EntityFuncs.CreateEntity(classname, keys, false);	
-				g_EntityFuncs.DispatchSpawn(ent2.edict());
-				ent2.pev.angles = buildEnt.pev.angles + Vector(0,180,0);
+				keys["angles"] = (buildEnt.pev.angles + Vector(0,180,0)).ToString();
+				CBaseEntity@ ent2 = g_EntityFuncs.CreateEntity("func_breakable_custom", keys, true);	
 				
 				ent.pev.vuser1 = ent.pev.angles;
 				ent.pev.vuser2 = ent.pev.angles + Vector(0,-150,0);
 				
 				ent2.pev.vuser1 = ent2.pev.angles;
-				ent2.pev.vuser2 = ent2.pev.angles + Vector(0,150,0);
-				
-				ent.Use(@ent, @ent, USE_TOGGLE, 0.0F);
-				ent2.Use(@ent2, @ent2, USE_TOGGLE, 0.0F);
+				ent2.pev.vuser2 = ent2.pev.angles + Vector(0,150,0);	
 				
 				g_SoundSystem.PlaySound(ent.edict(), CHAN_STATIC, "sc_rust/shutters_wood_place.ogg", 1.0f, 1.0f, 0, 90 + Math.RandomLong(0, 20));
 				
-				g_build_parts.insertLast(BuildPart(ent, g_part_id, parent));
-				g_build_parts.insertLast(BuildPart(ent2, g_part_id, parent));
+				g_build_parts.insertLast(EHandle(ent));
+				g_build_parts.insertLast(EHandle(ent2));
 				g_part_id++;
 				
 				state.addPart(ent);
@@ -1084,13 +1080,14 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 			}
 			else
 			{				
-				@ent = g_EntityFuncs.CreateEntity(classname, keys, true);
-				ent.pev.angles = buildEnt.pev.angles;
+				@ent = g_EntityFuncs.CreateEntity("func_breakable_custom", keys, true);
+				g_EntityFuncs.SetSize(ent.pev, ent.pev.mins, ent.pev.maxs); // fixes collision somehow :S
 				
 				g_SoundSystem.PlaySound(ent.edict(), CHAN_STATIC, soundFile, 1.0f, 1.0f, 0, 90 + Math.RandomLong(0, 20));
 				
 				EHandle h_ent = ent;
-				g_build_parts.insertLast(BuildPart(ent, g_part_id++, parent));
+				g_build_parts.insertLast(EHandle(ent));
+				g_part_id++;
 				state.addPart(ent);
 				
 				if (buildType == B_TOOL_CUPBOARD) {
@@ -1102,10 +1099,12 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 					ent.pev.renderamt = 255;
 					CBaseEntity@ ladder_box = g_EntityFuncs.FindEntityByTargetname(null, "b_ladder_box");
 					keys["model"] = string(ladder_box.pev.model);
-					CBaseEntity@ ent2 = g_EntityFuncs.CreateEntity("func_ladder", keys, true);	
-					ent2.pev.angles = buildEnt.pev.angles;
+					keys["parent"] = "" + (g_part_id - 1);
+					
+					CBaseEntity@ ent2 = g_EntityFuncs.CreateEntity("func_ladder", keys, true);
 					ent2.pev.colormap = buildEnt.pev.colormap;
-					g_build_parts.insertLast(BuildPart(ent2, g_part_id - 1, parent));
+					ent2.pev.team = g_part_id - 1;
+					g_build_items.insertLast(EHandle(ent2));
 				}
 				
 				if (buildType == B_LADDER_HATCH) {
@@ -1116,9 +1115,9 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 					keys["speed"] = "0.00000001";
 					keys["breakable"] = "1";
 					keys["targetname"] = "locked" + g_part_id;
-					CBaseEntity@ ent2 = g_EntityFuncs.CreateEntity("func_door_rotating", keys, true);	
-					ent2.pev.angles = buildEnt.pev.angles;
-					g_build_parts.insertLast(BuildPart(ent2, g_part_id - 1, g_part_id - 1));
+					keys["parent"] = "" + (g_part_id - 1);
+					CBaseEntity@ ent2 = g_EntityFuncs.CreateEntity("func_breakable_custom", keys, true);	
+					g_build_parts.insertLast(EHandle(ent2));
 					
 					ent2.pev.rendermode = kRenderTransAlpha;
 					ent2.pev.renderamt = 255;
@@ -1126,16 +1125,14 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 					ent2.pev.vuser1 = buildEnt.pev.angles;
 					ent2.pev.vuser2 = buildEnt.pev.angles + Vector(-82,0,0);
 					
-					ent2.Use(@ent2, @ent2, USE_TOGGLE, 0.0F);
-					
 					CBaseEntity@ ladder_box = g_EntityFuncs.FindEntityByTargetname(null, "b_ladder_hatch_ladder");
 					keys["origin"] = (buildEnt.pev.origin + g_Engine.v_forward*32).ToString();
 					keys["model"] = string(ladder_box.pev.model);
 					keys["targetname"] = "ladder_hatch" + (g_part_id - 1);
 					keys["spawnflags"] = "1"; // start off
 					CBaseEntity@ ent3 = g_EntityFuncs.CreateEntity("func_ladder", keys, true);	
-					ent3.pev.angles = buildEnt.pev.angles;
-					g_build_parts.insertLast(BuildPart(ent3, g_part_id - 1, g_part_id - 1));
+					ent3.pev.team = g_part_id - 1;
+					g_build_items.insertLast(EHandle(ent3));
 					
 					state.addPart(ent2);
 				}
@@ -1144,8 +1141,6 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 				{
 					ent.pev.vuser1 = buildEnt.pev.angles;
 					ent.pev.vuser2 = buildEnt.pev.angles + Vector(0,-95,0);
-					
-					ent.Use(@ent, @ent, USE_TOGGLE, 0.0F); // start door think function (otherwise rotation won't be animated)
 				}
 				
 				// conditional roof side wall

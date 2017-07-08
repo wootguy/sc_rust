@@ -51,11 +51,6 @@ Vector2D getPerp(Vector2D v) {
 	return Vector2D(-v.y, v.x);
 }
 
-float dotProduct( Vector2D v1, Vector2D v2 )
-{
-	return v1.x*v2.x + v1.y*v2.y;
-}
-
 bool vecEqual(Vector v1, Vector v2)
 {
 	return abs(v1.x - v2.x) < EPSILON and abs(v1.y - v2.y) < EPSILON and abs(v1.z - v2.z) < EPSILON;
@@ -69,99 +64,6 @@ Vector parseVector(string s) {
 	if (values.length() > 1) v.y = atof( values[1] );
 	if (values.length() > 2) v.z = atof( values[2] );
 	return v;
-}
-
-BodyAxis calcExtents( array<Vector2D>& verts, Vector2D offset, Vector2D axis )
-{
-	BodyAxis result;
-
-	result.min = 1E9;
-	result.max = -1E9;
-	result.minIdx = -1;
-	result.maxIdx = -1;
-
-	// project body's verts on this axis
-	for (uint i = 0; i < verts.length(); i++)
-	{
-		float dist = dotProduct(verts[i]-offset, axis); // relative to our origin
-		if (dist < result.min)
-		{
-			result.min = dist;
-			result.minIdx = i;
-		}
-		if (dist > result.max)
-		{
-			result.max = dist;
-			result.maxIdx = i;
-		}
-	}
-
-	return result;
-}
-
-class BodyAxis // body projected on an axis
-{
-	float min, max; // the min/max dot products for the 1D projection of the 2D body on the axis
-	int minIdx, maxIdx; // the vertex indicies of the above min/max values
-};
-
-int findEdge( array<Vector2D>& verts, int idx, float target, Vector2D axis, Vector2D offset )
-{
-	float dist;
-	int next = 0;
-	int numVerts = verts.length();
-
-	next = idx+1; // check the vertex preceeding the given one
-	if (next >= numVerts)
-		next = 0;
-	dist = dotProduct(verts[next]-offset, axis);
-
-	if (dist <= target + EPSILON && dist >= target - EPSILON)
-		return next; // yes, it is an edge!
-
-	next = idx-1; // check the vertex preceeding the given one
-	if (next < 0)
-		next = numVerts-1;
-	dist = dotProduct(verts[next]-offset, axis);
-
-	if (dist <= target + EPSILON && dist >= target - EPSILON)
-		return next; // yes, it is an edge!
-
-	return -1; // no edge found, this point really is just a point
-}
-
-Vector2D findEdgeContact(array<Vector2D>& points, Vector2D offset, Vector2D axis)
-{
-	float min = 1E9;
-	float max = -1E9;
-	int minidx = -1;
-	int maxidx = -1;
-
-	for (int i = 0; i < 4; i++)
-	{
-		float dist = dotProduct(points[i]-offset, axis);
-		if (dist < min)
-		{
-			min = dist;
-			minidx = i;
-		}
-		if (dist > max)
-		{
-			max = dist;
-			maxidx = i;
-		}
-	}
-
-	array<int> center;
-	center.resize(2);
-	int idx = 0;
-	for (int i = 0; i < 4; i++)
-	{
-		if (i != minidx && i != maxidx)
-			center[idx++] = i;
-	}
-
-	return (points[center[0]] + points[center[1]]) / 2.0f;
 }
 
 array<float> rotationMatrix(Vector axis, float angle)
@@ -194,14 +96,15 @@ CBaseEntity@ getPartAtPos(Vector pos, float dist=2)
 {
 	CBaseEntity@ ent = null;
 	do {
-		@ent = g_EntityFuncs.FindEntityInSphere(ent, pos, dist, "*", "classname"); // faster than dist^2 checks in AS
-		if (ent !is null and ent.pev.classname == "func_breakable")
+		@ent = g_EntityFuncs.FindEntityInSphere(ent, pos, dist, "func_breakable_custom", "classname");
+		if (ent !is null)
 		{
 			return ent;
 		}
 	} while (ent !is null);
 	return null;
 	/*
+	// slower even without sqrt
 	float d = dist*dist;
 	for (uint i = 0; i < g_build_parts.length(); i++)
 	{
@@ -219,17 +122,38 @@ CBaseEntity@ getPartAtPos(Vector pos, float dist=2)
 	*/
 }
 
+func_breakable_custom@ castToPart(EHandle h_ent)
+{
+	return cast<func_breakable_custom@>(CastToScriptClass(h_ent.GetEntity()));
+}
+
+func_breakable_custom@ getBuildPartByID(int id)
+{
+	for (uint i = 0; i < g_build_parts.size(); i++)
+	{
+		func_breakable_custom@ part = cast<func_breakable_custom@>(CastToScriptClass(g_build_parts[i].GetEntity()));
+		if (part.id == id)
+		{
+			return @part;
+		}
+	}
+	return null;
+}
+
 array<EHandle> getPartsByID(int id)
 {
 	array<EHandle> ents;
 	for (uint i = 0; i < g_build_parts.size(); i++)
 	{	
-		CBaseEntity@ part = g_build_parts[i].ent;
-		if (part !is null and g_build_parts[i].id == id) 
-		{
-			EHandle h_part = part;
-			ents.insertLast(h_part);
-		}
+		func_breakable_custom@ part = cast<func_breakable_custom@>(CastToScriptClass(g_build_parts[i].GetEntity()));
+		if (part !is null and part.id == id) 
+			ents.insertLast(g_build_parts[i]);
+	}
+	for (uint i = 0; i < g_build_items.size(); i++)
+	{	
+		CBaseEntity@ part = g_build_items[i].GetEntity();
+		if (part !is null and part.pev.team == id) 
+			ents.insertLast(g_build_items[i]);
 	}
 	return ents;
 }
@@ -239,12 +163,9 @@ array<EHandle> getPartsByParent(int parent)
 	array<EHandle> ents;
 	for (uint i = 0; i < g_build_parts.size(); i++)
 	{	
-		CBaseEntity@ part = g_build_parts[i].ent;
-		if (part !is null and g_build_parts[i].parent == parent) 
-		{
-			EHandle h_part = part;
-			ents.insertLast(h_part);
-		}
+		func_breakable_custom@ part = cast<func_breakable_custom@>(CastToScriptClass(g_build_parts[i].GetEntity()));
+		if (part !is null and part.parent == parent)
+			ents.insertLast(g_build_parts[i]);
 	}
 	return ents;
 }
@@ -303,8 +224,8 @@ CBaseEntity@ respawnPart(int id)
 {
 	for (uint i = 0; i < g_build_parts.size(); i++)
 	{	
-		CBaseEntity@ part = g_build_parts[i].ent;
-		if (part !is null and g_build_parts[i].id == id) 
+		func_breakable_custom@ part = cast<func_breakable_custom@>(CastToScriptClass(g_build_parts[i].GetEntity()));
+		if (part !is null and part.id == id) 
 		{
 			dictionary keys;
 			keys["origin"] = part.pev.origin.ToString();
@@ -314,6 +235,8 @@ CBaseEntity@ respawnPart(int id)
 			keys["fireonbreak"] = "break_part_script";
 			keys["rendermode"] = "" + part.pev.rendermode;
 			keys["renderamt"] = "" + part.pev.renderamt;
+			keys["id"] = "" + id;
+			keys["parent"] = "" + part.parent;
 			
 			CBaseEntity@ ent = g_EntityFuncs.CreateEntity(part.pev.classname, keys, true);
 			ent.pev.angles = part.pev.angles;
@@ -330,8 +253,10 @@ CBaseEntity@ respawnPart(int id)
 			ent.pev.max_health = part.pev.max_health;
 			ent.pev.colormap = part.pev.colormap;
 			
-			g_EntityFuncs.Remove(part);
-			g_build_parts[i].ent = ent;
+			g_EntityFuncs.SetSize(ent.pev, ent.pev.mins, ent.pev.maxs); // fixes collision somehow :S
+			
+			g_EntityFuncs.Remove(g_build_parts[i]);
+			g_build_parts[i] = ent;
 			return @ent;
 		}
 	}
@@ -376,14 +301,14 @@ bool isFoundation(CBaseEntity@ ent)
 bool isTriangular(CBaseEntity@ ent)
 {
 	int type = ent.pev.colormap;
-	return (ent.pev.classname == "func_breakable" or ent.pev.classname == "func_illusionary") and type == B_FOUNDATION_TRI or type == B_FLOOR_TRI;
+	return (ent.pev.classname == "func_breakable_custom" or ent.pev.classname == "func_illusionary") and type == B_FOUNDATION_TRI or type == B_FLOOR_TRI;
 }
 
 bool isFloorPiece(CBaseEntity@ ent)
 {
 	int type = ent.pev.colormap;
 	return type == B_FOUNDATION or type == B_FLOOR or type == B_FOUNDATION_TRI or type == B_FLOOR_TRI or
-			(type == B_LADDER_HATCH and ent.pev.classname == "func_breakable");
+			(type == B_LADDER_HATCH and ent.pev.classname == "func_breakable_custom");
 }
 
 bool isFloorItem(CBaseEntity@ ent)
@@ -395,7 +320,7 @@ bool isUpgradable(CBaseEntity@ ent)
 {
 	int type = ent.pev.colormap;
 	int socket = socketType(type);
-	return ent.pev.classname == "func_breakable" and socket != SOCKET_WINDOW and type != B_LADDER_HATCH and
+	return ent.pev.classname == "func_breakable_custom" and socket != SOCKET_WINDOW and type != B_LADDER_HATCH and
 			type != B_LADDER and socket != SOCKET_HIGH_WALL and !isFloorItem(ent);
 }
 
@@ -487,11 +412,10 @@ TraceResult TraceLook(CBasePlayer@ plr, float dist=128, bool bigHull=false)
 	return tr;
 }
 
-
 // actual center of the part, not the origin
 Vector getCentroid(CBaseEntity@ ent)
 {
-	array<Vector2D> verts = getBoundingVerts2D(ent);
+	array<Vector2D> verts = getBoundingVerts2D(ent, Vector2D(0,0));
 	Vector2D centroid2D;
 	for (uint i = 0; i < verts.length(); i++)
 	{
@@ -504,12 +428,16 @@ Vector getCentroid(CBaseEntity@ ent)
 	
 }
 
-array<Vector2D> getBoundingVerts2D(CBaseEntity@ ent)
+array<Vector2D> getBoundingVerts2D(CBaseEntity@ ent, Vector2D offset)
 {
+	Vector angles = ent.pev.angles;
+	if (ent.pev.classname == "func_door_rotating")
+		angles.y += 180;
+		
 	// counter-clockwise starting at back right vertex
 	array<Vector2D> verts;
-	g_EngineFuncs.MakeVectors(ent.pev.angles);
-	Vector2D ori = Vector2D(ent.pev.origin.x, ent.pev.origin.y);
+	g_EngineFuncs.MakeVectors(angles);
+	Vector2D ori = Vector2D(ent.pev.origin.x + offset.x, ent.pev.origin.y + offset.y);
 	Vector2D v_forward = Vector2D(g_Engine.v_forward.x, g_Engine.v_forward.y);
 	Vector2D v_right = Vector2D(g_Engine.v_right.x, g_Engine.v_right.y);
 	verts.insertLast(ori + v_right*-ent.pev.maxs.y + v_forward*ent.pev.mins.x);
@@ -565,24 +493,12 @@ float collisionSA(CBaseEntity@ b1, CBaseEntity@ b2)
 	Vector2D b1Ori = Vector2D(b1.pev.origin.x, b1.pev.origin.y);
 	Vector2D b2Ori = Vector2D(b2.pev.origin.x, b2.pev.origin.y);
 	
-	Vector b1Angles = b1.pev.angles;
-	Vector b2Angles = b2.pev.angles;
-	if (b1.pev.classname == "func_door_rotating")
-		b1Angles.y += 180;
-	if (b2.pev.classname == "func_door_rotating")
-		b2Angles.y += 180;
-	
-	// counter-clockwise starting at back right vertex
-	array<Vector2D> b1Verts = getBoundingVerts2D(b1);
-
-	
-	array<Vector2D> b2Verts = getBoundingVerts2D(b2);
+	array<Vector2D> b1Verts = getBoundingVerts2D(b1, b1Ori*-1);
+	array<Vector2D> b2Verts = getBoundingVerts2D(b2, b1Ori*-1);
 	
 	int b1NumVerts = b1Verts.length();
 	int b2NumVerts = b2Verts.length();
-	int numAxes = b1NumVerts + b2NumVerts;
-	array<Vector2D> axes;
-	axes.resize(numAxes);
+	array<Vector2D> axes(b1NumVerts + b2NumVerts);
 	int idx = 0;
 	
 	for (int i = 1; i < b1NumVerts; i++)
@@ -595,38 +511,46 @@ float collisionSA(CBaseEntity@ b1, CBaseEntity@ b2)
 
 	float minPen = 1E9; // minimum penetration vector;
 	Vector2D fix; // vector for fixing the collision
-
-	for (int a = 0; a < numAxes; a++)
+	float ba1_min = 0;
+	float ba1_max = 0;
+	float ba2_min = 0;
+	float ba2_max = 0;
+	
+	for (uint a = 0; a < axes.length(); a++)
 	{
-		axes[a] = axes[a].Normalize();
-
-		BodyAxis ba1 = calcExtents(b1Verts, b1Ori, axes[a]);
-		BodyAxis ba2 = calcExtents(b2Verts, b1Ori, axes[a]);
-		if (ba1.minIdx == -1 || ba1.maxIdx == -1 || ba2.minIdx == -1 || ba2.maxIdx == -1)
+		fix = axes[a].Normalize();
+		
+		// project verts on this axis
+		ba1_min = 1E9;
+		ba1_max = -1E9;
+		ba2_min = 1E9;
+		ba2_max = -1E9;
+		for (int i = 0; i < b1NumVerts; i++)
 		{
-			// can't work with this object
-			return 0;
+			float dist = b1Verts[i].x*fix.x + b1Verts[i].y*fix.y; // relative to our origin
+			ba1_min = Math.min(ba1_min, dist);
+			ba1_max = Math.max(ba1_max, dist);
 		}
-
-		if (ba1.min < ba2.max && ba2.min < ba1.max) // collision along this axis!
+		for (int i = 0; i < b2NumVerts; i++)
 		{
-			if (ba2.max-ba1.min > ba1.max-ba2.min)
+			float dist = b2Verts[i].x*fix.x + b2Verts[i].y*fix.y;
+			ba2_min = Math.min(ba2_min, dist);
+			ba2_max = Math.max(ba2_max, dist);
+		}
+		
+		if (ba1_min < ba2_max and ba2_min < ba1_max) // collision along this axis!
+		{
+			if (ba2_max-ba1_min > ba1_max-ba2_min)
 			{
-				float pen = ba2.min-ba1.max;
+				float pen = ba2_min-ba1_max;
 				if (abs(pen) < abs(minPen))
-				{
 					minPen = pen;
-					fix = axes[a];
-				}
 			}
 			else
 			{
-				float pen = ba2.max-ba1.min;
+				float pen = ba2_max-ba1_min;
 				if (abs(pen) < abs(minPen))
-				{
 					minPen = pen;
-					fix = axes[a];
-				}
 			}
 		}
 		else
@@ -638,10 +562,15 @@ float collisionSA(CBaseEntity@ b1, CBaseEntity@ b2)
 	
 	float overlap = minPen / fix.Length();
 	
-	Vector fix3 = Vector(fix.x, fix.y, 0);
-	
 	if (debug_mode and abs(overlap) > 9.9f)
 	{
+		for (uint i = 0; i < b1Verts.length(); i++)
+			b1Verts[i] = b1Verts[i] + b1Ori;
+		for (uint i = 0; i < b2Verts.length(); i++)
+			b2Verts[i] = b2Verts[i] + b1Ori;
+		
+		Vector fix3 = Vector(fix.x, fix.y, 0);
+		
 		for (uint i = 0; i < b1Verts.length(); i++)
 		{
 			uint k = (i+1) % b1Verts.length();
@@ -732,8 +661,6 @@ bool objectThroughRoof(CBaseEntity@ roof, CBaseEntity@ obj)
 float collisionBoxesYaw(CBaseEntity@ b1, CBaseEntity@ b2) 
 {
 	// check vertical collision first
-	float b1zmin = b1.pev.mins.z;
-	
 	float min1 = b1.pev.origin.z + b1.pev.mins.z;
 	float min2 = b2.pev.origin.z + b2.pev.mins.z;
 	float max1 = b1.pev.origin.z + b1.pev.maxs.z;
@@ -759,7 +686,7 @@ float collisionBoxesYaw(CBaseEntity@ b1, CBaseEntity@ b2)
 	}
 	
 	if (max1 > min2 and min1 < max2)
-	{	
+	{
 		float overlapXY = collisionSA(b1, b2);
 		float overlapZ = Math.max(0, Math.min(max1, max2) - Math.max(min1, min2));
 		// check 2D top-down collision
@@ -794,6 +721,7 @@ void AngularMove( CBaseEntity@ ent, Vector vecDestAngle, float flSpeed )
 
 	// scale the destdelta vector by the time spent traveling to get velocity
 	ent.pev.avelocity = vecDestDelta / flTravelTime;
+	ent.pev.fixangle = FAM_ADDAVELOCITY;
 }
 
 // ported from HLSDK with minor adjustments

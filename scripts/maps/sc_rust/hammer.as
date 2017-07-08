@@ -186,6 +186,25 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 		
 		validTarget = true;
 		
+		//println("ID: " + phit.pev.team);
+		for (uint i = 0; i < g_build_parts.size(); i++)
+		{	
+			func_breakable_custom@ part = cast<func_breakable_custom@>(CastToScriptClass(g_build_parts[i].GetEntity()));
+			if (part !is null and part.entindex() == phit.entindex())
+			{
+				//println("PARENT " + g_build_parts[i].parent);
+				if (part.parent != -1)
+				{
+					array<EHandle> parents = getPartsByID(part.parent);
+					if (parents.length() > 0)
+						@phit = parents[0];
+					else
+						println("Couldn't find parent!");
+				}
+				break;
+			}
+		}
+		
 		@lookEnt = @phit;
 		buildEnt.pev.origin = phit.pev.origin;
 		buildEnt.pev.angles = phit.pev.angles;
@@ -359,7 +378,7 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 				
 				if( pHit !is null ) 
 				{
-					if (pHit.pev.classname == "func_breakable" or pHit.pev.classname == "func_door_rotating")
+					if (pHit.pev.classname == "func_breakable_custom" or pHit.pev.classname == "func_door_rotating")
 					{
 						if (pHit.pev.health < pHit.pev.max_health)
 						{
@@ -553,9 +572,10 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 		// disconnect children
 		for (uint i = 0; i < g_build_parts.size(); i++)
 		{
-			if (g_build_parts[i].parent == ent.pev.team) 
+			func_breakable_custom@ part = cast<func_breakable_custom@>(CastToScriptClass(g_build_parts[i].GetEntity()));
+			if (part.parent == ent.pev.team) 
 			{
-				g_build_parts[i].parent = -1;
+				part.parent = -1;
 			}
 		}
 		
@@ -574,6 +594,9 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 			if (socket == SOCKET_WALL)
 				parts[i].pev.angles.y = ent.pev.angles.y;
 			respawnPart(parts[i].pev.team);
+			
+			func_breakable_custom@ bpart = cast<func_breakable_custom@>(CastToScriptClass(parts[i]));
+			bpart.parent = -1;
 		}
 
 		cancelFuse("Fused parts were separated");
@@ -1046,8 +1069,9 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 			}
 			else if (mergeSize == 3)
 			{
-				if (abs(dist - 128) > EPSILON and 
-					(DotProduct(dir, g_Engine.v_right) < 0.9f and abs(dist - 256) > EPSILON) )
+				if ((abs(dist - 128) > EPSILON and abs(dist - 256) > EPSILON) or
+					(curSize == "_2x1" and abs(DotProduct(dir, g_Engine.v_up)) > 0.1f) or
+					(curSize == "_1x2" and abs(DotProduct(dir, g_Engine.v_right)) > 0.1f))
 				{
 					cancelFuse("Can only fuse adjacent pieces");
 					return;
@@ -1065,13 +1089,17 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 				newModel = prefix + newSize + material;
 			}
 		}
-			
+		
 		if (newModel.Length() > 0)
 		{
 			PlayerState@ state = getPlayerStateBySteamID(part2.pev.noise1, part2.pev.noise2);
 			if (state !is null)
 				state.numParts--;
-					
+			
+			func_breakable_custom@ b1 = getBuildPartByID(part1.pev.team);
+			int oldParent = b1.parent;
+			b1.parent = -1;
+			
 			CBaseEntity@ copy_ent = g_EntityFuncs.FindEntityByTargetname(null, newModel);
 			g_EntityFuncs.SetModel(part1, copy_ent.pev.model);
 			part2.pev.effects = EF_NODRAW;
@@ -1079,10 +1107,16 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 			// set invisible part (and its children) as child of fused part (so they get destroyed properly)
 			for (uint i = 0; i < g_build_parts.size(); i++)
 			{
-				CBaseEntity@ part = g_build_parts[i].ent;
-				if (part !is null and (part.entindex() == part2.entindex() or g_build_parts[i].parent == part2.pev.team)) 
+				func_breakable_custom@ part = cast<func_breakable_custom@>(CastToScriptClass(g_build_parts[i].GetEntity()));
+				if (part !is null)
 				{
-					g_build_parts[i].parent = part1.pev.team;
+					// reparent attachment point and its children
+					if (part.pev.team == part2.pev.team or part.parent == part2.pev.team or 
+						(oldParent != -1 and part.parent == oldParent or part.pev.team == oldParent))
+					{
+						//println("REPARENT " + part.pev.team + " FROM " + part.parent + " TO " + part1.pev.team);
+						part.parent = part1.pev.team;
+					}
 				}
 			}
 			cancelFuse();
@@ -1194,12 +1228,17 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 							// can't just turn on solidity or else the part will become semi-solid (game bug)
 							@right = respawnPart(right.pev.team);
 							
+							
 							for (uint i = 0; i < g_build_parts.size(); i++)
 							{
-								CBaseEntity@ part = g_build_parts[i].ent;
-								if (part !is null and (part.entindex() == right.entindex() or g_build_parts[i].parent == oldParent))
+								func_breakable_custom@ part = cast<func_breakable_custom@>(CastToScriptClass(g_build_parts[i].GetEntity()));
+								if (part !is null and (part.entindex() == lookEnt.entindex() or part.parent == oldParent))
 								{
-									g_build_parts[i].parent = right.pev.team;
+									part.parent = right.pev.team;
+								}
+								if (part !is null and (part.entindex() == right.entindex()))
+								{
+									part.parent = -1;
 								}
 							}
 						}

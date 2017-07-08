@@ -1,5 +1,6 @@
 #include "building_plan"
 #include "hammer"
+#include "func_breakable_custom"
 
 void dummyCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextMenuItem@ item) {}
 
@@ -96,45 +97,11 @@ class PlayerState
 	// 5) Reserved points
 }
 
-class BuildPart
-{
-	EHandle ent;
-	int parent; // part id
-	int id;
-	
-	BuildPart()
-	{
-		parent = -1;
-		id = -1;
-	}
-	
-	BuildPart(CBaseEntity@ ent, int id, int parent)
-	{
-		ent.pev.team = id;
-		this.ent = ent;
-		this.id = id;
-		this.parent = parent;
-	}
-	
-	string serialize()
-	{
-		CBaseEntity@ e = ent;
-		if (e !is null)
-		{
-			return e.pev.origin.ToString() + '"' + e.pev.angles.ToString() + '"' + e.pev.colormap + '"' +
-				   id + '"' + parent  + '"' + e.pev.button + '"' + e.pev.body + '"' + e.pev.vuser1.ToString() + '"' + 
-				   e.pev.vuser2.ToString() + '"' + e.pev.health + '"' + e.pev.classname + '"' + e.pev.model + '"' +
-				   e.pev.groupinfo + '"' + e.pev.noise1 + '"' + e.pev.noise2 + '"' + e.pev.noise3 + '"' + e.pev.effects;
-		}
-		else
-			return "";
-	}
-}
-
 dictionary player_states;
 
 array<EHandle> g_tool_cupboards;
-array<BuildPart> g_build_parts; // every build structure/item in the map
+array<EHandle> g_build_parts; // every build structure in the map (func_breakable_custom)
+array<EHandle> g_build_items; // every non-func_breakable_custom build item in the map (func_door)
 array<string> g_upgrade_suffixes = {
 	"_twig",
 	"_wood",
@@ -146,9 +113,7 @@ array<string> g_upgrade_suffixes = {
 dictionary g_part_models;
 float g_tool_cupboard_radius = 512;
 int g_part_id = 0;
-bool debug_mode = true;
-
-
+bool debug_mode = false;
 
 int MAX_SAVE_DATA_LENGTH = 1015; // Maximum length of a value saved with trigger_save. Discovered through testing
 
@@ -160,11 +125,14 @@ void MapInit()
 	g_CustomEntityFuncs.RegisterCustomEntity( "weapon_hammer", "weapon_hammer" );
 	g_ItemRegistry.RegisterWeapon( "weapon_hammer", "sc_rust", "" );
 	
+	g_CustomEntityFuncs.RegisterCustomEntity( "func_breakable_custom", "func_breakable_custom" );
+	
 	g_Hooks.RegisterHook( Hooks::Player::PlayerUse, @PlayerUse );
 	g_Hooks.RegisterHook( Hooks::Player::ClientSay, @ClientSay );
 	
 	g_Scheduler.SetInterval("stabilityCheck", 0.0);
 	g_Scheduler.SetInterval("inventoryCheck", 0.05);
+	//g_Scheduler.SetInterval("decalFix", 0.0);
 	
 	PrecacheSound("tfc/items/itembk2.wav");
 	
@@ -200,6 +168,13 @@ void MapInit()
 	PrecacheSound("debris/wood2.wav");
 	PrecacheSound("debris/wood3.wav");
 	g_Game.PrecacheModel( "models/woodgibs.mdl" );
+	
+	for (uint i = 0; i < g_material_damage_sounds.length(); i++)
+		for (uint k = 0; k < g_material_damage_sounds[i].length(); k++)
+			PrecacheSound(g_material_damage_sounds[i][k]);
+	for (uint i = 0; i < g_material_break_sounds.length(); i++)
+		for (uint k = 0; k < g_material_break_sounds[i].length(); k++)
+			PrecacheSound(g_material_break_sounds[i][k]);
 }
 
 void MapActivate()
@@ -295,6 +270,7 @@ void MapActivate()
 		CBaseEntity@ copy_ent = g_EntityFuncs.FindEntityByTargetname(null, part_names[i]);
 		if (copy_ent !is null) {
 			g_part_models[string(copy_ent.pev.model)] = part_names[i];
+			copy_ent.pev.effects = EF_NODRAW;
 		}
 		else
 			println("Missing entity: " + part_names[i]);
@@ -308,6 +284,7 @@ void MapActivate()
 			CBaseEntity@ copy_ent = g_EntityFuncs.FindEntityByTargetname(null, name);
 			if (copy_ent !is null) {
 				g_part_models[string(copy_ent.pev.model)] = name;
+				copy_ent.pev.effects = EF_NODRAW;
 			}
 			else
 				println("Missing entity: " + name);
@@ -323,117 +300,34 @@ void debug_stability(Vector start, Vector end)
 		te_beampoints(start, end, "sprites/laserbeam.spr", 0, 100, 255,1,0,Color(255, 0, 0, 0));
 }
 
-bool searchFromFloorPos(Vector pos)
+bool searchFromPart(func_breakable_custom@ part)
 {
-	string posKey = "" + int(pos.x + 0.5f) + int(pos.y + 0.5f) + int(pos.z + 0.5f);
-	if (visited_pos.exists(posKey))
+	if (visited_parts.exists(part.entindex()))
 	{
 		numSkip++;
 		return false;
 	}
-	visited_pos[posKey] = true;
-	
-	// TODO: Tri to square checks
-
+	visited_parts[part.entindex()] = true;
 	numChecks++;
-	CBaseEntity@ part = getPartAtPos(pos);
-	if (part !is null) {
-		if (part.pev.colormap == B_FOUNDATION or part.pev.colormap == B_FOUNDATION_TRI) {
-			return true;
-		}
-		pos = part.pev.origin;
-		if (part.pev.colormap == B_FLOOR or part.pev.colormap == B_LADDER_HATCH) {
-			// search for walls underneath or adjacent floors
-			g_EngineFuncs.MakeVectors(part.pev.angles);
-			Vector v_forward = g_Engine.v_forward;
-			Vector v_right = g_Engine.v_right;
-			 
-			return searchFromWallPos(pos + v_forward*64 + Vector(0,0,-128)) or
-					searchFromWallPos(pos + v_forward*-64 + Vector(0,0,-128)) or
-					searchFromWallPos(pos + v_right*64 + Vector(0,0,-128)) or
-					searchFromWallPos(pos + v_right*-64 + Vector(0,0,-128)) or
-					searchFromFloorPos(pos + v_forward*128) or
-					searchFromFloorPos(pos + v_forward*-128) or
-					searchFromFloorPos(pos + v_right*128) or
-					searchFromFloorPos(pos + v_right*-128) or
-					searchFromFloorPos(pos + v_forward*(64+36.95)) or
-					searchFromFloorPos(pos + v_forward*-(64+36.95)) or
-					searchFromFloorPos(pos + v_right*(64+36.95)) or
-					searchFromFloorPos(pos + v_right*-(64+36.95));
-		}
-		if (part.pev.colormap == B_FLOOR_TRI) {
-			// search for walls underneath or adjacent floors
-			g_EngineFuncs.MakeVectors(part.pev.angles);
-			Vector v_forward = g_Engine.v_forward;
-			Vector v_right = g_Engine.v_right;
-
-			return searchFromWallPos(pos + v_right*-32 + v_forward*18.476) or
-					searchFromWallPos(pos + v_right*32 + v_forward*18.476) or
-					searchFromWallPos(pos + v_forward*-36.95) or
-					searchFromWallPos(pos + Vector(0,0,-128) + v_right*-32 + v_forward*18.476) or
-					searchFromWallPos(pos + Vector(0,0,-128) + v_right*32 + v_forward*18.476) or
-					searchFromWallPos(pos + Vector(0,0,-128) + v_forward*-36.95) or
-					searchFromFloorPos(pos + v_forward*-73.9) or
-					searchFromFloorPos(pos + v_right*64 + v_forward*36.95) or
-					searchFromFloorPos(pos + v_right*-64 + v_forward*36.95) or
-					searchFromFloorPos(pos + v_forward*-(36.95+64)) or
-					searchFromFloorPos(pos + v_right*87 + v_forward*51) or
-					searchFromFloorPos(pos + v_right*-87 + v_forward*51);
-		}
+	
+	if (part.pev.colormap == B_FOUNDATION or part.pev.colormap == B_FOUNDATION_TRI) {
+		return true;
 	}
-	return false;
-}
-
-bool searchFromWallPos(Vector pos)
-{
-	string posKey = "" + int(pos.x + 0.5f) + int(pos.y + 0.5f) + int(pos.z + 0.5f);
-	if (visited_pos.exists(posKey))
+	for (uint i = 0; i < part.connections.length(); i++)
 	{
-		numSkip++;
-		return false;
-	}
-	visited_pos[posKey] = true;
-	
-	numChecks++;
-	CBaseEntity@ part = getPartAtPos(pos);
-	if (part !is null) {
-		pos = part.pev.origin;
-		if (socketType(part.pev.colormap) == SOCKET_WALL) {
-			// search adjacent floor positions or wall underneath
-			g_EngineFuncs.MakeVectors(part.pev.angles);
-			Vector v_forward = g_Engine.v_forward;
-			Vector v_right = g_Engine.v_right;
-			
-			// adjacent walls or walls connected by corners
-			return searchFromFloorPos(pos + v_forward*64) or 
-					searchFromFloorPos(pos + v_forward*-64) or
-					searchFromFloorPos(pos + v_forward*64 + Vector(0,0,128)) or
-					searchFromFloorPos(pos + v_forward*-64 + Vector(0,0,128)) or
-					searchFromWallPos(pos + Vector(0,0,-128)) or
-					searchFromWallPos(pos + Vector(0,0,128)) or
-					searchFromWallPos(pos + v_right*128) or
-					searchFromWallPos(pos + v_right*-128) or
-					searchFromWallPos(pos + v_right*64 + v_forward*64) or
-					searchFromWallPos(pos + v_right*64 + v_forward*-64) or
-					searchFromWallPos(pos + v_right*-64 + v_forward*64) or
-					searchFromWallPos(pos + v_right*-64 + v_forward*-64) or
-					// triangle checks
-					searchFromWallPos(pos + v_right*96 + v_forward*55.43) or
-					searchFromWallPos(pos + v_right*96 + v_forward*-55.43) or
-					searchFromWallPos(pos + v_right*-96 + v_forward*55.43) or
-					searchFromWallPos(pos + v_right*-96 + v_forward*-55.43) or 
-					searchFromFloorPos(pos + v_forward*36.95) or 
-					searchFromFloorPos(pos + v_forward*-36.95) or 
-					searchFromFloorPos(pos + v_forward*36.95 + Vector(0,0,128)) or 
-					searchFromFloorPos(pos + v_forward*-36.95 + Vector(0,0,128));
+		if (part.connections[i])
+		{
+			if (searchFromPart(cast<func_breakable_custom@>(CastToScriptClass(part.connections[i].GetEntity()))))
+				return true;
 		}
+		
 	}
 	return false;
 }
 
 int numSkip = 0;
 int numChecks = 0;
-dictionary visited_pos; // used to mark positions as already visited when doing the stability search
+dictionary visited_parts; // used to mark positions as already visited when doing the stability search
 array<EHandle> stability_ents; // list of ents to check for stability
 int wait_stable_check = 0; // frames to wait before next stability check (so broken parts aren't detected)
 
@@ -451,147 +345,13 @@ void propogate_part_destruction(CBaseEntity@ ent)
 {	
 	int type = ent.pev.colormap;
 	int socket = socketType(type);
-	Vector pos = ent.pev.origin;
-	g_EngineFuncs.MakeVectors(ent.pev.angles);
-	if (type == B_FOUNDATION or type == B_FLOOR or (type == B_LADDER_HATCH and ent.pev.classname == "func_breakable"))
+	if (ent.pev.classname == "func_breakable_custom")
 	{
-		EHandle wall1 = getPartAtPos(pos + g_Engine.v_forward*64);
-		EHandle wall2 = getPartAtPos(pos + g_Engine.v_forward*-64);
-		EHandle wall3 = getPartAtPos(pos + g_Engine.v_right*64);
-		EHandle wall4 = getPartAtPos(pos + g_Engine.v_right*-64);
-		EHandle wall5 = getPartAtPos(pos + g_Engine.v_forward*64 + Vector(0,0,-128));
-		EHandle wall6 = getPartAtPos(pos + g_Engine.v_forward*-64 + Vector(0,0,-128));
-		EHandle wall7 = getPartAtPos(pos + g_Engine.v_right*64 + Vector(0,0,-128));
-		EHandle wall8 = getPartAtPos(pos + g_Engine.v_right*-64 + Vector(0,0,-128));
-		// steps/floors
-		EHandle steps1 = getPartAtPos(pos + g_Engine.v_right*128);
-		EHandle steps2 = getPartAtPos(pos + g_Engine.v_right*-128);
-		EHandle steps3 = getPartAtPos(pos + g_Engine.v_forward*128);
-		EHandle steps4 = getPartAtPos(pos + g_Engine.v_forward*-128);
-		// square -> tri
-		EHandle tri1 = getPartAtPos(pos + g_Engine.v_right*(64+36.95));
-		EHandle tri2 = getPartAtPos(pos + g_Engine.v_right*-(64+36.95));
-		EHandle tri3 = getPartAtPos(pos + g_Engine.v_forward*(64+36.95));
-		EHandle tri4 = getPartAtPos(pos + g_Engine.v_forward*-(64+36.95));
-		EHandle middle = getPartAtPos(pos + Vector(0,0,64));
-		
-		if (steps1) checkStabilityEnt(steps1);
-		if (steps2) checkStabilityEnt(steps2);
-		if (steps3) checkStabilityEnt(steps3);
-		if (steps4) checkStabilityEnt(steps4);
-		if (wall1) checkStabilityEnt(wall1);
-		if (wall2) checkStabilityEnt(wall2);
-		if (wall3) checkStabilityEnt(wall3);
-		if (wall4) checkStabilityEnt(wall4);
-		if (wall5) checkStabilityEnt(wall5);
-		if (wall6) checkStabilityEnt(wall6);
-		if (wall7) checkStabilityEnt(wall7);
-		if (wall8) checkStabilityEnt(wall8);
-		if (middle) checkStabilityEnt(middle);
-		if (tri1) checkStabilityEnt(tri1);
-		if (tri2) checkStabilityEnt(tri2);
-		if (tri3) checkStabilityEnt(tri3);
-		if (tri4) checkStabilityEnt(tri4);
+		func_breakable_custom@ bpart = cast<func_breakable_custom@>(CastToScriptClass(ent));
+		for (uint i = 0; i < bpart.connections.length(); i++)
+			checkStabilityEnt(bpart.connections[i]);
 	}
-	if (type == B_FOUNDATION_TRI or type == B_FLOOR_TRI)
-	{
-		EHandle wall1 = getPartAtPos(pos + g_Engine.v_right*-32 + g_Engine.v_forward*18.476);
-		EHandle wall2 = getPartAtPos(pos + g_Engine.v_right*32 + g_Engine.v_forward*18.476);
-		EHandle wall3 = getPartAtPos(pos + g_Engine.v_forward*-36.95);
-		EHandle wall4 = getPartAtPos(pos + g_Engine.v_right*-32 + g_Engine.v_forward*18.476 + Vector(0,0,-128));
-		EHandle wall5 = getPartAtPos(pos + g_Engine.v_right*32 + g_Engine.v_forward*18.476 + Vector(0,0,-128));
-		EHandle wall6 = getPartAtPos(pos + g_Engine.v_forward*-36.95 + Vector(0,0,-128));
-		
-		if (type == B_FOUNDATION_TRI)
-		{
-			// TODO: the 87/51 numbers are just estimates
-			EHandle steps1 = getPartAtPos(pos + g_Engine.v_forward*-(36.95+64));
-			EHandle steps2 = getPartAtPos(pos + g_Engine.v_right*87 + g_Engine.v_forward*51);
-			EHandle steps3 = getPartAtPos(pos + g_Engine.v_right*-87 + g_Engine.v_forward*51);
-			if (steps1) checkStabilityEnt(steps1);
-			if (steps2) checkStabilityEnt(steps2);
-			if (steps3) checkStabilityEnt(steps3);
-		}
-		if (type == B_FLOOR_TRI)
-		{
-			// tri -> tri
-			EHandle floor1 = getPartAtPos(pos + g_Engine.v_forward*-73.9);
-			EHandle floor2 = getPartAtPos(pos + g_Engine.v_right*64 + g_Engine.v_forward*36.95);
-			EHandle floor3 = getPartAtPos(pos + g_Engine.v_right*-64 + g_Engine.v_forward*36.95);
-			// tri -> square
-			EHandle floor4 = getPartAtPos(pos + g_Engine.v_forward*-(36.95+64));
-			EHandle floor5 = getPartAtPos(pos + g_Engine.v_right*87 + g_Engine.v_forward*51);
-			EHandle floor6 = getPartAtPos(pos + g_Engine.v_right*-87 + g_Engine.v_forward*51);
-			if (floor1) checkStabilityEnt(floor1);
-			if (floor2) checkStabilityEnt(floor2);
-			if (floor3) checkStabilityEnt(floor3);
-			if (floor4) checkStabilityEnt(floor4);
-			if (floor5) checkStabilityEnt(floor5);
-			if (floor6) checkStabilityEnt(floor6);
-		}
-		
-		if (wall1) checkStabilityEnt(wall1);
-		if (wall2) checkStabilityEnt(wall2);
-		if (wall3) checkStabilityEnt(wall3);
-		if (wall4) checkStabilityEnt(wall4);
-		if (wall5) checkStabilityEnt(wall5);
-		if (wall6) checkStabilityEnt(wall6);
-	}
-	if (socket == SOCKET_WALL)
-	{
-		EHandle wall1 = getPartAtPos(pos + Vector(0,0,128));
-		EHandle wall2 = getPartAtPos(pos + Vector(0,0,-128));
-		EHandle wall3 = getPartAtPos(pos + g_Engine.v_right*128);
-		EHandle wall4 = getPartAtPos(pos + g_Engine.v_right*-128);
-		EHandle wall5 = getPartAtPos(pos + g_Engine.v_right*64 + g_Engine.v_forward*64);
-		EHandle wall6 = getPartAtPos(pos + g_Engine.v_right*64 + g_Engine.v_forward*-64);
-		EHandle wall7 = getPartAtPos(pos + g_Engine.v_right*-64 + g_Engine.v_forward*64);
-		EHandle wall8 = getPartAtPos(pos + g_Engine.v_right*-64 + g_Engine.v_forward*-64);
-		EHandle floor1 = getPartAtPos(pos + g_Engine.v_forward*64);
-		EHandle floor2 = getPartAtPos(pos + g_Engine.v_forward*-64);
-		EHandle floor3 = getPartAtPos(pos + g_Engine.v_forward*64 + Vector(0,0,128));
-		EHandle floor4 = getPartAtPos(pos + g_Engine.v_forward*-64 + Vector(0,0,128));
-		EHandle roof1 = getPartAtPos(pos + g_Engine.v_forward*64 + Vector(0,0,192));
-		EHandle roof2 = getPartAtPos(pos - g_Engine.v_forward*64 + Vector(0,0,192));
-		
-		//triangle connections
-		EHandle tri1 = getPartAtPos(pos + g_Engine.v_forward*36.95);
-		EHandle tri2 = getPartAtPos(pos + g_Engine.v_forward*-36.95);
-		EHandle tri3 = getPartAtPos(pos + g_Engine.v_forward*36.95 + Vector(0,0,128));
-		EHandle tri4 = getPartAtPos(pos + g_Engine.v_forward*-36.95 + Vector(0,0,128));
-		EHandle wall9 = getPartAtPos(pos + g_Engine.v_right*96 + g_Engine.v_forward*55.43);
-		EHandle wall10 = getPartAtPos(pos + g_Engine.v_right*96 + g_Engine.v_forward*-55.43);
-		EHandle wall11 = getPartAtPos(pos + g_Engine.v_right*-96 + g_Engine.v_forward*55.43);
-		EHandle wall12 = getPartAtPos(pos + g_Engine.v_right*-96 + g_Engine.v_forward*-55.43);
-		EHandle floor5 = getPartAtPos(pos + g_Engine.v_forward*36.95);
-		EHandle floor6 = getPartAtPos(pos + g_Engine.v_forward*-36.95);
 
-		if (wall1) checkStabilityEnt(wall1);
-		if (wall2) checkStabilityEnt(wall2);
-		if (wall3) checkStabilityEnt(wall3);
-		if (wall4) checkStabilityEnt(wall4);
-		if (wall5) checkStabilityEnt(wall5);
-		if (wall6) checkStabilityEnt(wall6);
-		if (wall7) checkStabilityEnt(wall7);
-		if (wall8) checkStabilityEnt(wall8);
-		if (wall9) checkStabilityEnt(wall9);
-		if (wall10) checkStabilityEnt(wall10);
-		if (wall11) checkStabilityEnt(wall11);
-		if (wall12) checkStabilityEnt(wall12);
-		if (floor1) checkStabilityEnt(floor1);
-		if (floor2) checkStabilityEnt(floor2);
-		if (floor3) checkStabilityEnt(floor3);
-		if (floor4) checkStabilityEnt(floor4);
-		if (floor5) checkStabilityEnt(floor5);
-		if (floor6) checkStabilityEnt(floor6);
-		if (roof1) checkStabilityEnt(roof1);
-		if (roof2) checkStabilityEnt(roof2);
-		if (tri1) checkStabilityEnt(tri1);
-		if (tri2) checkStabilityEnt(tri2);
-		if (tri3) checkStabilityEnt(tri3);
-		if (tri4) checkStabilityEnt(tri4);
-	}
-	
 	// destroy objects parented to this one
 	array<EHandle> children = getPartsByParent(ent.pev.team);
 	for (uint i = 0; i < children.length(); i++)
@@ -599,20 +359,20 @@ void propogate_part_destruction(CBaseEntity@ ent)
 		CBaseEntity@ child = children[i];
 		if (child.entindex() == ent.entindex())
 			continue;
-		child.TakeDamage(child.pev, child.pev, child.pev.health, 0);
+		child.TakeDamage(child.pev, child.pev, 9e99, 0);
 		if (child.pev.classname == "func_ladder")
 		{
 			g_EntityFuncs.Remove(child);
 		}
 	}
 	
-	if (type == B_LADDER_HATCH)
+	if (type == B_LADDER_HATCH or type == B_LADDER or type == B_WOOD_SHUTTERS)
 	{
-		// kill parent
+		// kill tied entities (ladder, secondary door)
 		array<EHandle> parents = getPartsByID(ent.pev.team);
-		if (parents.length() > 0)
+		for (uint i = 0; i < parents.length(); i++)
 		{
-			CBaseEntity@ parent = parents[0];
+			CBaseEntity@ parent = parents[i].GetEntity();
 			parent.TakeDamage(parent.pev, parent.pev, parent.pev.health, 0);
 			if (parent.pev.classname == "func_ladder")
 			{
@@ -642,7 +402,7 @@ void stabilityCheck()
 	// check for destroyed ents
 	for (uint i = 0; i < g_build_parts.length(); i++)
 	{
-		CBaseEntity@ ent = g_build_parts[i].ent;
+		func_breakable_custom@ ent = cast<func_breakable_custom@>(CastToScriptClass(g_build_parts[i].GetEntity()));
 		if (ent is null)
 		{
 			g_build_parts.removeAt(i);
@@ -652,10 +412,10 @@ void stabilityCheck()
 		{
 			ent.pev.frame = 0;
 			ent.pev.framerate = 0;
-			if (ent.pev.team != g_build_parts[i].id)
+			if (ent.pev.team != ent.id)
 			{
-				println("UH OH BAD ID");
-				ent.pev.team = g_build_parts[i].id;
+				println("UH OH BAD ID " + ent.id + " != " + ent.pev.team);
+				ent.pev.team = ent.id;
 			}
 		}
 	}
@@ -668,7 +428,7 @@ void stabilityCheck()
 	
 	while(stability_ents.length() > 0)
 	{		
-		visited_pos.deleteAll();
+		visited_parts.deleteAll();
 		CBaseEntity@ src_part = stability_ents[0];
 		
 		if (src_part is null)
@@ -676,6 +436,15 @@ void stabilityCheck()
 			stability_ents.removeAt(0);
 			continue;
 		}
+		
+		if (src_part.pev.classname != "func_breakable_custom")
+		{
+			println("Not a support part!");
+			stability_ents.removeAt(0);
+			continue;
+		}
+		
+		func_breakable_custom@ bpart = cast<func_breakable_custom@>(CastToScriptClass(src_part));
 		
 		int type = src_part.pev.colormap;
 		int socket = socketType(type);
@@ -693,30 +462,7 @@ void stabilityCheck()
 		numChecks = 0;
 		numSkip = 0;
 		
-		bool supported = false;
-		if (type == B_FOUNDATION_STEPS) 
-		{
-			g_EngineFuncs.MakeVectors(src_part.pev.angles);
-			supported = searchFromFloorPos(pos + g_Engine.v_forward*128);
-		}
-		else if (type == B_ROOF)
-		{
-			g_EngineFuncs.MakeVectors(src_part.pev.angles);
-			supported = searchFromFloorPos(pos + Vector(0,0,-64));
-			supported = supported or searchFromWallPos(pos + g_Engine.v_forward*64 + Vector(0,0,-192));	
-		}
-		else if (socket == SOCKET_WALL)
-		{
-			supported = searchFromWallPos(pos);
-		}
-		else if (socket == SOCKET_MIDDLE)
-		{
-			supported = searchFromFloorPos(pos - Vector(0,0,64));
-		}
-		else if (type == B_FLOOR or (type == B_LADDER_HATCH and src_part.pev.classname == "func_breakable") or type == B_FLOOR_TRI) 
-		{
-			supported = searchFromFloorPos(pos);
-		}
+		bool supported = searchFromPart(bpart);
 
 		println("Stability for part " + src_part.pev.team + " finished in " + numChecks + " checks (" + numSkip + " skipped). Result is " + supported);
 		
@@ -891,6 +637,34 @@ void openCraftMenu(CBasePlayer@ plr, string subMenu)
 	state.openMenu(plr);
 }
 
+void te_decal(Vector pos, CBaseEntity@ brushEnt=null, string decal="{handi",
+	NetworkMessageDest msgType=MSG_BROADCAST, edict_t@ dest=null)
+{
+	NetworkMessage m(msgType, NetworkMessages::SVC_TEMPENTITY, dest);
+	m.WriteByte(TE_DECAL);
+	m.WriteCoord(pos.x);
+	m.WriteCoord(pos.y);
+	m.WriteCoord(pos.z);
+	m.WriteByte(g_EngineFuncs.DecalIndex(decal));
+	m.WriteShort(brushEnt is null ? 0 : brushEnt.entindex());
+	m.End();
+}
+
+// workaround for the "Too many decal textures" error. rip net usage.
+void decalFix()
+{
+	Vector vecSrc = Vector(0,0,128);
+	TraceResult tr2;
+	Vector vecEnd = vecSrc + Vector(0,0,-128);
+	g_Utility.TraceLine( vecSrc, vecEnd, ignore_monsters, null, tr2 );
+
+	//g_Utility.DecalTrace(tr2, g_EngineFuncs.DecalIndex("{handi"));
+	for (uint y = 0; y < 32; y++)
+		for (uint x = 0; x < 32; x++)
+			te_decal(tr2.vecEndPos + Vector(x*16, y*16, 0));
+	println("DECAL");
+}
+
 void inventoryCheck()
 {
 	CBaseEntity@ e_plr = null;
@@ -907,6 +681,7 @@ void inventoryCheck()
 			
 			TraceResult tr = TraceLook(plr, 96, true);
 			CBaseEntity@ phit = g_EntityFuncs.Instance( tr.pHit );
+			
 			if (phit is null or phit.pev.classname == "worldspawn")
 				continue;
 
@@ -963,9 +738,15 @@ void rotate_door(CBaseEntity@ door, bool playSound)
 		if (door.pev.colormap == B_LADDER_HATCH) {
 			CBaseEntity@ ladder = g_EntityFuncs.FindEntityByTargetname(null, "ladder_hatch" + door.pev.team);
 			
-			int oldcolormap = ladder.pev.colormap;
-			ladder.Use(@ladder, @ladder, USE_TOGGLE, 0.0F);
-			ladder.pev.colormap = oldcolormap;
+			if (ladder !is null)
+			{
+				int oldcolormap = ladder.pev.colormap;
+				ladder.Use(@ladder, @ladder, USE_TOGGLE, 0.0F);
+				ladder.pev.colormap = oldcolormap;
+			}
+			else
+				println("ladder_hatch" + door.pev.team + " not found!");
+			
 		}
 	}
 	
@@ -1126,10 +907,10 @@ HookReturnCode PlayerUse( CBasePlayer@ plr, uint& out )
 		TraceResult tr = TraceLook(plr, 256);
 		CBaseEntity@ phit = g_EntityFuncs.Instance( tr.pHit );
 		
-		if (phit !is null and (phit.pev.classname == "func_door_rotating" or phit.pev.classname == "func_breakable"))
+		if (phit !is null and (phit.pev.classname == "func_door_rotating" or phit.pev.classname == "func_breakable_custom"))
 		{
 			int socket = socketType(phit.pev.colormap);
-			if (socket == SOCKET_DOORWAY or (phit.pev.colormap == B_LADDER_HATCH and phit.pev.classname == "func_door_rotating"))
+			if (socket == SOCKET_DOORWAY or (phit.pev.colormap == B_LADDER_HATCH and phit.pev.targetname != ""))
 			{
 				if (heldUse)
 				{
@@ -1312,13 +1093,12 @@ EHandle savePart(int idx)
 {
 	EHandle nullHandle = null;
 	
-	BuildPart@ part = g_build_parts[idx];
-	if (part.ent) {
-		CBaseEntity@ ent = part.ent;
+	if (g_build_parts[idx]) {
+		func_breakable_custom@ ent = cast<func_breakable_custom@>(CastToScriptClass(g_build_parts[idx].GetEntity()));
 		println("Saving part " + ent.pev.team);
 		
 		// using quotes as delimitters because players can't use them in their names
-		string data = part.serialize();
+		string data = ent.serialize();
 		if (int(data.Length()) > MAX_SAVE_DATA_LENGTH)
 			println("MAYDAY! MAYDAY! SAVE DATA IS TOO LONG FOR PART " + ent.pev.team);
 		else
@@ -1430,6 +1210,11 @@ void saveMapData()
 void unlockSaveLoad()
 {
 	saveLoadInProgress = false;
+	for (uint i = 0; i < g_build_parts.length(); i++)
+	{
+		func_breakable_custom@ ent = cast<func_breakable_custom@>(CastToScriptClass(g_build_parts[i].GetEntity()));
+		ent.updateConnections();
+	}
 }
 
 void loadPart(int idx)
@@ -1469,6 +1254,8 @@ void loadPart(int idx)
 			keys["health"] = "100";
 			keys["rendermode"] = "4";
 			keys["renderamt"] = "255";
+			keys["id"] = "" + id;
+			keys["parent"] = "" + parent;
 			
 			int socket = socketType(type);
 			if (socket == SOCKET_DOORWAY or type == B_WOOD_SHUTTERS or type == B_LADDER_HATCH)
@@ -1502,21 +1289,20 @@ void loadPart(int idx)
 			ent.pev.noise3 = code;
 			ent.pev.team = id;
 			ent.pev.effects = effects;
+			g_EntityFuncs.SetSize(ent.pev, ent.pev.mins, ent.pev.maxs);
 			if (effects & EF_NODRAW != 0)
+			{
 				ent.pev.solid = SOLID_NOT;
-			
-			PlayerState@ state = getPlayerStateBySteamID(steamid, netname);
-			if (state !is null)
+				println("ITS A NODRAW");
+			}
+			else
 			{
-				state.numParts++;
+				PlayerState@ state = getPlayerStateBySteamID(steamid, netname);
+				if (state !is null)
+					state.numParts++;
 			}
 			
-			if (classname == "func_door_rotating")
-			{
-				ent.Use(@ent, @ent, USE_TOGGLE, 0.0F);
-			}
-			
-			g_build_parts.insertLast(BuildPart(ent, id, parent));
+			g_build_parts.insertLast(EHandle(ent));
 			
 			if (id >= g_part_id)
 				g_part_id = id+1;
@@ -1548,7 +1334,7 @@ void loadMapData()
 	float initialWait = 1.0f;
 	for (uint i = 0; i < g_build_parts.length(); i++)
 	{
-		g_EntityFuncs.Remove(g_build_parts[i].ent);
+		g_EntityFuncs.Remove(g_build_parts[i]);
 	}
 	println("Loading " + numParts + " parts...");
 	
