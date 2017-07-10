@@ -172,8 +172,15 @@ array<EHandle> getPartsByParent(int parent)
 
 string getModelName(CBaseEntity@ part)
 {
+	string name;
+	g_partname_to_model.get(string(part.pev.model), name);
+	return name;
+}
+
+string getModelFromName(string partName)
+{
 	string model;
-	g_part_models.get(string(part.pev.model), model);
+	g_model_to_partname.get(partName, model);
 	return model;
 }
 
@@ -253,7 +260,7 @@ CBaseEntity@ respawnPart(int id)
 			ent.pev.max_health = part.pev.max_health;
 			ent.pev.colormap = part.pev.colormap;
 			
-			g_EntityFuncs.SetSize(ent.pev, ent.pev.mins, ent.pev.maxs); // fixes collision somehow :S
+			//g_EntityFuncs.SetSize(ent.pev, ent.pev.mins, ent.pev.maxs); // fixes collision somehow :S
 			
 			g_EntityFuncs.Remove(g_build_parts[i]);
 			g_build_parts[i] = ent;
@@ -358,21 +365,17 @@ void updateRoofWalls(CBaseEntity@ roof)
 	string material = getMaterialType(roof);
 	
 	if (hasWallL and hasWallR and !hasRoofL and !hasRoofR) {
-		CBaseEntity@ copy_ent = g_EntityFuncs.FindEntityByTargetname(null, "b_roof_wall_both" + material);
-		brushModel = copy_ent.pev.model;
+		brushModel = "b_roof_wall_both";
 	} else if (hasWallL and !hasRoofL) {
-		CBaseEntity@ copy_ent = g_EntityFuncs.FindEntityByTargetname(null, "b_roof_wall_left" + material);
-		brushModel = copy_ent.pev.model;
+		brushModel = "b_roof_wall_left";
 	} else if (hasWallR and !hasRoofR) {
-		CBaseEntity@ copy_ent = g_EntityFuncs.FindEntityByTargetname(null, "b_roof_wall_right" + material);
-		brushModel = copy_ent.pev.model;
+		brushModel = "b_roof_wall_right";
 	} else {
-		CBaseEntity@ copy_ent = g_EntityFuncs.FindEntityByTargetname(null, "b_roof" + material);
-		brushModel = copy_ent.pev.model;
+		brushModel = "b_roof";
 	}
 	
 	int oldcolormap = roof.pev.colormap;
-	g_EntityFuncs.SetModel(roof, brushModel);
+	g_EntityFuncs.SetModel(roof, getModelFromName(brushModel + material));
 	roof.pev.colormap = oldcolormap;
 }
 	

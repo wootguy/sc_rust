@@ -148,11 +148,9 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 			@buildEnt2 = null;
 		}
 		
-		CBaseEntity@ copy_ent = g_EntityFuncs.FindEntityByTargetname(null, g_part_info[0].copy_ent + "_twig");
-		
 		dictionary keys;
 		keys["origin"] = getPlayer().pev.origin.ToString();
-		keys["model"] = string(copy_ent.pev.model);
+		keys["model"] = getModelFromName(g_part_info[0].copy_ent + "_twig");
 		keys["rendermode"] = "1";
 		keys["renderamt"] = "64";
 		keys["rendercolor"] = "0 255 255";
@@ -161,7 +159,7 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 		
 		@buildEnt2 = g_EntityFuncs.CreateEntity("func_illusionary", keys, true);	
 		buildEnt2.pev.rendercolor = Vector(0,200,0);
-		buildEnt2.pev.effects = EF_NODRAW;
+		buildEnt2.pev.effects |= EF_NODRAW;
 	}
 	
 	void updateBuildPlaceholder()
@@ -178,11 +176,11 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 		CBaseEntity@ phit = g_EntityFuncs.Instance( tr.pHit );
 		
 		
-		buildEnt.pev.effects = EF_NODRAW;
+		buildEnt.pev.effects |= EF_NODRAW;
 		if (phit is null or phit.pev.classname == "worldspawn" or !isUpgradable(phit))
 			return;
 			
-		buildEnt.pev.effects = 0;
+		buildEnt.pev.effects &= ~EF_NODRAW;
 		
 		validTarget = true;
 		
@@ -265,7 +263,7 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 		if (buildEnt !is null)
 			buildEnt.pev.rendercolor = Vector(0, 255, 255);
 		if (buildEnt2 !is null)
-			buildEnt2.pev.effects = EF_NODRAW;
+			buildEnt2.pev.effects |= EF_NODRAW;
 	}
 	
 	void WeaponThink()
@@ -436,8 +434,7 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 			if (size == "_1x1")
 				size = "";
 			
-			CBaseEntity@ copy_ent = g_EntityFuncs.FindEntityByTargetname(null, partname + size + matname);
-			g_EntityFuncs.SetModel( lookEnt, copy_ent.pev.model);
+			g_EntityFuncs.SetModel( lookEnt, getModelFromName(partname + size + matname));
 			if (lookEnt.pev.colormap == B_ROOF)
 				updateRoofWalls(lookEnt);
 			if (buildEnt !is null)
@@ -567,8 +564,6 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 			}
 		}
 		
-		CBaseEntity@ copy_ent = g_EntityFuncs.FindEntityByTargetname(null, prefix + material);
-		
 		// disconnect children
 		for (uint i = 0; i < g_build_parts.size(); i++)
 		{
@@ -590,7 +585,7 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 				println("Failed to get adjacent square during separation");
 				continue;
 			}
-			parts[i].pev.model = copy_ent.pev.model;
+			parts[i].pev.model = getModelFromName(prefix + material);
 			if (socket == SOCKET_WALL)
 				parts[i].pev.angles.y = ent.pev.angles.y;
 			respawnPart(parts[i].pev.team);
@@ -717,7 +712,7 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 					if (abs(dist - 128) < EPSILON) // facing opposite directions (outward, not inward)
 					{
 						float newAngle = part1.pev.angles.y + 180;
-						part1.pev.effects = EF_NODRAW;
+						part1.pev.effects |= EF_NODRAW;
 						part1.pev.solid = SOLID_NOT;
 						@part1 = getPartAtPos(part1.pev.origin + g_Engine.v_right*128);
 						if (part1 is null)
@@ -857,7 +852,7 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 				else if (DotProduct(dir, -g_Engine.v_right) > 0.4f) // left
 				{
 					float newAngle = part1.pev.angles.y + 180;
-					part1.pev.effects = EF_NODRAW;
+					part1.pev.effects |= EF_NODRAW;
 					part1.pev.solid = SOLID_NOT;
 					@part1 = getPartAtPos(part1.pev.origin + g_Engine.v_right*64 + g_Engine.v_forward*36.95);
 					if (part1 is null)
@@ -906,7 +901,7 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 				else if (DotProduct(dir, -g_Engine.v_right) > 0.7f and size1 == "_2x1" and abs(dist - 73.899) < EPSILON)
 				{
 					float newAngle = part1.pev.angles.y;
-					part1.pev.effects = EF_NODRAW;
+					part1.pev.effects |= EF_NODRAW;
 					part1.pev.solid = SOLID_NOT;
 					@part1 = getPartAtPos(part1.pev.origin + g_Engine.v_right*-128);
 					if (part1 is null)
@@ -919,10 +914,9 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 				}
 				else if ((DotProduct(dir, -g_Engine.v_forward) > 0.7f and size1 == "_2x1" and abs(dist - 73.899) < EPSILON))
 				{
-					println("kekek");
 					newSize = "_1x4";
 					float newAngle = part1.pev.angles.y + 60;
-					part1.pev.effects = EF_NODRAW;
+					part1.pev.effects |= EF_NODRAW;
 					part1.pev.solid = SOLID_NOT;
 					@part1 = getPartAtPos(part1.pev.origin + g_Engine.v_right*64 + g_Engine.v_forward*36.95);
 					if (part1 is null)
@@ -1100,9 +1094,8 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 			int oldParent = b1.parent;
 			b1.parent = -1;
 			
-			CBaseEntity@ copy_ent = g_EntityFuncs.FindEntityByTargetname(null, newModel);
-			g_EntityFuncs.SetModel(part1, copy_ent.pev.model);
-			part2.pev.effects = EF_NODRAW;
+			g_EntityFuncs.SetModel(part1, getModelFromName(newModel));
+			part2.pev.effects |= EF_NODRAW;
 			part2.pev.solid = SOLID_NOT;
 			// set invisible part (and its children) as child of fused part (so they get destroyed properly)
 			for (uint i = 0; i < g_build_parts.size(); i++)
@@ -1175,7 +1168,7 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 					fusing = true;
 					buildEnt.pev.rendercolor = Vector(0, 200, 0);
 					
-					buildEnt2.pev.effects = 0;
+					buildEnt2.pev.effects &= ~EF_NODRAW;
 					buildEnt2.pev.origin = buildEnt.pev.origin;
 					buildEnt2.pev.angles = buildEnt.pev.angles;
 					g_EntityFuncs.SetModel(buildEnt2, buildEnt.pev.model);
@@ -1220,7 +1213,7 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 							string temp2 = right.pev.model;
 							g_EntityFuncs.SetModel(right, temp1);
 							g_EntityFuncs.SetModel(lookEnt, temp2);
-							lookEnt.pev.effects = EF_NODRAW;
+							lookEnt.pev.effects |= EF_NODRAW;
 							lookEnt.pev.solid = SOLID_NOT;
 							lookEnt.pev.angles.y += 180;
 							right.pev.angles.y += 180;

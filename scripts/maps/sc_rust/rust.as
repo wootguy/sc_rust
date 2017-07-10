@@ -1,6 +1,7 @@
 #include "building_plan"
 #include "hammer"
 #include "func_breakable_custom"
+#include "func_build_clip"
 
 void dummyCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextMenuItem@ item) {}
 
@@ -110,7 +111,8 @@ array<string> g_upgrade_suffixes = {
 	"_armor"
 };
 
-dictionary g_part_models;
+dictionary g_partname_to_model; // maps models to part names
+dictionary g_model_to_partname; // maps part names to models
 float g_tool_cupboard_radius = 512;
 int g_part_id = 0;
 bool debug_mode = false;
@@ -126,6 +128,7 @@ void MapInit()
 	g_ItemRegistry.RegisterWeapon( "weapon_hammer", "sc_rust", "" );
 	
 	g_CustomEntityFuncs.RegisterCustomEntity( "func_breakable_custom", "func_breakable_custom" );
+	g_CustomEntityFuncs.RegisterCustomEntity( "func_build_clip", "func_build_clip" );
 	
 	g_Hooks.RegisterHook( Hooks::Player::PlayerUse, @PlayerUse );
 	g_Hooks.RegisterHook( Hooks::Player::ClientSay, @ClientSay );
@@ -269,8 +272,9 @@ void MapActivate()
 	{
 		CBaseEntity@ copy_ent = g_EntityFuncs.FindEntityByTargetname(null, part_names[i]);
 		if (copy_ent !is null) {
-			g_part_models[string(copy_ent.pev.model)] = part_names[i];
-			copy_ent.pev.effects = EF_NODRAW;
+			g_partname_to_model[string(copy_ent.pev.model)] = part_names[i];
+			g_model_to_partname[part_names[i]] = string(copy_ent.pev.model);
+			g_EntityFuncs.Remove(copy_ent);
 		}
 		else
 			println("Missing entity: " + part_names[i]);
@@ -283,8 +287,9 @@ void MapActivate()
 			string name = construct_part_names[i] + g_upgrade_suffixes[k];
 			CBaseEntity@ copy_ent = g_EntityFuncs.FindEntityByTargetname(null, name);
 			if (copy_ent !is null) {
-				g_part_models[string(copy_ent.pev.model)] = name;
-				copy_ent.pev.effects = EF_NODRAW;
+				g_partname_to_model[string(copy_ent.pev.model)] = name;
+				g_model_to_partname[name] = string(copy_ent.pev.model);
+				g_EntityFuncs.Remove(copy_ent);
 			}
 			else
 				println("Missing entity: " + name);
@@ -682,6 +687,14 @@ void inventoryCheck()
 			TraceResult tr = TraceLook(plr, 96, true);
 			CBaseEntity@ phit = g_EntityFuncs.Instance( tr.pHit );
 			
+			if (e_plr.pev.button & IN_USE != 0)
+			{
+				// increment force_retouch
+				g_EntityFuncs.FireTargets("push", e_plr, e_plr, USE_TOGGLE);
+				println("RETOUCH");
+			}
+			
+			
 			if (phit is null or phit.pev.classname == "worldspawn")
 				continue;
 
@@ -769,9 +782,8 @@ void lock_object(CBaseEntity@ obj, string code, bool unlock)
 	
 	if (newModel.Length() > 0)
 	{
-		CBaseEntity@ copy_ent = g_EntityFuncs.FindEntityByTargetname(null, newModel);	
 		int oldcolormap = obj.pev.colormap;
-		g_EntityFuncs.SetModel(obj, copy_ent.pev.model);
+		g_EntityFuncs.SetModel(obj, getModelFromName(newModel));
 		obj.pev.colormap = oldcolormap;
 	}
 	
@@ -831,9 +843,8 @@ void codeLockMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTe
 			newModel = "b_metal_door";
 		if (lock.pev.colormap == B_LADDER_HATCH)
 			newModel = "b_ladder_hatch_door";
-		CBaseEntity@ copy_ent = g_EntityFuncs.FindEntityByTargetname(null, newModel);	
 		int oldcolormap = lock.pev.colormap;
-		g_EntityFuncs.SetModel(lock, copy_ent.pev.model);
+		g_EntityFuncs.SetModel(lock, getModelFromName(newModel));
 		lock.pev.colormap = oldcolormap;
 		g_SoundSystem.PlaySound(lock.edict(), CHAN_ITEM, "sc_rust/code_lock_place.ogg", 1.0f, 1.0f, 0, 100);		
 		giveItem(@plr, I_CODE_LOCK, 1);
@@ -1245,6 +1256,7 @@ void loadPart(int idx)
 			
 			dictionary keys;
 			keys["origin"] = origin.ToString();
+			keys["angles"] = angles.ToString();
 			keys["model"] = model;
 			keys["health"] = "health";
 			//keys["colormap"] = "" + type;
@@ -1278,7 +1290,6 @@ void loadPart(int idx)
 			
 			CBaseEntity@ ent = g_EntityFuncs.CreateEntity(classname, keys, true);
 			ent.pev.colormap = type;
-			ent.pev.angles = angles;
 			ent.pev.button = button;
 			ent.pev.body = body;
 			ent.pev.vuser1 = vuser1;
@@ -1288,8 +1299,9 @@ void loadPart(int idx)
 			ent.pev.noise2 = netname;
 			ent.pev.noise3 = code;
 			ent.pev.team = id;
-			ent.pev.effects = effects;
-			g_EntityFuncs.SetSize(ent.pev, ent.pev.mins, ent.pev.maxs);
+			ent.pev.effects = effects | EF_NODECALS;
+			//g_EntityFuncs.SetSize(ent.pev, ent.pev.mins, ent.pev.maxs);
+			//g_EntityFuncs.SetOrigin(ent, ent.pev.origin);
 			if (effects & EF_NODRAW != 0)
 			{
 				ent.pev.solid = SOLID_NOT;

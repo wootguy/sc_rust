@@ -45,8 +45,6 @@ class func_breakable_custom : ScriptBaseEntity
 	array<EHandle> children;
 	array<EHandle> connections; // all parts that are supported by or support this part
 	
-	EHandle ;
-	
 	string serialize()
 	{
 		return pev.origin.ToString() + '"' + pev.angles.ToString() + '"' + pev.colormap + '"' +
@@ -70,12 +68,15 @@ class func_breakable_custom : ScriptBaseEntity
 		self.pev.movetype = MOVETYPE_PUSH;
 		self.pev.takedamage = DAMAGE_YES;
 		self.pev.team = id;
+		self.pev.effects = EF_NODECALS;
+		//self.pev.effects = EF_FRAMEANIMTEXTURES;
+		//self.pev.frame = 1;
 		isDoor = self.pev.targetname != "";
 		isLadder = self.pev.colormap == B_LADDER;
 		println("CREATE PART " + id + " WITH PARENT " + parent);
 		
 		g_EntityFuncs.SetModel(self, self.pev.model);
-		g_EntityFuncs.SetSize(self.pev, self.pev.mins, self.pev.maxs);
+		//g_EntityFuncs.SetSize(self.pev, self.pev.mins, self.pev.maxs);
 		g_EntityFuncs.SetOrigin(self, self.pev.origin);
 		
 		material = g_materials[0];
@@ -83,7 +84,7 @@ class func_breakable_custom : ScriptBaseEntity
 		SetThink( ThinkFunction( DoorThink ) );
 		pev.nextthink = g_Engine.time;
 		
-		pev.health = 1;
+		pev.health = 100;
 		
 		updateConnections();
 	}
@@ -234,6 +235,14 @@ class func_breakable_custom : ScriptBaseEntity
 		{
 			checks.insertLast(v_forward*128);
 		}
+		else if (type == B_STAIRS or type == B_STAIRS_L)
+		{
+			checks.insertLast(Vector(0,0,-64));
+		}
+		else if (type == B_ROOF)
+		{
+			checks.insertLast(v_forward*64 + Vector(0,0,-192));
+		}
 		
 		for (uint i = 0; i < checks.length(); i++)
 		{
@@ -283,7 +292,16 @@ class func_breakable_custom : ScriptBaseEntity
 			part_broken(self, self, USE_TOGGLE, 0);
 			string sound = material.breakSounds[ Math.RandomLong(0, material.breakSounds.length()-1) ];
 			g_SoundSystem.PlaySound(self.edict(), CHAN_STATIC, sound, 1.0f, 1.0f, 0, 90 + Math.RandomLong(0, 20));
-			te_breakmodel(getCentroid(self), self.pev.maxs - self.pev.mins, Vector(0,0,0), 4, "models/woodgibs.mdl", 8, 0, 8);
+			
+			Vector center = getCentroid(self);
+			Vector mins = self.pev.mins;
+			if (isFoundation(self))
+			{
+				mins.z = -8;
+				center = self.pev.origin;
+			}
+			te_breakmodel(center, self.pev.maxs - mins, Vector(0,0,0), 4, "models/woodgibs.mdl", 8, 0, 8);
+			
 			g_EntityFuncs.Remove(self);
 		}
 		else

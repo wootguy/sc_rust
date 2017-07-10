@@ -228,11 +228,10 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 		
 		TraceResult look = TraceLook(getPlayer(), 280);
 		string suffix = alternateBuild ? "" : "_twig";
-		CBaseEntity@ copy_ent = g_EntityFuncs.FindEntityByTargetname(null, g_part_info[buildType].copy_ent + suffix);
 		
 		dictionary keys;
 		keys["origin"] = (look.vecEndPos + Vector(0,0,16)).ToString();
-		keys["model"] = string(copy_ent.pev.model);
+		keys["model"] = getModelFromName(g_part_info[buildType].copy_ent + suffix);
 		keys["rendermode"] = "1";
 		keys["renderamt"] = "128";
 		keys["rendercolor"] = "0 255 255";
@@ -243,6 +242,13 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 		keys["rendermode"] = "2";
 		@buildEnt2 = g_EntityFuncs.CreateEntity("func_illusionary", keys, true);	
 		buildEnt2.pev.scale = 0.5f;
+		
+		buildEnt.pev.movetype = MOVETYPE_NONE;
+		buildEnt.pev.solid = SOLID_TRIGGER;
+		//g_EntityFuncs.SetOrigin(buildEnt, buildEnt.pev.origin);
+		
+		// increment force_retouch
+		//g_EntityFuncs.FireTargets("push", null, null, USE_TOGGLE);
 		
 		g_PlayerFuncs.PrintKeyBindingString(getPlayer(), g_part_info[buildType].title);
 	}
@@ -413,7 +419,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 				float minDist = 0;
 				
 				if (isFloorPiece(part) and partSocket != SOCKET_MIDDLE and 
-					!((buildType == B_FLOOR or buildType == B_LADDER_HATCH) and 
+					!((buildType == B_FLOOR or buildType == B_LADDER_HATCH or buildType == B_FLOOR_TRI) and 
 					isFoundation(part)))
 				{
 					if (isTriangular(part))
@@ -709,6 +715,15 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 						continue;
 					}
 				}
+				if (buildType == B_FOUNDATION or buildType == B_FLOOR)
+				{
+					CBaseEntity@ ent = getPartAtPos(attachOri, 28);
+					if (ent !is null and (ent.pev.colormap == B_FOUNDATION_TRI or ent.pev.colormap == B_FLOOR_TRI))
+					{
+						// square would be completely enclosing a tri piece
+						continue;
+					}
+				}
 				if (buildType == B_LADDER_HATCH)
 				{
 					CBaseEntity@ ent = getPartAtPos(attachOri + Vector(0,0,-64), 2);
@@ -863,6 +878,8 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 		buildEnt.pev.origin = buildEnt2.pev.origin = newOri;
 		buildEnt.pev.angles.y = buildEnt2.pev.angles.y = newYaw;
 		buildEnt.pev.angles.x = buildEnt2.pev.angles.x = newPitch;
+		g_EntityFuncs.SetOrigin(buildEnt, buildEnt.pev.origin); // fix collision
+		g_EntityFuncs.SetSize(buildEnt.pev, Vector(-1, -1, -1), Vector(1, 1, 1));
 		
 		// check collision
 		CBaseEntity@ ent = null;
@@ -876,7 +893,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 					continue;
 				if (attachEnt !is null and ent.entindex() == attachEnt.entindex())
 					continue;
-				if (ent.pev.solid == SOLID_NOT or ent.pev.solid == SOLID_TRIGGER or ent.pev.effects == EF_NODRAW)
+				if (ent.pev.solid == SOLID_NOT or ent.pev.solid == SOLID_TRIGGER or ent.pev.effects & EF_NODRAW != 0)
 					continue;
 				if (buildType == B_CODE_LOCK or buildType == B_LADDER)
 					continue;
@@ -1004,11 +1021,9 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 					newModel = "b_metal_door_unlock";
 				if (attachEnt.pev.colormap == B_LADDER_HATCH)
 					newModel = "b_ladder_hatch_door_unlock";
-					
-				CBaseEntity@ copy_ent = g_EntityFuncs.FindEntityByTargetname(null, newModel);
 				
 				int oldcolormap = attachEnt.pev.colormap;
-				g_EntityFuncs.SetModel(attachEnt, copy_ent.pev.model);
+				g_EntityFuncs.SetModel(attachEnt, getModelFromName(newModel));
 				attachEnt.pev.colormap = oldcolormap;
 				
 				attachEnt.pev.button = 1;
@@ -1032,6 +1047,8 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 			keys["renderamt"] = "255";
 			keys["id"] = "" + g_part_id;
 			keys["parent"] = "" + parent;
+			keys["frame"] = "2";
+			//keys["effects"] = "512";
 				
 			if (buildSocket == SOCKET_DOORWAY or buildType == B_WOOD_SHUTTERS)
 			{
@@ -1081,7 +1098,6 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 			else
 			{				
 				@ent = g_EntityFuncs.CreateEntity("func_breakable_custom", keys, true);
-				g_EntityFuncs.SetSize(ent.pev, ent.pev.mins, ent.pev.maxs); // fixes collision somehow :S
 				
 				g_SoundSystem.PlaySound(ent.edict(), CHAN_STATIC, soundFile, 1.0f, 1.0f, 0, 90 + Math.RandomLong(0, 20));
 				
