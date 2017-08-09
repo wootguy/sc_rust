@@ -140,6 +140,16 @@ func_breakable_custom@ getBuildPartByID(int id)
 	return null;
 }
 
+BuildZone@ getBuildZone(int id)
+{
+	for (uint i = 0; i < g_build_zones.length(); i++)
+	{
+		if (g_build_zones[i].id == id)
+			return @g_build_zones[i];
+	}
+	return null;
+}
+
 array<EHandle> getPartsByID(int id)
 {
 	array<EHandle> ents;

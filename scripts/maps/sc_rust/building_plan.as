@@ -153,6 +153,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 	float nextAlternate = 0;
 	float lastHudUpdate = 0;
 	int nextSnd = 0;
+	int zoneid = -1;
 	bool alternateBuild = false;
 	
 	void Spawn()
@@ -879,7 +880,6 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 		buildEnt.pev.angles.y = buildEnt2.pev.angles.y = newYaw;
 		buildEnt.pev.angles.x = buildEnt2.pev.angles.x = newPitch;
 		g_EntityFuncs.SetOrigin(buildEnt, buildEnt.pev.origin); // fix collision
-		g_EntityFuncs.SetSize(buildEnt.pev, Vector(-1, -1, -1), Vector(1, 1, 1));
 		
 		// check collision
 		CBaseEntity@ ent = null;
@@ -893,7 +893,9 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 					continue;
 				if (attachEnt !is null and ent.entindex() == attachEnt.entindex())
 					continue;
-				if (ent.pev.solid == SOLID_NOT or ent.pev.solid == SOLID_TRIGGER or ent.pev.effects & EF_NODRAW != 0)
+				if (ent.pev.solid == SOLID_NOT or ent.pev.effects & EF_NODRAW != 0)
+					continue;
+				if (ent.pev.solid == SOLID_TRIGGER and ent.pev.classname != "func_build_clip")
 					continue;
 				if (buildType == B_CODE_LOCK or buildType == B_LADDER)
 					continue;
@@ -916,12 +918,30 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 					validBuild = false;
 					break;
 				} 
-				else if (debug_mode and overlap > 0)
+				else if (debug_mode && overlap > 0)
 				{
 					println("OVERLAP BY: " + cname + " overlap " + overlap);
 				}
 			}
 		} while (ent !is null);
+		
+		// only allow building in build zones
+		zoneid = -1;
+		for (uint i = 0; i < g_build_zones.length(); i++)
+		{
+			if (!g_build_zone_ents[i])
+				continue;
+				
+			@ent = g_build_zone_ents[i];
+			func_build_zone@ zoneent = cast<func_build_zone@>(CastToScriptClass(ent));
+			if (ent.Intersects(buildEnt))
+			{
+				zoneid = zoneent.id;
+				break;
+			}
+		}
+		if (zoneid == -1)
+			validBuild = false;
 
 		forbidden = forbiddenByCupboard(plr, buildEnt.pev.origin);	
 		
@@ -963,7 +983,24 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 				params.channel = 0;
 				
 				g_PlayerFuncs.HudMessage(plr, params, "Build Points:\n" + (state.maxPoints()-state.numParts) + " / " + state.maxPoints());
+				
+				params.x = 0.1;
+				params.channel = 1;
+				if (zoneid != -1)
+				{
+					BuildZone@ zone = getBuildZone(zoneid);
+					string status = zoneid == state.home_zone ? "Settler" : "Raider";
+					
+					g_PlayerFuncs.HudMessage(plr, params, "Build Zone: " + zoneid + 
+											 "\nSettlers: " + zone.numSettlers + " / " + zone.maxSettlers +
+											 "\nStatus: " + status);
+				}
+				else
+				{
+					g_PlayerFuncs.HudMessage(plr, params, "Build Zone: Outskirts\n(Building not allowed)");
+				}
 			}	
+			
 			
 			updateBuildPlaceholder();
 		}
@@ -979,12 +1016,34 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 	
 	void Build()
 	{
-		PlayerState@ state = getPlayerState(getPlayer());
+		CBasePlayer@ plr = getPlayer();
+		PlayerState@ state = getPlayerState(plr);
 		if (buildEnt !is null and forbidden)
 		{
-			g_PlayerFuncs.PrintKeyBindingString(getPlayer(), "Building blocked by tool cupboard");
+			g_PlayerFuncs.PrintKeyBindingString(plr, "Building blocked by tool cupboard");
 			return;
 		}
+		if (zoneid == -1)
+		{
+			g_PlayerFuncs.PrintKeyBindingString(plr, "Building not allowed in outskirts");
+			return;
+		}
+		if (state.home_zone == -1)
+		{
+			BuildZone@ zone = getBuildZone(zoneid);
+			if (zone.numSettlers < zone.maxSettlers)
+			{
+				zone.numSettlers++;
+				state.home_zone = zoneid;
+				g_PlayerFuncs.SayText(plr, "Zone " + zoneid + " is now your home. You can build a permanent base here.");
+			}
+			else
+			{
+				g_PlayerFuncs.SayText(plr, "TODO: Raiding");
+				return;
+			}
+		}
+		
 		if (buildEnt !is null && validBuild) 
 		{
 			string brushModel = buildEnt.pev.model;

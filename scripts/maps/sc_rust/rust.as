@@ -1,7 +1,7 @@
 #include "building_plan"
 #include "hammer"
 #include "func_breakable_custom"
-#include "func_build_clip"
+#include "func_build_zone"
 
 void dummyCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextMenuItem@ item) {}
 
@@ -12,6 +12,7 @@ class PlayerState
 	int useState = 0;
 	int codeTime = 0; // time left to input lock code
 	int numParts = 0; // number of unbroken build parts owned by the player
+	int home_zone = -1; // zone the player is allowed to settle in (-1 = nomad)
 	array<EHandle> authedLocks; // locked objects the player can use
 	EHandle currentLock; // lock currently being interacted with
 	
@@ -44,7 +45,6 @@ class PlayerState
 			initMenu(p, dummyCallback);
 			menu.AddItem("Closing menu...", any(""));
 			openMenu(p, 1);
-		
 		}
 	}
 
@@ -67,6 +67,19 @@ class PlayerState
 		numParts++;
 	}
 	
+	void partDestroyed()
+	{
+		numParts--;
+		if (numParts == 0)
+		{
+			BuildZone@ zone = getBuildZone(home_zone);
+			zone.numSettlers--;
+			CBasePlayer@ p = cast<CBasePlayer@>(plr.GetEntity());
+			g_PlayerFuncs.SayText(p, "Your base in zone " + zone.id + " was completely destroyed. You can rebuild in any zone.");
+			home_zone = -1;
+		}
+	}
+	
 	// number of points available in the current build zone
 	int maxPoints()
 	{
@@ -75,7 +88,7 @@ class PlayerState
 	
 	// Points exist because of the 500 visibile entity limit. After reserving about 100 for items/players/trees/etc, only
 	// 400 are left for players to build with. If this were split up evenly among 32 players, then each player only
-	// only get ~12 parts to build with. This is too small to be fun, so we created multiple zones separated by mountains.
+	// only get ~12 parts to build with. This is too small to be fun, so I created multiple zones separated by mountains.
 	// Each zone can have 500 ents inside, so if players are split up into these zones they will have a lot more freedom.
 	//
 	// Point rules:
@@ -103,6 +116,8 @@ dictionary player_states;
 array<EHandle> g_tool_cupboards;
 array<EHandle> g_build_parts; // every build structure in the map (func_breakable_custom)
 array<EHandle> g_build_items; // every non-func_breakable_custom build item in the map (func_door)
+array<EHandle> g_build_zone_ents;
+array<BuildZone> g_build_zones;
 array<string> g_upgrade_suffixes = {
 	"_twig",
 	"_wood",
@@ -128,7 +143,7 @@ void MapInit()
 	g_ItemRegistry.RegisterWeapon( "weapon_hammer", "sc_rust", "" );
 	
 	g_CustomEntityFuncs.RegisterCustomEntity( "func_breakable_custom", "func_breakable_custom" );
-	g_CustomEntityFuncs.RegisterCustomEntity( "func_build_clip", "func_build_clip" );
+	g_CustomEntityFuncs.RegisterCustomEntity( "func_build_zone", "func_build_zone" );
 	
 	g_Hooks.RegisterHook( Hooks::Player::PlayerUse, @PlayerUse );
 	g_Hooks.RegisterHook( Hooks::Player::ClientSay, @ClientSay );
@@ -295,6 +310,41 @@ void MapActivate()
 				println("Missing entity: " + name);
 		}
 	}
+	
+	CBaseEntity@ ent = null;
+	do {
+		@ent = g_EntityFuncs.FindEntityByClassname(ent, "func_build_zone");
+		if (ent !is null)
+		{
+			g_build_zone_ents.insertLast(EHandle(ent));
+			int id = cast<func_build_zone@>(CastToScriptClass(ent)).id;
+			bool unique = true;
+			for (uint i = 0; i < g_build_zones.length(); i++)
+			{
+				if (g_build_zones[i].id == id)
+				{
+					unique = false;
+					break;
+				}
+			}
+			
+			if (!unique)
+				continue;
+			
+			g_build_zones.insertLast(BuildZone(id, "???"));
+		}
+	} while (ent !is null);
+	
+	int slots = g_Engine.maxClients;
+	int settlersPerZone = Math.max(1, slots / g_build_zones.length());
+	int wastedSettlers = slots - (settlersPerZone*g_build_zones.length());
+	int partsPerPlayer = MAX_ZONE_BUILD_PARTS / settlersPerZone;
+	int wastedParts = MAX_ZONE_BUILD_PARTS - (partsPerPlayer*settlersPerZone);
+	for (uint i = 0; i < g_build_zones.length(); i++)
+		g_build_zones[i].maxSettlers = settlersPerZone;
+	println("\nBuild Zone Info:\n\t\t" + g_build_zones.length() + " zones" +
+			"\n\t\t" + settlersPerZone + " players per zone (" + wastedSettlers + " player slots unaccounted for)." +
+			"\n\t\t" + partsPerPlayer + " Build parts per player (" + wastedParts + " parts left over).\n");
 }
 
 void debug_stability(Vector start, Vector end)
@@ -394,7 +444,7 @@ void part_broken(CBaseEntity@ pActivator, CBaseEntity@ pCaller, USE_TYPE useType
 	{
 		PlayerState@ state = getPlayerStateBySteamID(pCaller.pev.noise1, pCaller.pev.noise2);
 		if (state !is null)
-			state.numParts--;
+			state.partDestroyed();
 	}
 	
 	propogate_part_destruction(pCaller);
