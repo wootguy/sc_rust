@@ -1,8 +1,8 @@
-int MAX_ZONE_BUILD_PARTS = 400;
+int MAX_VISIBLE_ENTS = 500;
 
 class BuildZone
 {
-	int numParts = 0; // number of total build parts in this zone
+	int numRaiderParts = 0; // number of total build parts in this zone
 	int numSettlers = 0; // number of players building bases here
 	int maxSettlers = 0;
 	int id = -1;
@@ -35,7 +35,10 @@ class func_build_zone : ScriptBaseEntity
 		self.pev.solid = SOLID_TRIGGER;
 		self.pev.movetype = MOVETYPE_NONE;
 		self.pev.team = id;
-		self.pev.effects = EF_NODRAW;
+		
+		//self.pev.effects = EF_NODRAW;
+		self.pev.rendermode = 2;
+		self.pev.renderamt = 200;
 		
 		g_EntityFuncs.SetModel(self, self.pev.model);
 		g_EntityFuncs.SetOrigin(self, self.pev.origin);

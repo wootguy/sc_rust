@@ -5,16 +5,139 @@
 
 void dummyCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextMenuItem@ item) {}
 
+int g_settler_reduction = 0; // reduces settlers per zone to increase build points
+int g_raider_points = 40; // best if multiple of zone count
+bool g_build_point_rounding = true; // rounds build points to a multiple of 10 (may reduce build points)
+
+class ZoneInfo
+{
+	int slots;
+	int numZones;
+	int settlersPerZone;
+	int wastedSettlers;
+	int partsPerPlayer;
+	int reservedParts; // for trees/items/etc.
+	int raiderParts; // parts for raiders, shared across all raiders for each zone
+	
+	ZoneInfo() {}
+	
+	void init()
+	{
+		// each player entity counts towards limit, x2 is so each player can drop an item or spawn an effect or something.
+		int maxNodes = 64;
+		reservedParts = g_Engine.maxClients*2 + maxNodes; // minimum reserved
+		
+		int maxSettlerParts = MAX_VISIBLE_ENTS - (reservedParts+g_raider_points);
+		if (g_build_point_rounding)
+			maxSettlerParts = (maxSettlerParts / 10) * 10;
+		numZones = g_build_zones.length();
+		slots = g_Engine.maxClients + (g_build_zones.length()-1);
+		settlersPerZone = Math.max(1, (slots / g_build_zones.length()) - g_settler_reduction);
+		wastedSettlers = g_Engine.maxClients - (settlersPerZone*g_build_zones.length());
+		partsPerPlayer = maxSettlerParts / settlersPerZone;
+			
+		
+		for (uint i = 0; i < g_build_zones.length(); i++)
+			g_build_zones[i].maxSettlers = settlersPerZone;
+		
+		raiderParts = g_raider_points;
+		
+		if (g_build_point_rounding)
+		{
+			// round build points to nearest multiple of 10 so they look nicer
+			partsPerPlayer = (partsPerPlayer / 10) * 10;
+			reservedParts = MAX_VISIBLE_ENTS - (partsPerPlayer*settlersPerZone + raiderParts); // give remainder to reserved
+		}
+	}
+}
+
+class Team
+{
+	array<string> members;
+	int numParts; // parts built (shared across all members)
+	int home_zone; // all members live here
+	
+	Team() {}
+	
+	void sendMessage(string msg)
+	{
+		for (uint i = 0; i < members.size(); i++)
+		{
+			CBasePlayer@ member = getPlayerByName(null, members[i], true);
+			if (member !is null)
+				g_PlayerFuncs.SayText(member, msg);
+		}
+	}
+	
+	void setHomeZone(int zoneid)
+	{
+		home_zone = zoneid;
+		for (uint i = 0; i < members.size(); i++)
+		{
+			CBasePlayer@ member = getPlayerByName(null, members[i], true);
+			if (member !is null)
+			{
+				PlayerState@ memberState = getPlayerState(member);
+				memberState.home_zone = zoneid;
+			}
+		}
+	}
+	
+	void breakOverflowParts()
+	{
+		int maxPoints = members.size()*g_zone_info.partsPerPlayer;
+		int overflow = numParts - maxPoints;
+		println("TEAM OVERFLOW? " + numParts + " / " + maxPoints);
+
+		if (overflow > 0)
+		{
+			sendMessage("Your team has too many parts! Recently built parts will be destroyed.");
+			
+			array<array<EHandle>> teamParts;
+			for (uint i = 0; i < members.size(); i++)
+			{
+				CBasePlayer@ member = getPlayerByName(null, members[i], true);
+				teamParts.insertLast(getPartsByOwner(member));
+			}
+			
+			// break team member parts, spread out equally between each member
+			int destroyed = 0;
+			uint idx = 1;
+			float delay = 0.0f;
+			while (destroyed < overflow)
+			{
+				for (uint i = 0; i < teamParts.size(); i++)
+				{
+					if (idx < teamParts[i].size())
+					{
+						g_Scheduler.SetTimeout("breakPart", delay, teamParts[i][teamParts[i].size()-idx]);
+						delay += 0.1f;
+						destroyed++;
+					}
+				}
+				if (idx++ > 500)
+				{
+					println("Failed to delete overflow parts for team!");
+					break;
+				}
+			}
+		}
+	}
+}
+
 class PlayerState
 {
 	EHandle plr;
 	CTextMenu@ menu;
 	int useState = 0;
 	int codeTime = 0; // time left to input lock code
-	int numParts = 0; // number of unbroken build parts owned by the player
+	dictionary zoneParts; // number of unbroken build parts owned by the player (per zone)
 	int home_zone = -1; // zone the player is allowed to settle in (-1 = nomad)
 	array<EHandle> authedLocks; // locked objects the player can use
+	Team@ team = null;
 	EHandle currentLock; // lock currently being interacted with
+	float lastBreakAll = 0; // last time the player used the breakall command
+	dictionary teamRequests; // outgoing requests for team members
 	
 	void initMenu(CBasePlayer@ plr, TextMenuPlayerSlotCallback@ callback)
 	{
@@ -40,7 +163,6 @@ class PlayerState
 		
 		if (plr)
 		{
-			
 			CBasePlayer@ p = cast<CBasePlayer@>(plr.GetEntity());
 			initMenu(p, dummyCallback);
 			menu.AddItem("Closing menu...", any(""));
@@ -60,30 +182,143 @@ class PlayerState
 		return false;
 	}
 
-	void addPart(CBaseEntity@ part)
+	void addPart(CBaseEntity@ part, int zoneid)
 	{
+		int count = 0;
+		if (zoneParts.exists(zoneid))
+			zoneParts.get(zoneid, count);
+		count++;
+		zoneParts[zoneid] = count;
+		
 		part.pev.noise1 = g_EngineFuncs.GetPlayerAuthId( plr.GetEntity().edict() );
 		part.pev.noise2 = plr.GetEntity().pev.netname;
-		numParts++;
+		
+		if (team !is null and zoneid == team.home_zone)
+			team.numParts++;
 	}
 	
-	void partDestroyed()
+	void partDestroyed(CBaseEntity@ bpart)
 	{
-		numParts--;
-		if (numParts == 0)
+		if (bpart is null)
+			return;
+			
+		func_breakable_custom@ part = cast<func_breakable_custom@>(CastToScriptClass(bpart));
+
+		if (team !is null and part.zoneid == home_zone)
+			team.numParts--;
+		
+		if (part.zoneid != home_zone)
 		{
-			BuildZone@ zone = getBuildZone(home_zone);
-			zone.numSettlers--;
-			CBasePlayer@ p = cast<CBasePlayer@>(plr.GetEntity());
-			g_PlayerFuncs.SayText(p, "Your base in zone " + zone.id + " was completely destroyed. You can rebuild in any zone.");
-			home_zone = -1;
+			BuildZone@ zone = getBuildZone(part.zoneid);
+			zone.numRaiderParts--;
+		}
+		
+		if (zoneParts.exists(part.zoneid))
+		{
+			int count;
+			zoneParts.get(part.zoneid, count);
+			count--;
+			zoneParts[part.zoneid] = count;
+			
+			if (part.zoneid == home_zone)
+			{
+				checkHomeless();
+			}
 		}
 	}
 	
-	// number of points available in the current build zone
-	int maxPoints()
+	int breakParts(int count)
 	{
-		return 100;
+		CBasePlayer@ p = cast<CBasePlayer@>(plr.GetEntity());
+		array<EHandle> parts = getPartsByOwner(p);
+		float delay = 0.1f;
+		int broken = 0;
+		for (int i = int(parts.size())-1; i >= 0; i--)
+		{
+			func_breakable_custom@ bpart = castToPart(parts[i]);
+			if (bpart.zoneid == home_zone)
+			{
+				g_Scheduler.SetTimeout("breakPart", delay, parts[i]);
+				delay += 0.1f;
+				if (++broken >= count)
+					return broken;
+			}
+		}
+		return broken;
+	}
+	
+	bool checkHomeless()
+	{
+		if (home_zone == -1)
+			return true;
+		int count = 0;
+		zoneParts.get(home_zone, count);
+		
+		if (team !is null)
+			count = team.numParts;
+		
+		if (count == 0)
+		{
+			BuildZone@ zone = getBuildZone(home_zone);
+			CBasePlayer@ p = cast<CBasePlayer@>(plr.GetEntity());
+			string msg = "Your base in zone " + zone.id + " was completely destroyed. You can rebuild in any zone.";
+			if (team !is null)
+			{
+				team.sendMessage(msg);
+				team.setHomeZone(-1);
+				zone.numSettlers -= team.members.size();
+			}
+			else
+			{
+				g_PlayerFuncs.SayText(p, msg);
+				zone.numSettlers--;
+			}	
+			home_zone = -1;
+			return true;
+		}
+		return false;
+	}
+	
+	void addPartCount(int num, int zoneid)
+	{
+		int count = 0;
+		if (zoneParts.exists(zoneid))
+			zoneParts.get(zoneid, count);
+		count += num;
+		zoneParts[zoneid] = count;
+	}
+	
+	int getNumParts(int zoneid)
+	{
+		if (zoneid != home_zone)
+		{
+			// use shared part count
+			BuildZone@ zone = getBuildZone(zoneid);
+			if (zone !is null)
+				return zone.numRaiderParts;
+			else
+				return 0;
+		}
+		
+		if (team !is null and team.members.size() > 1)
+		{
+			return team.numParts;
+		}
+		int count = 0;
+		if (zoneParts.exists(zoneid))
+			zoneParts.get(zoneid, count);	
+		return count;
+	}
+	
+	// number of points available in the current build zone
+	int maxPoints(int zoneid)
+	{
+		if (zoneid == -1)
+			return 0;
+		if (zoneid != home_zone)
+			return g_zone_info.raiderParts;
+			
+		return team !is null ? g_zone_info.partsPerPlayer*team.members.size() : g_zone_info.partsPerPlayer;
 	}
 	
 	// Points exist because of the 500 visibile entity limit. After reserving about 100 for items/players/trees/etc, only
@@ -91,9 +326,9 @@ class PlayerState
 	// only get ~12 parts to build with. This is too small to be fun, so I created multiple zones separated by mountains.
 	// Each zone can have 500 ents inside, so if players are split up into these zones they will have a lot more freedom.
 	//
-	// Point rules:
+	// Point rules (for 32 players):
 	// 1) 400 max build points per zone. ~100 are reserved for items/players/trees/etc.
-	// 2) Max of 6 players per zone, each getting 50 build points
+	// 2) Max of 6 players per zone, so worst case is 50 build points for each player
 	//    2a) New players can still build, but they are counted as raiders and their parts deteriorate.
 	// 3) Raiders allowed to build 100 things total in enemy zones.
 	//    3a) All raiders share this value, so it could be as bad as 3 parts per raider (32 players and 30 are raiders)
@@ -118,6 +353,7 @@ array<EHandle> g_build_parts; // every build structure in the map (func_breakabl
 array<EHandle> g_build_items; // every non-func_breakable_custom build item in the map (func_door)
 array<EHandle> g_build_zone_ents;
 array<BuildZone> g_build_zones;
+array<Team> g_teams;
 array<string> g_upgrade_suffixes = {
 	"_twig",
 	"_wood",
@@ -128,9 +364,11 @@ array<string> g_upgrade_suffixes = {
 
 dictionary g_partname_to_model; // maps models to part names
 dictionary g_model_to_partname; // maps part names to models
+dictionary g_pretty_part_names;
 float g_tool_cupboard_radius = 512;
 int g_part_id = 0;
 bool debug_mode = false;
+ZoneInfo g_zone_info;
 
 int MAX_SAVE_DATA_LENGTH = 1015; // Maximum length of a value saved with trigger_save. Discovered through testing
 
@@ -335,16 +573,7 @@ void MapActivate()
 		}
 	} while (ent !is null);
 	
-	int slots = g_Engine.maxClients;
-	int settlersPerZone = Math.max(1, slots / g_build_zones.length());
-	int wastedSettlers = slots - (settlersPerZone*g_build_zones.length());
-	int partsPerPlayer = MAX_ZONE_BUILD_PARTS / settlersPerZone;
-	int wastedParts = MAX_ZONE_BUILD_PARTS - (partsPerPlayer*settlersPerZone);
-	for (uint i = 0; i < g_build_zones.length(); i++)
-		g_build_zones[i].maxSettlers = settlersPerZone;
-	println("\nBuild Zone Info:\n\t\t" + g_build_zones.length() + " zones" +
-			"\n\t\t" + settlersPerZone + " players per zone (" + wastedSettlers + " player slots unaccounted for)." +
-			"\n\t\t" + partsPerPlayer + " Build parts per player (" + wastedParts + " parts left over).\n");
+	g_zone_info.init();
 }
 
 void debug_stability(Vector start, Vector end)
@@ -388,6 +617,8 @@ int wait_stable_check = 0; // frames to wait before next stability check (so bro
 
 void checkStabilityEnt(EHandle ent)
 {
+	if (!ent)
+		return;
 	for (uint i = 0; i < stability_ents.length(); i++)
 	{
 		if (stability_ents[i] and stability_ents[i].GetEntity().entindex() == ent.GetEntity().entindex())
@@ -444,7 +675,7 @@ void part_broken(CBaseEntity@ pActivator, CBaseEntity@ pCaller, USE_TYPE useType
 	{
 		PlayerState@ state = getPlayerStateBySteamID(pCaller.pev.noise1, pCaller.pev.noise2);
 		if (state !is null)
-			state.partDestroyed();
+			state.partDestroyed(pCaller);
 	}
 	
 	propogate_part_destruction(pCaller);
@@ -741,11 +972,11 @@ void inventoryCheck()
 			{
 				// increment force_retouch
 				g_EntityFuncs.FireTargets("push", e_plr, e_plr, USE_TOGGLE);
-				println("RETOUCH");
+				//println("RETOUCH");
 			}
 			
 			
-			if (phit is null or phit.pev.classname == "worldspawn")
+			if (phit is null or phit.pev.classname == "worldspawn" or !phit.IsBSPModel())
 				continue;
 
 			HUDTextParams params;
@@ -760,7 +991,7 @@ void inventoryCheck()
 			params.g1 = 255;
 			params.b1 = 255;
 			g_PlayerFuncs.HudMessage(plr, params, 
-				string(phit.pev.model) + "\n" + int(phit.pev.health) + " / " + int(phit.pev.max_health));
+				string(prettyPartName(phit)) + "\n" + int(phit.pev.health) + " / " + int(phit.pev.max_health));
 		}
 	} while(e_plr !is null);
 }
@@ -1078,6 +1309,304 @@ bool doRustCommand(CBasePlayer@ plr, const CCommand@ args)
 			loadMapData();
 			return true;
 		}
+		if (args[0] == ".zones")
+		{
+			g_PlayerFuncs.SayText(plr, "Zone Info:\t " + g_zone_info.numZones + " zones, " + g_Engine.maxClients + " player slots\n");
+			if (g_zone_info.wastedSettlers < 0)
+				g_PlayerFuncs.SayText(plr, "\t\t\t\t\t\t\tSettlers per zone: " + g_zone_info.settlersPerZone + " (" + -g_zone_info.wastedSettlers + " slot(s) unused).\n"); 
+			else if (g_zone_info.wastedSettlers > 0)
+				g_PlayerFuncs.SayText(plr, "\t\t\t\t\t\t\tSettlers per zone: " + g_zone_info.settlersPerZone + " (" + g_zone_info.wastedSettlers + " player(s) can't settle).\n"); 
+			else
+				g_PlayerFuncs.SayText(plr, "\t\t\t\t\t\t\tSettlers per zone: " + g_zone_info.settlersPerZone + "\n");
+			g_PlayerFuncs.SayText(plr, "\t\t\t\t\t\t\tParts per settler:  " + g_zone_info.partsPerPlayer + "\n");
+			g_PlayerFuncs.SayText(plr, "\t\t\t\t\t\t\tParts for raiders:  " + g_zone_info.raiderParts + "\n");
+			g_PlayerFuncs.SayText(plr, "\t\t\t\t\t\t\tReserved:            " + g_zone_info.reservedParts + "\n");
+			
+			return true;
+		}
+		if (args[0] == ".breakhome")
+		{
+			float delta = (state.lastBreakAll + 1.0f) - g_Engine.time;
+			if (delta > 0)
+			{
+				g_PlayerFuncs.SayText(plr, "Wait " + int(delta + 1) + " seconds before using this command again\n");
+				return true;
+			}
+			array<EHandle> parts = getPartsByOwner(plr);
+			float delay = 0.1f;
+			int count = 0;
+			for (uint i = 0; i < parts.size(); i++)
+			{
+				func_breakable_custom@ bpart = castToPart(parts[i]);
+				if (bpart.zoneid == state.home_zone)
+				{
+					g_Scheduler.SetTimeout("breakPart", delay, parts[i]);
+					delay += 0.1f;
+					count++;
+				}
+			}
+			
+			if (count > 0)
+				g_PlayerFuncs.SayText(plr, "Destroying parts built by you in your home zone\n");
+			else
+				g_PlayerFuncs.SayText(plr, "You haven't built any parts in your home zone\n");
+			
+			state.lastBreakAll = g_Engine.time + delay;
+			return true;
+		}
+		if (args[0] == ".team")
+		{
+			Team@ team = getPlayerTeam(plr);
+			if (args.ArgC() < 2)
+			{
+				if (team !is null and team.members.size() > 1)
+				{
+					string members;
+					for (int i = 0; i < int(team.members.size()); i++)
+					{
+						string member = getPlayerByName(plr, team.members[i], true).pev.netname;
+						if (member != plr.pev.netname)
+						{
+							members += member + ", ";
+						}
+					}
+					members = members.SubString(0, members.Length()-2);
+					g_PlayerFuncs.SayText(plr, "You are sharing resources with: " + members);
+					return true;
+				}
+				g_PlayerFuncs.SayText(plr, "You aren't on a team. Type \".team (player)\" to team with someone\n");
+				return true;
+			}
+			
+			CBasePlayer@ friend = getPlayerByName(plr, args[1]);
+			
+			if (friend !is null)
+			{
+				if (friend.entindex() == plr.entindex())
+				{
+					g_PlayerFuncs.SayText(plr, "You want to share resources with yourself. Type this in chat to accept:");
+					g_PlayerFuncs.SayText(plr, "\"team with me plz i have no fren :<\"");
+					return true;
+				}
+				
+				string plrId = getPlayerUniqueId(plr);
+				string friendId = getPlayerUniqueId(friend);
+				
+				Team@ friendTeam = getPlayerTeam(friend);
+				
+				if (friendTeam !is null and team !is null)
+				{
+					bool sameTeam = false;
+					for (uint i = 0; i < team.members.size(); i++)
+					{
+						if (team.members[i] == friendId)
+						{
+							sameTeam = true;
+							break;
+						}
+					}
+					if (sameTeam)
+						g_PlayerFuncs.SayText(plr, "You and " + friend.pev.netname + " are on the same team.\n");
+					else
+						g_PlayerFuncs.SayText(plr, "You and " + friend.pev.netname + " both have teams. Leave your team before joining theirs.\n");
+					return true;
+				}
+				
+				if (g_zone_info.settlersPerZone == 1)
+				{
+					g_PlayerFuncs.SayText(plr, "Teams aren't allowed in this game. Only 1 settler is allowed per zone");
+					return true;
+				}
+				if (team !is null and int(team.members.size()) >= g_zone_info.settlersPerZone)
+				{
+					g_PlayerFuncs.SayText(plr, "Your team doesn't have room for another settler (max of " + g_zone_info.settlersPerZone + " per zone)");
+					return true;
+				}
+				if (friendTeam !is null and int(friendTeam.members.size()) >= g_zone_info.settlersPerZone)
+				{
+					g_PlayerFuncs.SayText(plr, "Their team doesn't have room for another settler (max of " + g_zone_info.settlersPerZone + " per zone)");
+					return true;
+				}
+				
+				PlayerState@ friendState = getPlayerState(friend);
+				if (friendState.home_zone != state.home_zone and state.home_zone != -1 and friendState.home_zone != -1)
+				{
+					g_PlayerFuncs.SayText(plr, "You and " + friend.pev.netname + " are settled in different zones. Destroy your base (.breakall) before joining their team.\n");
+					return true;
+				}
+				
+				BuildZone@ zone = getBuildZone(state.home_zone);
+				if (zone !is null and zone.maxSettlers - zone.numSettlers < 1 and friendState.home_zone != state.home_zone)
+				{
+					g_PlayerFuncs.SayText(plr, "The zone you've settled in doesn't have room for another settler.\n");
+					return true;
+				}
+				
+				if (friendState.teamRequests.exists(plrId))
+				{
+					// answering a team request
+					Team@ joinTeam = null;
+					CBasePlayer@ newMember = null;
+					string inviter = friend.pev.netname;
+					
+					if (team is null and friendTeam is null)
+					{
+						state.teamRequests.delete(friendId);
+						friendState.teamRequests.delete(plrId);
+						Team@ newTeam = Team();
+						newTeam.members.insertLast(plrId);
+						newTeam.members.insertLast(friendId);
+						newTeam.home_zone = -1;
+						if (state.home_zone != -1)
+							newTeam.home_zone = state.home_zone;
+						else if (friendState.home_zone != -1)
+							newTeam.home_zone = friendState.home_zone;
+							
+						state.home_zone = friendState.home_zone = newTeam.home_zone;
+						newTeam.numParts = state.getNumParts(newTeam.home_zone) + friendState.getNumParts(newTeam.home_zone);
+						g_teams.insertLast(newTeam);
+						@joinTeam = @g_teams[g_teams.size()-1];
+					}
+					else if (team !is null)
+					{
+						@joinTeam = @team;
+						@newMember = @friend;
+						inviter = plr.pev.netname;
+						team.numParts += friendState.getNumParts(team.home_zone);
+					}
+					else if (friendTeam !is null)
+					{
+						friendTeam.numParts += state.getNumParts(team.home_zone);
+						@joinTeam = @friendTeam;
+						@newMember = @plr;
+					}
+					@state.team = @joinTeam;
+					@friendState.team = @joinTeam;	
+
+					BuildZone@ teamZone = getBuildZone(joinTeam.home_zone);
+					if (teamZone !is null)
+					{
+						if (teamZone.maxSettlers - teamZone.numSettlers < 1)
+						{
+							g_PlayerFuncs.SayText(plr, "The team doesn't have room for another settler anymore.\n");
+							return true;
+						}
+						teamZone.numSettlers++;
+					}
+					
+					if (newMember !is null)
+						joinTeam.members.insertLast(getPlayerUniqueId(newMember));
+					
+					int numOthers = 0;
+					for (uint i = 0; i < joinTeam.members.size(); i++)
+					{
+						CBasePlayer@ otherPlr = getPlayerByName(plr, joinTeam.members[i], true);
+						if (otherPlr is null)
+							continue;
+						string member = string(otherPlr.pev.netname);
+						if (member != plr.pev.netname and member != friend.pev.netname)
+						{
+							g_PlayerFuncs.SayText(otherPlr, "" + newMember.pev.netname + " has joined your team (invited by " + inviter + ")\n");
+							numOthers++;
+						}
+					}
+					string others = numOthers > 0 ? " and " + numOthers + " others" : "";
+					
+					g_PlayerFuncs.SayText(plr, "You are now sharing resources with " + friend.pev.netname + others + "\n");
+					g_PlayerFuncs.SayText(friend, "You are now sharing resources with " + plr.pev.netname + others + "\n");
+				}
+				else
+				{
+					g_PlayerFuncs.SayText(plr, "Team request sent to " + friend.pev.netname + "\n");
+					state.teamRequests[getPlayerUniqueId(friend)] = true;
+					g_PlayerFuncs.SayText(friend, string(plr.pev.netname) + " wants to share resources with you. Type this in chat to accept:\n");
+					if (int(string(plr.pev.netname).Find(" ")) >= 0)
+						g_PlayerFuncs.SayText(friend, ".team \"" + plr.pev.netname + "\"\n");
+					else
+						g_PlayerFuncs.SayText(friend, ".team " + plr.pev.netname + "\n");
+				}
+			}
+			return true;
+		}
+		if (args[0] == ".solo")
+		{
+			Team@ team = getPlayerTeam(plr);
+			if (team !is null and team.members.size() > 1)
+			{
+				for (int i = 0; i < int(team.members.size()); i++)
+				{
+					CBasePlayer@ member = getPlayerByName(plr, team.members[i], true);
+					if (member.entindex() == plr.entindex())
+					{
+						team.members.removeAt(i);
+						i--;
+					}
+					else
+						g_PlayerFuncs.SayText(member, "" + plr.pev.netname + " left your team");
+				}
+				g_PlayerFuncs.SayText(plr, "You left your team");
+				@state.team = null;
+				
+				int overflow = state.getNumParts(state.home_zone) - state.maxPoints(state.home_zone);
+				if (overflow > 0)
+				{
+					g_PlayerFuncs.SayText(plr, "You have too many parts! Your most recently built parts will be broken.");
+					state.breakParts(overflow); // break most recent parts until we're within our new build point limit
+				}
+				team.breakOverflowParts();
+				BuildZone@ zone = getBuildZone(team.home_zone);
+				
+				for (uint i = 0; i < g_teams.size(); i++)
+				{
+					if (g_teams[i].members.size() <= 1)
+					{
+						for (int k = 0; k < int(g_teams[i].members.size()); k++)
+						{
+							CBasePlayer@ member = getPlayerByName(plr, g_teams[i].members[k], true);
+							if (member !is null)
+							{
+								PlayerState@ memberState = getPlayerState(member);
+								@memberState.team = null;
+								memberState.checkHomeless();
+								println("IS HOMELESS? " + member.pev.netname);
+							}
+						}
+					
+						println("Deleted team " + i);
+						g_teams.removeAt(i);
+						i--;
+					}
+				}
+				return true;
+			}
+			else
+			{
+				g_PlayerFuncs.SayText(plr, "You're already solo.n");
+			}
+			return true;
+		}
+		if (args[0] == ".teams")
+		{
+			for (uint i = 0; i < g_teams.size(); i++)
+			{
+				string msg = "Team " + i + ": ";
+				for (uint k = 0; k < g_teams[i].members.size(); k++)
+				{
+					msg += g_teams[i].members[k] + ", ";
+				}
+				msg = msg.SubString(0, msg.Length()-2);
+				g_PlayerFuncs.SayText(plr, msg);
+			}
+			return true;
+		}
+		if (args[0] == ".home")
+		{
+			if (state.home_zone != -1)
+				g_PlayerFuncs.SayText(plr, "Your home is zone " + state.home_zone);
+			else
+				g_PlayerFuncs.SayText(plr, "You don't have a home. You can settle in any zone.");
+			return true;
+		}
 		if (state.codeTime > 0)
 		{
 			state.codeTime = 0;
@@ -1219,7 +1748,6 @@ string loadMapKeyvalue(string label)
 	return data;
 }
 
-
 EHandle createTriggerSave(string label, string value, string triggerAfterSave)
 {
 	dictionary keyvalues;
@@ -1339,6 +1867,8 @@ void loadPart(int idx)
 			}
 			
 			CBaseEntity@ ent = g_EntityFuncs.CreateEntity(classname, keys, true);
+			int zoneid = getBuildZone(ent);
+			ent.KeyValue("zoneid", "" + zoneid);
 			ent.pev.colormap = type;
 			ent.pev.button = button;
 			ent.pev.body = body;
@@ -1350,6 +1880,7 @@ void loadPart(int idx)
 			ent.pev.noise3 = code;
 			ent.pev.team = id;
 			ent.pev.effects = effects | EF_NODECALS;
+			
 			//g_EntityFuncs.SetSize(ent.pev, ent.pev.mins, ent.pev.maxs);
 			//g_EntityFuncs.SetOrigin(ent, ent.pev.origin);
 			if (effects & EF_NODRAW != 0)
@@ -1361,7 +1892,7 @@ void loadPart(int idx)
 			{
 				PlayerState@ state = getPlayerStateBySteamID(steamid, netname);
 				if (state !is null)
-					state.numParts++;
+					state.addPart(ent, zoneid);
 			}
 			
 			g_build_parts.insertLast(EHandle(ent));
@@ -1376,7 +1907,6 @@ void loadPart(int idx)
 		println("Failed to load data for part " + idx);
 	}
 }
-
 
 void loadMapData()
 {		

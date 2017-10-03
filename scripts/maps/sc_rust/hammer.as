@@ -53,6 +53,7 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 	CBaseEntity@ buildEnt2 = null;
 	CBaseEntity@ lookEnt = null;
 	int lastSequence = -1;
+	int zoneid = -1;
 	float attackDamage = 5.0f;
 	array<int> missAnims = {6,8,10};
 	array<int> hitAnims = {5,7,9};
@@ -284,6 +285,7 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 			{
 				lastHudUpdate = g_Engine.time;
 				PlayerState@ state = getPlayerState(plr);
+				zoneid = getBuildZone(plr);
 			
 				HUDTextParams params;
 				params.effect = 0;
@@ -298,7 +300,7 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 				params.g1 = 255;
 				params.b1 = 255;
 				g_PlayerFuncs.HudMessage(plr, params, 
-					"Build Points:\n" + (state.maxPoints()-state.numParts) + " / " + state.maxPoints());
+					"Build Points:\n" + (state.maxPoints(zoneid)-state.getNumParts(zoneid)) + " / " + state.maxPoints(zoneid));
 			}	
 		}
 		
@@ -439,6 +441,16 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 				updateRoofWalls(lookEnt);
 			if (buildEnt !is null)
 				buildEnt.pev.rendercolor = Vector(0, 255, 255);
+				
+			int health = 100;
+			switch(material)
+			{
+				case 0: health = 2500; break;
+				case 1: health = 5000; break;
+				case 2: health = 7000; break;
+				case 3: health = 9000; break;
+			}
+			lookEnt.pev.health = lookEnt.pev.max_health = health;
 		}
 		else
 			g_PlayerFuncs.PrintKeyBindingString(getPlayer(), "Hammer not active");
@@ -454,6 +466,7 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 		int socket = socketType(ent.pev.colormap);
 		string size = getModelSize(ent);
 		string material = getMaterialType(ent);
+		int fuseZone = getBuildZone(ent);
 		
 		array<CBaseEntity@> parts = { @ent };
 		
@@ -563,6 +576,16 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 				parts.insertLast(getPartAtPos(ent.pev.origin + g_Engine.v_up*128 + g_Engine.v_right*128));
 			}
 		}
+	
+		
+		PlayerState@ state = getPlayerStateBySteamID(ent.pev.noise1, ent.pev.noise2);
+		if (state.getNumParts(fuseZone) + parts.length()-1 > state.maxPoints(fuseZone))
+		{
+			cancelFuse("Not enough build points to separate!");
+			return;
+		}
+		if (state !is null)
+			state.addPartCount(parts.length() - 1, fuseZone);
 		
 		// disconnect children
 		for (uint i = 0; i < g_build_parts.size(); i++)
@@ -573,10 +596,6 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 				part.parent = -1;
 			}
 		}
-		
-		PlayerState@ state = getPlayerStateBySteamID(ent.pev.noise1, ent.pev.noise2);
-		if (state !is null)
-			state.numParts += parts.length() - 1;
 		
 		for (uint i = 0; i < parts.length(); i++)
 		{
@@ -643,6 +662,13 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 		if (material != mat2)
 		{
 			cancelFuse("Can only fuse parts of the same material");
+			return;
+		}
+		
+		int fuseZone = getBuildZone(part1);
+		if (fuseZone != getBuildZone(part2))
+		{
+			cancelFuse("Can only fuse parts in the same zone");
 			return;
 		}
 		
@@ -1088,7 +1114,7 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 		{
 			PlayerState@ state = getPlayerStateBySteamID(part2.pev.noise1, part2.pev.noise2);
 			if (state !is null)
-				state.numParts--;
+				state.addPartCount(-1, fuseZone);
 			
 			func_breakable_custom@ b1 = getBuildPartByID(part1.pev.team);
 			int oldParent = b1.parent;

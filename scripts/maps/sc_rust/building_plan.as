@@ -93,6 +93,13 @@ enum socket_types
 	SOCKET_HIGH_WALL,
 };
 
+enum builder_status
+{
+	STATUS_RAIDER = 0,
+	STATUS_SETTLER,
+	STATUS_OUTSKIRTS,
+}
+
 int B_TYPES = B_FOUNDATION_STEPS+1;
 int B_ITEM_TYPES = B_LADDER_HATCH+1;
 
@@ -911,8 +918,9 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 						break;
 					} 
 				}
+				float maxOverlap = ent.IsBSPModel() ? 9.95f : 2.0f;
 				float overlap = collisionBoxesYaw(buildEnt, ent);
-				if (overlap > 9.95f) {
+				if (overlap > maxOverlap) {
 					if (debug_mode)
 						println("BLOCKED BY: " + cname + " overlap " + overlap);
 					validBuild = false;
@@ -926,20 +934,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 		} while (ent !is null);
 		
 		// only allow building in build zones
-		zoneid = -1;
-		for (uint i = 0; i < g_build_zones.length(); i++)
-		{
-			if (!g_build_zone_ents[i])
-				continue;
-				
-			@ent = g_build_zone_ents[i];
-			func_build_zone@ zoneent = cast<func_build_zone@>(CastToScriptClass(ent));
-			if (ent.Intersects(buildEnt))
-			{
-				zoneid = zoneent.id;
-				break;
-			}
-		}
+		zoneid = getBuildZone(buildEnt);
 		if (zoneid == -1)
 			validBuild = false;
 
@@ -971,7 +966,6 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 				PlayerState@ state = getPlayerState(plr);
 			
 				HUDTextParams params;
-				params.x = 0.8;
 				params.y = 0.88;
 				params.effect = 0;
 				params.r1 = 255;
@@ -980,17 +974,29 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 				params.fadeinTime = 0;
 				params.fadeoutTime = 0;
 				params.holdTime = 0.2f;
-				params.channel = 0;
-				
-				g_PlayerFuncs.HudMessage(plr, params, "Build Points:\n" + (state.maxPoints()-state.numParts) + " / " + state.maxPoints());
 				
 				params.x = 0.1;
 				params.channel = 1;
+				
 				if (zoneid != -1)
 				{
 					BuildZone@ zone = getBuildZone(zoneid);
-					string status = zoneid == state.home_zone ? "Settler" : "Raider";
-					
+					string status;
+					if (zoneid == state.home_zone)
+					{
+						status = "Settler";
+						params.r1 = 48;
+						params.g1 = 255;
+						params.b1 = 48;
+					}
+					else
+					{
+						status = "Raider";
+						params.r1 = 255;
+						params.g1 = 48;
+						params.b1 = 48;
+					}
+
 					g_PlayerFuncs.HudMessage(plr, params, "Build Zone: " + zoneid + 
 											 "\nSettlers: " + zone.numSettlers + " / " + zone.maxSettlers +
 											 "\nStatus: " + status);
@@ -999,12 +1005,14 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 				{
 					g_PlayerFuncs.HudMessage(plr, params, "Build Zone: Outskirts\n(Building not allowed)");
 				}
+				
+				params.x = 0.8;
+				params.channel = 0;
+				int maxPoints = state.maxPoints(zoneid);
+				g_PlayerFuncs.HudMessage(plr, params,	"Build Points:\n" + (maxPoints-state.getNumParts(zoneid)) + " / " + maxPoints);
 			}	
-			
-			
 			updateBuildPlaceholder();
 		}
-		
 		pev.nextthink = g_Engine.time;
 	}
 	
@@ -1031,18 +1039,38 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 		if (state.home_zone == -1)
 		{
 			BuildZone@ zone = getBuildZone(zoneid);
-			if (zone.numSettlers < zone.maxSettlers)
+			int needSpace = state.team !is null ? state.team.members.size() : 1;
+			if (zone.maxSettlers - zone.numSettlers >= needSpace)
 			{
-				zone.numSettlers++;
+				zone.numSettlers += needSpace;
 				state.home_zone = zoneid;
-				g_PlayerFuncs.SayText(plr, "Zone " + zoneid + " is now your home. You can build a permanent base here.");
+				
+				string msg = "Zone " + zoneid + " is now your home. You can build a permanent base here.\n";
+				if (state.team !is null)
+				{
+					state.team.sendMessage(msg);
+					state.team.setHomeZone(zoneid);
+				}
+				else
+					g_PlayerFuncs.SayText(plr, msg);
+				
+				int previousRaiderParts = state.getNumParts(zoneid);
+				zone.numRaiderParts -= previousRaiderParts; // parts built by this player no longer count as raider parts
 			}
 			else
 			{
-				g_PlayerFuncs.SayText(plr, "TODO: Raiding");
-				return;
+				println("Too many settlers in zone");
+				//g_PlayerFuncs.SayText(plr, "This zone has too many settlers.");
 			}
 		}
+		if (state.getNumParts(zoneid) >= state.maxPoints(zoneid))
+		{
+			g_PlayerFuncs.PrintKeyBindingString(plr, "You're out of build points!\n\nFuse your parts (Wrench) for more points.");
+			return;
+		}
+		
+		if (zoneid != state.home_zone)
+			getBuildZone(zoneid).numRaiderParts++;
 		
 		if (buildEnt !is null && validBuild) 
 		{
@@ -1101,7 +1129,9 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 			keys["material"] = "1";
 			keys["target"] = "break_part_script";
 			keys["fireonbreak"] = "break_part_script";
+			keys["zoneid"] = "" + zoneid;
 			keys["health"] = "100";
+			keys["max_health"] = "100";
 			keys["rendermode"] = "4";
 			keys["renderamt"] = "255";
 			keys["id"] = "" + g_part_id;
@@ -1151,8 +1181,8 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 				g_build_parts.insertLast(EHandle(ent2));
 				g_part_id++;
 				
-				state.addPart(ent);
-				state.addPart(ent2);
+				state.addPart(ent, zoneid);
+				state.addPart(ent2, zoneid);
 			}
 			else
 			{				
@@ -1163,7 +1193,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 				EHandle h_ent = ent;
 				g_build_parts.insertLast(EHandle(ent));
 				g_part_id++;
-				state.addPart(ent);
+				state.addPart(ent, zoneid);
 				
 				if (buildType == B_TOOL_CUPBOARD) {
 					g_tool_cupboards.insertLast(h_ent);
@@ -1209,7 +1239,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 					ent3.pev.team = g_part_id - 1;
 					g_build_items.insertLast(EHandle(ent3));
 					
-					state.addPart(ent2);
+					state.addPart(ent2, zoneid);
 				}
 				
 				if (buildSocket == SOCKET_DOORWAY)

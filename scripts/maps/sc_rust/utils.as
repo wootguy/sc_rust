@@ -140,6 +140,21 @@ func_breakable_custom@ getBuildPartByID(int id)
 	return null;
 }
 
+int getBuildZone(CBaseEntity@ ent)
+{
+	for (uint i = 0; i < g_build_zones.length(); i++)
+	{
+		if (!g_build_zone_ents[i])
+			continue;
+			
+		CBaseEntity@ zone = g_build_zone_ents[i];
+		func_build_zone@ zoneent = cast<func_build_zone@>(CastToScriptClass(zone));
+		if (zone.Intersects(ent))
+			return zoneent.id;
+	}
+	return -1;
+}
+
 BuildZone@ getBuildZone(int id)
 {
 	for (uint i = 0; i < g_build_zones.length(); i++)
@@ -168,6 +183,27 @@ array<EHandle> getPartsByID(int id)
 	return ents;
 }
 
+array<EHandle> getPartsByOwner(CBasePlayer@ plr)
+{		
+	string authid = g_EngineFuncs.GetPlayerAuthId( plr.edict() );
+	string netname = plr.pev.netname;
+		
+	array<EHandle> ents;
+	for (uint i = 0; i < g_build_parts.size(); i++)
+	{	
+		func_breakable_custom@ part = cast<func_breakable_custom@>(CastToScriptClass(g_build_parts[i].GetEntity()));
+		if (part !is null and ((authid == part.pev.noise1 and authid != "STEAM_ID_LAN") or (authid == "STEAM_ID_LAN" and netname == part.pev.noise2)) ) 
+			ents.insertLast(g_build_parts[i]);
+	}
+	for (uint i = 0; i < g_build_items.size(); i++)
+	{	
+		CBaseEntity@ part = g_build_items[i].GetEntity();
+		if (part !is null and ((authid == part.pev.noise1 and authid != "STEAM_ID_LAN") or (authid == "STEAM_ID_LAN" and netname == part.pev.noise2)) ) 
+			ents.insertLast(g_build_items[i]);
+	}
+	return ents;
+}
+
 array<EHandle> getPartsByParent(int parent)
 {
 	array<EHandle> ents;
@@ -185,6 +221,32 @@ string getModelName(CBaseEntity@ part)
 	string name;
 	g_partname_to_model.get(string(part.pev.model), name);
 	return name;
+}
+
+string prettyPartName(CBaseEntity@ part)
+{
+	string modelName = getModelName(part);
+		
+	string size = "";
+	if (int(modelName.Find("_1x2")) > 0) size = " (1x2)";
+	if (int(modelName.Find("_1x3")) > 0) size = " (1x3)";
+	if (int(modelName.Find("_1x4")) > 0) size = " (1x4)";
+	if (int(modelName.Find("_2x1")) > 0) size = " (2x1)";
+	if (int(modelName.Find("_2x2")) > 0) size = " (2x2)";
+	if (int(modelName.Find("_3x1")) > 0) size = " (3x1)";
+	if (int(modelName.Find("_4x1")) > 0) size = " (4x1)";
+	
+	string title = "";
+	for (uint i = 0; i < g_part_info.length(); i++)
+	{
+		if (modelName.Find(g_part_info[i].copy_ent) == 0)
+		{
+			title = g_part_info[i].title;
+			break;
+		}
+	}
+	
+	return title + size;
 }
 
 string getModelFromName(string partName)
@@ -254,6 +316,7 @@ CBaseEntity@ respawnPart(int id)
 			keys["renderamt"] = "" + part.pev.renderamt;
 			keys["id"] = "" + id;
 			keys["parent"] = "" + part.parent;
+			keys["zoneid"] = "" + part.zoneid;
 			
 			CBaseEntity@ ent = g_EntityFuncs.CreateEntity(part.pev.classname, keys, true);
 			ent.pev.angles = part.pev.angles;
@@ -278,6 +341,14 @@ CBaseEntity@ respawnPart(int id)
 		}
 	}
 	return null;
+}
+
+void breakPart(EHandle h_ent)
+{
+	if (!h_ent)
+		return;
+	CBaseEntity@ ent = h_ent;
+	ent.TakeDamage(ent.pev, ent.pev, ent.pev.health, 0);
 }
 
 // which type of part does this part attach to?
@@ -775,6 +846,67 @@ PlayerState@ getPlayerStateBySteamID(string steamId, string netname)
 	if ( player_states.exists(steamId) )
 	{
 		return cast<PlayerState@>( player_states[steamId] );
+	}
+	return null;
+}
+
+string getPlayerUniqueId(CBasePlayer@ plr)
+{
+	string steamId = g_EngineFuncs.GetPlayerAuthId( plr.edict() );
+	if (steamId == 'STEAM_ID_LAN') {
+		steamId = plr.pev.netname;
+	}
+	return steamId;
+}
+
+// get player by name, partial name, or steamId
+CBasePlayer@ getPlayerByName(CBasePlayer@ caller, string name, bool quiet=false)
+{
+	name = name.ToLowercase();
+	int partialMatches = 0;
+	CBasePlayer@ partialMatch;
+	CBaseEntity@ ent = null;
+	do {
+		@ent = g_EntityFuncs.FindEntityByClassname(ent, "player");
+		if (ent !is null) {
+			CBasePlayer@ plr = cast<CBasePlayer@>(ent);
+			string plrName = string(plr.pev.netname).ToLowercase();
+			string plrId = getPlayerUniqueId(plr).ToLowercase();
+			if (plrName == name)
+				return plr;
+			else if (plrId == name)
+				return plr;
+			else if (plrName.Find(name) != uint(-1))
+			{
+				@partialMatch = plr;
+				partialMatches++;
+			}
+		}
+	} while (ent !is null);
+	
+	if (partialMatches == 1) {
+		return partialMatch;
+	} else if (partialMatches > 1) {
+		g_PlayerFuncs.SayText(caller, 'There are ' + partialMatches + ' players that have "' + name + '" in their name. Be more specific.');
+	} else {
+		g_PlayerFuncs.SayText(caller, 'There is no player named "' + name + '"');
+	}
+	
+	return null;
+}
+
+Team@ getPlayerTeam(CBasePlayer@ plr)
+{
+	string id = getPlayerUniqueId(plr);
+	for (uint i = 0; i < g_teams.size(); i++)
+	{
+		for (uint k = 0; k < g_teams[i].members.size(); k++)
+		{
+			if (g_teams[i].members[k] == id)
+			{
+				return g_teams[i];
+			}
+		}
 	}
 	return null;
 }

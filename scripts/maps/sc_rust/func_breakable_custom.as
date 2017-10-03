@@ -35,8 +35,9 @@ array<BMaterial> g_materials = {
 class func_breakable_custom : ScriptBaseEntity
 {
 	BMaterial material;
-	int id;
-	int parent; // part id
+	int id = -1;
+	int zoneid = -1; // which zone this part belongs in
+	int parent = -1; // part id
 	bool dead = false; // in the process of dieing?
 	bool isDoor = false;
 	bool isLadder = false;
@@ -57,6 +58,7 @@ class func_breakable_custom : ScriptBaseEntity
 	{		
 		if (szKey == "id") id = atoi(szValue);
 		else if (szKey == "parent") parent = atoi(szValue);
+		else if (szKey == "zoneid") zoneid = atoi(szValue);
 		else return BaseClass.KeyValue( szKey, szValue );
 		
 		return true;
@@ -73,7 +75,7 @@ class func_breakable_custom : ScriptBaseEntity
 		//self.pev.frame = 1;
 		isDoor = self.pev.targetname != "";
 		isLadder = self.pev.colormap == B_LADDER;
-		println("CREATE PART " + id + " WITH PARENT " + parent);
+		//println("CREATE PART " + id + " WITH PARENT " + parent);
 		
 		g_EntityFuncs.SetModel(self, self.pev.model);
 		//g_EntityFuncs.SetSize(self.pev, self.pev.mins, self.pev.maxs);
@@ -83,8 +85,6 @@ class func_breakable_custom : ScriptBaseEntity
 		
 		SetThink( ThinkFunction( DoorThink ) );
 		pev.nextthink = g_Engine.time;
-		
-		pev.health = 100;
 		
 		updateConnections();
 	}
@@ -257,7 +257,7 @@ class func_breakable_custom : ScriptBaseEntity
 			}
 		}
 		
-		println("Found " + connections.length() + " connections");
+		//println("Found " + connections.length() + " connections");
 	}
 	
 	int TakeDamage( entvars_t@ pevInflictor, entvars_t@ pevAttacker, float flDamage, int bitsDamageType )
