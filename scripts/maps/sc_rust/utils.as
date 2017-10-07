@@ -1,32 +1,3 @@
-void print(string text) { g_Game.AlertMessage( at_console, text); }
-void println(string text) { print(text + "\n"); }
-
-class Color
-{ 
-	uint8 r, g, b, a;
-	Color() { r = g = b = a = 0; }
-	Color(uint8 r, uint8 g, uint8 b) { this.r = r; this.g = g; this.b = b; this.a = 255; }
-	Color(uint8 r, uint8 g, uint8 b, uint8 a) { this.r = r; this.g = g; this.b = b; this.a = a; }
-	Color(float r, float g, float b, float a) { this.r = uint8(r); this.g = uint8(g); this.b = uint8(b); this.a = uint8(a); }
-	Color (Vector v) { this.r = uint8(v.x); this.g = uint8(v.y); this.b = uint8(v.z); this.a = 255; }
-	string ToString() { return "" + r + " " + g + " " + b + " " + a; }
-	Vector getRGB() { return Vector(r, g, b); }
-}
-
-Color RED    = Color(255,0,0);
-Color GREEN  = Color(0,255,0);
-Color BLUE   = Color(0,0,255);
-Color YELLOW = Color(255,255,0);
-Color ORANGE = Color(255,127,0);
-Color PURPLE = Color(127,0,255);
-Color PINK   = Color(255,0,127);
-Color TEAL   = Color(0,255,255);
-Color WHITE  = Color(255,255,255);
-Color BLACK  = Color(0,0,0);
-Color GRAY  = Color(127,127,127);
-
-void te_beampoints(Vector start, Vector end, string sprite="sprites/laserbeam.spr", uint8 frameStart=0, uint8 frameRate=100, uint8 life=1, uint8 width=1, uint8 noise=0, Color c=GREEN, uint8 scroll=32, NetworkMessageDest msgType=MSG_BROADCAST, edict_t@ dest=null) { NetworkMessage m(msgType, NetworkMessages::SVC_TEMPENTITY, dest);m.WriteByte(TE_BEAMPOINTS);m.WriteCoord(start.x);m.WriteCoord(start.y);m.WriteCoord(start.z);m.WriteCoord(end.x);m.WriteCoord(end.y);m.WriteCoord(end.z);m.WriteShort(g_EngineFuncs.ModelIndex(sprite));m.WriteByte(frameStart);m.WriteByte(frameRate);m.WriteByte(life);m.WriteByte(width);m.WriteByte(noise);m.WriteByte(c.r);m.WriteByte(c.g);m.WriteByte(c.b);m.WriteByte(c.a);m.WriteByte(scroll);m.End(); }
-void te_smoke(Vector pos, string sprite="sprites/steam1.spr", int scale=10, int frameRate=15, NetworkMessageDest msgType=MSG_BROADCAST, edict_t@ dest=null) { NetworkMessage m(msgType, NetworkMessages::SVC_TEMPENTITY, dest);m.WriteByte(TE_SMOKE);m.WriteCoord(pos.x);m.WriteCoord(pos.y);m.WriteCoord(pos.z);m.WriteShort(g_EngineFuncs.ModelIndex(sprite));m.WriteByte(scale);m.WriteByte(frameRate);m.End(); }
 void te_projectile(Vector pos, Vector velocity, CBaseEntity@ owner=null, 
 	string model="models/grenade.mdl", uint8 life=1, 
 	NetworkMessageDest msgType=MSG_BROADCAST, edict_t@ dest=null)
@@ -46,7 +17,6 @@ void te_projectile(Vector pos, Vector velocity, CBaseEntity@ owner=null,
 	m.End();
 }
 
-
 Vector2D getPerp(Vector2D v) {
 	return Vector2D(-v.y, v.x);
 }
@@ -54,42 +24,6 @@ Vector2D getPerp(Vector2D v) {
 bool vecEqual(Vector v1, Vector v2)
 {
 	return abs(v1.x - v2.x) < EPSILON and abs(v1.y - v2.y) < EPSILON and abs(v1.z - v2.z) < EPSILON;
-}
-
-// convert output from Vector.ToString() back into a Vector
-Vector parseVector(string s) {
-	array<string> values = s.Split(",");
-	Vector v(0,0,0);
-	if (values.length() > 0) v.x = atof( values[0] );
-	if (values.length() > 1) v.y = atof( values[1] );
-	if (values.length() > 2) v.z = atof( values[2] );
-	return v;
-}
-
-array<float> rotationMatrix(Vector axis, float angle)
-{
-	axis = axis.Normalize();
-    float s = sin(angle);
-    float c = cos(angle);
-    float oc = 1.0 - c;
- 
-	array<float> mat = {
-		oc * axis.x * axis.x + c,          oc * axis.x * axis.y - axis.z * s, oc * axis.z * axis.x + axis.y * s, 0.0,
-		oc * axis.x * axis.y + axis.z * s, oc * axis.y * axis.y + c,          oc * axis.y * axis.z - axis.x * s, 0.0,
-		oc * axis.z * axis.x - axis.y * s, oc * axis.y * axis.z + axis.x * s, oc * axis.z * axis.z + c,			 0.0,
-		0.0,                               0.0,                               0.0,								 1.0
-	};
-	return mat;
-}
-
-// multiply a matrix with a vector (assumes w component of vector is 1.0f) 
-Vector matMultVector(array<float> rotMat, Vector v)
-{
-	Vector outv;
-	outv.x = rotMat[0]*v.x + rotMat[4]*v.y + rotMat[8]*v.z  + rotMat[12];
-	outv.y = rotMat[1]*v.x + rotMat[5]*v.y + rotMat[9]*v.z  + rotMat[13];
-	outv.z = rotMat[2]*v.x + rotMat[6]*v.y + rotMat[10]*v.z + rotMat[14];
-	return outv;
 }
 
 CBaseEntity@ getPartAtPos(Vector pos, float dist=2)
@@ -254,6 +188,27 @@ string getModelFromName(string partName)
 	string model;
 	g_model_to_partname.get(partName, model);
 	return model;
+}
+
+Item@ getItemByClassname(string cname)
+{
+	for (uint i = 0; i < g_items.size(); i++)
+		if (cname == g_items[i].classname)
+			return @g_items[i];
+	return null;
+}
+
+CItemInventory@ getInventoryItem(CBasePlayer@ plr, int itemType)
+{
+	InventoryList@ inv = plr.get_m_pInventory();
+	while (inv !is null)
+	{
+		CItemInventory@ item = cast<CItemInventory@>(inv.hItem.GetEntity());
+		@inv = inv.pNext;
+		if (item.pev.colormap == (itemType+1))
+			return item;
+	}
+	return null;
 }
 
 string getModelSize(CBaseEntity@ part)

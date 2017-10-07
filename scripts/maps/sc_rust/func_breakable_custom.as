@@ -41,7 +41,11 @@ class func_breakable_custom : ScriptBaseEntity
 	bool dead = false; // in the process of dieing?
 	bool isDoor = false;
 	bool isLadder = false;
+	bool isNode = false;
 	bool supported = false; // is connected to a foundation somehow?
+	string killtarget;
+	
+	int nodeType = -1;
 	
 	array<EHandle> children;
 	array<EHandle> connections; // all parts that are supported by or support this part
@@ -59,6 +63,8 @@ class func_breakable_custom : ScriptBaseEntity
 		if (szKey == "id") id = atoi(szValue);
 		else if (szKey == "parent") parent = atoi(szValue);
 		else if (szKey == "zoneid") zoneid = atoi(szValue);
+		else if (szKey == "killtarget") killtarget = szValue;
+		else if (szKey == "nodetype") nodeType = atoi(szValue);
 		else return BaseClass.KeyValue( szKey, szValue );
 		
 		return true;
@@ -75,7 +81,13 @@ class func_breakable_custom : ScriptBaseEntity
 		//self.pev.frame = 1;
 		isDoor = self.pev.targetname != "";
 		isLadder = self.pev.colormap == B_LADDER;
+		isNode = self.pev.colormap == -1;
 		//println("CREATE PART " + id + " WITH PARENT " + parent);
+		
+		if (isNode)
+		{
+			self.pev.effects = EF_NODRAW;
+		}
 		
 		g_EntityFuncs.SetModel(self, self.pev.model);
 		//g_EntityFuncs.SetSize(self.pev, self.pev.mins, self.pev.maxs);
@@ -86,7 +98,8 @@ class func_breakable_custom : ScriptBaseEntity
 		SetThink( ThinkFunction( DoorThink ) );
 		pev.nextthink = g_Engine.time;
 		
-		updateConnections();
+		if (!isNode)
+			updateConnections();
 	}
 	
 	void DoorThink()
@@ -274,35 +287,89 @@ class func_breakable_custom : ScriptBaseEntity
 			else
 				ent.TakeDamage(pevInflictor, pevAttacker, flDamage, bitsDamageType);
 			return 0;
-		}
+		}		
 		
-		/*
-		if (pevAttacker.classname != "func_breakable_custom")
+		if (isNode and pevAttacker.classname == "player")
 		{
-			decalFix();
+			// harvest resources
+			CBasePlayer@ plr = cast<CBasePlayer@>( g_EntityFuncs.Instance(pevAttacker.get_pContainingEntity()) );
+			CBaseEntity@ weapon = plr.m_hActiveItem;
+			string weaponName = weapon.pev.classname;
+			
+			HUDTextParams params;
+			params.x = -1;
+			params.y = -1;
+			params.effect = 0;
+			params.r1 = 255;
+			params.g1 = 255;
+			params.b1 = 255;
+			params.fadeinTime = 0;
+			params.fadeoutTime = 0.5f;
+			params.holdTime = 0.0f;
+			params.channel = 2;
+			
+			int giveAmount = 100;
+			if (nodeType == NODE_TREE)
+			{
+				if (weaponName == "weapon_rock") giveAmount = 10;
+				if (weaponName == "weapon_stone_hatchet") giveAmount = 20;
+				if (weaponName == "weapon_metal_hatchet") giveAmount = 30;
+				if (weaponName == "weapon_stone_pickaxe") giveAmount = 10;
+				if (weaponName == "weapon_metal_pickaxe") giveAmount = 15;
+				
+				g_PlayerFuncs.HudMessage(plr, params, "+" + int(giveAmount) + " Wood");
+				giveItem(plr, I_WOOD, giveAmount, false);
+			}
+			if (nodeType == NODE_ROCK)
+			{
+				giveAmount = 5;
+				if (weaponName == "weapon_rock") giveAmount = 5;
+				if (weaponName == "weapon_stone_hatchet") giveAmount = 10;
+				if (weaponName == "weapon_metal_hatchet") giveAmount = 20;
+				if (weaponName == "weapon_stone_pickaxe") giveAmount = 20;
+				if (weaponName == "weapon_metal_pickaxe") giveAmount = 40;
+				
+				g_PlayerFuncs.HudMessage(plr, params, "+" + int(giveAmount) + " Stone");
+				giveItem(plr, I_STONE, giveAmount, false);
+			}			
+			
+			flDamage = giveAmount;
 		}
-		*/	
 		
 		pev.health -= flDamage;
 		
 		if (pev.health <= 0)
 		{
 			dead = true;
-			removeAllConnections();
-			part_broken(self, self, USE_TOGGLE, 0);
-			string sound = material.breakSounds[ Math.RandomLong(0, material.breakSounds.length()-1) ];
-			g_SoundSystem.PlaySound(self.edict(), CHAN_STATIC, sound, 1.0f, 1.0f, 0, 90 + Math.RandomLong(0, 20));
-			
-			Vector center = getCentroid(self);
-			Vector mins = self.pev.mins;
-			if (isFoundation(self))
+			if (!isNode)
 			{
-				mins.z = -8;
-				center = self.pev.origin;
+				removeAllConnections();
+				part_broken(self, self, USE_TOGGLE, 0);
+				string sound = material.breakSounds[ Math.RandomLong(0, material.breakSounds.length()-1) ];
+				g_SoundSystem.PlaySound(self.edict(), CHAN_STATIC, sound, 1.0f, 1.0f, 0, 90 + Math.RandomLong(0, 20));
+				
+				Vector center = getCentroid(self);
+				Vector mins = self.pev.mins;
+				if (isFoundation(self))
+				{
+					mins.z = -8;
+					center = self.pev.origin;
+				}
+				te_breakmodel(center, self.pev.maxs - mins, Vector(0,0,0), 4, "models/woodgibs.mdl", 8, 0, 8);
 			}
-			te_breakmodel(center, self.pev.maxs - mins, Vector(0,0,0), 4, "models/woodgibs.mdl", 8, 0, 8);
+			else
+			{
+				g_SoundSystem.PlaySound(self.edict(), CHAN_STATIC, "sc_rust/stone_tree.ogg", 1.0f, 1.0f, 0, 90 + Math.RandomLong(0, 20));
+			}
 			
 			g_EntityFuncs.Remove(self);
+			
+			if (killtarget.Length() > 0)
+			{
+				CBaseEntity@ kill = g_EntityFuncs.FindEntityByTargetname(null, killtarget);
+				if (kill !is null)
+					g_EntityFuncs.Remove(kill);
+			}
 		}
 		else
 		{
@@ -312,27 +379,3 @@ class func_breakable_custom : ScriptBaseEntity
 		return 0;
 	}
 };
-
-void te_breakmodel(Vector pos, Vector size, Vector velocity, 
-	uint8 speedNoise=16, string model="models/hgibs.mdl", 
-	uint8 count=8, uint8 life=0, uint8 flags=20,
-	NetworkMessageDest msgType=MSG_BROADCAST, edict_t@ dest=null)
-{
-	NetworkMessage m(msgType, NetworkMessages::SVC_TEMPENTITY, dest);
-	m.WriteByte(TE_BREAKMODEL);
-	m.WriteCoord(pos.x);
-	m.WriteCoord(pos.y);
-	m.WriteCoord(pos.z);
-	m.WriteCoord(size.x);
-	m.WriteCoord(size.y);
-	m.WriteCoord(size.z);
-	m.WriteCoord(velocity.x);
-	m.WriteCoord(velocity.y);
-	m.WriteCoord(velocity.z);
-	m.WriteByte(speedNoise);
-	m.WriteShort(g_EngineFuncs.ModelIndex(model));
-	m.WriteByte(count);
-	m.WriteByte(life);
-	m.WriteByte(flags);
-	m.End();
-}

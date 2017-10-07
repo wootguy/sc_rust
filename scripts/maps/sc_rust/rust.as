@@ -2,6 +2,7 @@
 #include "hammer"
 #include "func_breakable_custom"
 #include "func_build_zone"
+#include "../weapon_custom/v3.1/weapon_custom"
 
 void dummyCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextMenuItem@ item) {}
 
@@ -261,7 +262,7 @@ class PlayerState
 		{
 			BuildZone@ zone = getBuildZone(home_zone);
 			CBasePlayer@ p = cast<CBasePlayer@>(plr.GetEntity());
-			string msg = "Your base in zone " + zone.id + " was completely destroyed. You can rebuild in any zone.";
+			string msg = "Your base in zone " + zone.id + " was completely destroyed. You can rebuild in any zone.\n";
 			if (team !is null)
 			{
 				team.sendMessage(msg);
@@ -290,6 +291,20 @@ class PlayerState
 	
 	int getNumParts(int zoneid)
 	{
+		if (zoneid == -1337)
+		{
+			// get ALL owned parts
+			array<string>@ zoneKeys = zoneParts.getKeys();
+			int total = 0;
+			for (uint i = 0; i < zoneKeys.length(); i++)
+			{
+				int count = 0;
+				zoneParts.get(zoneKeys[i], count);
+				total += count;
+			}
+			return total;
+		}
+	
 		if (zoneid != home_zone)
 		{
 			// use shared part count
@@ -367,7 +382,9 @@ dictionary g_model_to_partname; // maps part names to models
 dictionary g_pretty_part_names;
 float g_tool_cupboard_radius = 512;
 int g_part_id = 0;
-bool debug_mode = false;
+//bool debug_mode = false;
+bool g_disable_ents = false;
+bool g_build_anywhere = true; // disables build zones
 ZoneInfo g_zone_info;
 
 int MAX_SAVE_DATA_LENGTH = 1015; // Maximum length of a value saved with trigger_save. Discovered through testing
@@ -416,6 +433,7 @@ void MapInit()
 	PrecacheSound("sc_rust/ladder_hatch_close.ogg");
 	PrecacheSound("sc_rust/high_wall_place_stone.ogg");
 	PrecacheSound("sc_rust/high_wall_place_wood.ogg");
+	PrecacheSound("sc_rust/stone_tree.ogg");
 	
 	// precache breakable object assets
 	PrecacheSound("debris/bustcrate1.wav");
@@ -424,6 +442,8 @@ void MapInit()
 	PrecacheSound("debris/wood2.wav");
 	PrecacheSound("debris/wood3.wav");
 	g_Game.PrecacheModel( "models/woodgibs.mdl" );
+	g_Game.PrecacheModel( "models/sc_rust/pine_tree.mdl" );
+	g_Game.PrecacheModel( "models/sc_rust/rock.mdl" );
 	
 	for (uint i = 0; i < g_material_damage_sounds.length(); i++)
 		for (uint k = 0; k < g_material_damage_sounds[i].length(); k++)
@@ -431,6 +451,8 @@ void MapInit()
 	for (uint i = 0; i < g_material_break_sounds.length(); i++)
 		for (uint k = 0; k < g_material_break_sounds[i].length(); k++)
 			PrecacheSound(g_material_break_sounds[i][k]);
+			
+	WeaponCustomMapInit();
 }
 
 void MapActivate()
@@ -518,7 +540,10 @@ void MapActivate()
 		"b_ladder_hatch_ladder",
 		"b_ladder_hatch_door",
 		"b_ladder_hatch_door_unlock",
-		"b_ladder_hatch_door_lock"
+		"b_ladder_hatch_door_lock",
+		
+		"e_tree",
+		"e_rock"
 	};
 	
 	for (uint i = 0; i < part_names.length(); i++)
@@ -574,6 +599,8 @@ void MapActivate()
 	} while (ent !is null);
 	
 	g_zone_info.init();
+	
+	WeaponCustomMapActivate();
 }
 
 void debug_stability(Vector start, Vector end)
@@ -766,7 +793,22 @@ void stabilityCheck()
 	}
 }
 
-void giveItem(CBasePlayer@ plr, int type, int amt)
+string prettyNumber(int number)
+{
+	string pretty = "";
+	int i = 0;
+	while (number > 0)
+	{
+		int tens = number % 10;
+		number /= 10;
+		pretty = "" + tens + pretty;
+		if (i++ % 3 == 2 and number > 0)
+			pretty = "," + pretty;
+	}
+	return pretty;
+}
+
+CItemInventory@ giveItem(CBasePlayer@ plr, int type, int amt, bool showText=true, bool drop=false)
 {
 	dictionary keys;
 	keys["origin"] = plr.pev.origin.ToString();
@@ -777,23 +819,71 @@ void giveItem(CBasePlayer@ plr, int type, int amt)
 	keys["holder_can_drop"] = "1";
 	keys["carried_hidden"] = "1";
 	
+	keys["netname"] = g_items[type].title; // because m_szItemName doesn't work...
+	keys["colormap"] = "" + (type+1); // +1 so that normal items don't appear as my custom ones
+	
 	keys["display_name"] = g_items[type].title;
 	keys["description"] =  g_items[type].desc;
 	
 	println("GIB " + amt + "x " + g_items[type].title + " TO " + plr.pev.netname);
-	g_PlayerFuncs.PrintKeyBindingString(plr, "" + amt + "x " + g_items[type].title);
+	if (showText)
+		g_PlayerFuncs.PrintKeyBindingString(plr, "" + amt + "x " + g_items[type].title);
+	
+	int dropSpeed = Math.RandomLong(250, 400);
 	
 	if (!g_items[type].stackable)
 	{
+		CBaseEntity@ lastGive = null;
 		for (int i = 0; i < amt; i++)
 		{
 			CBaseEntity@ ent = g_EntityFuncs.CreateEntity("item_inventory", keys, true);
-			ent.Use(@plr, @plr, USE_ON, 0.0F);
+			if (drop)
+			{
+				g_EngineFuncs.MakeVectors(plr.pev.angles);
+				ent.pev.velocity = g_Engine.v_forward*dropSpeed;
+			}
+			else
+				ent.Use(@plr, @plr, USE_ON, 0.0F);
+			@lastGive = @ent;
 		}
+		return cast<CItemInventory@>(lastGive);
 	}
 	else
 	{
-		// todo
+		InventoryList@ inv = plr.get_m_pInventory();
+		int newAmount = amt;
+		
+		if (!drop)
+		{
+			while(inv !is null)
+			{
+				CItemInventory@ item = cast<CItemInventory@>(inv.hItem.GetEntity());
+				@inv = inv.pNext;
+				if (item.pev.netname == g_items[type].title)
+				{
+					newAmount += item.pev.button;
+					g_EntityFuncs.Remove(item);
+				}
+			}
+		}
+		
+		keys["button"] = "" + newAmount;
+		keys["display_name"] = g_items[type].title + "  (" + prettyNumber(newAmount) + ")";
+		
+		if (newAmount > 0)
+		{
+			CBaseEntity@ ent = g_EntityFuncs.CreateEntity("item_inventory", keys, true);
+			if (drop)
+			{
+				g_EngineFuncs.MakeVectors(Vector(0, plr.pev.angles.y, 0));
+				ent.pev.velocity = g_Engine.v_forward*dropSpeed;
+			}
+			else
+				ent.Use(@plr, @plr, USE_ON, 0.0F);				
+			return cast<CItemInventory@>(ent);
+		}
+		
+		return null;
 	}
 }
 
@@ -805,150 +895,299 @@ void craftMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextM
 	item.m_pUserData.retrieve(action);
 	PlayerState@ state = getPlayerState(plr);
 	
-	if (action == "build-menu" or action == "item-menu" or action == "armor-menu" or action == "tool-menu" or
-		action == "medical-menu" or action == "weapon-menu" or action == "ammo-menu")
+	if (int(action.Find("-menu")) != -1)
 	{
-		g_Scheduler.SetTimeout("openCraftMenu", 0, @plr, action);
+		g_Scheduler.SetTimeout("openPlayerMenu", 0, @plr, action);
+	}
+	else if (action.Find("unequip-") == 0)
+	{
+		string name = action.SubString(8);
+		for (uint i = 0; i < MAX_ITEM_TYPES; i++)
+		{
+			CBasePlayerItem@ wep = plr.m_rgpPlayerItems(i);
+			while (wep !is null)
+			{
+				if (wep.pev.classname == name)
+				{
+					plr.RemovePlayerItem(wep);
+					Item@ invItem = getItemByClassname(name);
+					if (invItem !is null)
+					{
+						giveItem(plr, invItem.type, 1, false);
+						g_PlayerFuncs.PrintKeyBindingString(plr, invItem.title + " was moved your inventory");
+					}
+					else
+						println("Unknown item: " + name);
+					break;
+				}
+				@wep = cast<CBasePlayerItem@>(wep.m_hNextItem.GetEntity());				
+			}
+		}
+		g_Scheduler.SetTimeout("openPlayerMenu", 0, @plr, "unequip-menu");
+	}
+	else if (action.Find("equip-") == 0)
+	{
+		int itemId = atoi(action.SubString(6));
+		Item@ invItem = g_items[itemId-1];
+		
+		InventoryList@ inv = plr.get_m_pInventory();
+		while (inv !is null)
+		{
+			CItemInventory@ wep = cast<CItemInventory@>(inv.hItem.GetEntity());
+			@inv = inv.pNext;
+			if (wep.pev.colormap == itemId)
+			{
+				g_EntityFuncs.Remove(wep);
+				break;
+			}
+		}
+		
+		plr.GiveNamedItem(invItem.classname);
+		g_Scheduler.SetTimeout("openPlayerMenu", 0, @plr, "equip-menu");
+	}
+	else if (action.Find("unstack-") == 0)
+	{
+		g_Scheduler.SetTimeout("openPlayerMenu", 0, @plr, action);
+	}
+	else if (action.Find("drop-") == 0)
+	{
+		int dropAmt = atoi(action.SubString(5,6));
+		int dropType = atoi(action.SubString(12));
+		
+		giveItem(plr, dropType-1, -dropAmt, false); // decrease stack size
+		giveItem(plr, dropType-1, dropAmt, false, true); // drop selected amount
+		
+		g_Scheduler.SetTimeout("openPlayerMenu", 0, @plr, "unstack-" + dropType);
 	}
 	else
 	{
 		if (action == "wood-door") giveItem(@plr, I_WOOD_DOOR, 1);
 		if (action == "tool-cupboard") giveItem(@plr, I_TOOL_CUPBOARD, 1);
-		g_Scheduler.SetTimeout("openCraftMenu", 0, @plr, "");
+		g_Scheduler.SetTimeout("openPlayerMenu", 0, @plr, "");
 	}
 	
 	menu.Unregister();
 	@menu = null;
 }
 
-void openCraftMenu(CBasePlayer@ plr, string subMenu)
+void openPlayerMenu(CBasePlayer@ plr, string subMenu)
 {
 	PlayerState@ state = getPlayerState(plr);
 	state.initMenu(plr, craftMenuCallback);
 	
 	if (subMenu == "build-menu") 
 	{
-		state.menu.SetTitle("Craft -> Build:\n\n");
-		state.menu.AddItem("Wood Door\n", any("wood-door"));
-		state.menu.AddItem("Metal Door\n", any("metal-door"));
-		state.menu.AddItem("Wood Shutters\n", any("wood-shutters"));
-		state.menu.AddItem("Wood Window Bars\n", any("wood-window-bars"));
-		state.menu.AddItem("Metal Window Bars\n", any("metal-window-bars"));
-		state.menu.AddItem("Code Lock\n", any("code-lock"));
-		state.menu.AddItem("Tool Cupboard\n", any("tool-cupboard"));
-		state.menu.AddItem("High External Wood Wall\n", any("wood-wall"));
-		state.menu.AddItem("High External Stone Wall\n", any("stone-wall"));
-		state.menu.AddItem("Ladder\n", any("ladder"));
-		state.menu.AddItem("Ladder Hatch\n", any("ladder-hatch"));
+		state.menu.SetTitle("Actions -> Craft -> Build:\n");
+		state.menu.AddItem("Wood Door", any("wood-door"));
+		state.menu.AddItem("Metal Door", any("metal-door"));
+		state.menu.AddItem("Wood Shutters", any("wood-shutters"));
+		state.menu.AddItem("Wood Window Bars", any("wood-window-bars"));
+		state.menu.AddItem("Metal Window Bars", any("metal-window-bars"));
+		state.menu.AddItem("Code Lock", any("code-lock"));
+		state.menu.AddItem("Tool Cupboard", any("tool-cupboard"));
+		state.menu.AddItem("High External Wood Wall", any("wood-wall"));
+		state.menu.AddItem("High External Stone Wall", any("stone-wall"));
+		state.menu.AddItem("Ladder", any("ladder"));
+		state.menu.AddItem("Ladder Hatch", any("ladder-hatch"));
 	}
 	else if (subMenu == "item-menu") 
 	{
-		state.menu.SetTitle("Craft -> Items:\n\n");
-		state.menu.AddItem("Chest\n", any("small-chest"));
-		state.menu.AddItem("Large Chest\n", any("large-chest"));
-		state.menu.AddItem("Camp Fire\n", any("fire"));
-		state.menu.AddItem("Furnace\n", any("furnace"));
-		state.menu.AddItem("Large Furnace\n", any("large-furnace"));
-		state.menu.AddItem("Stash\n", any("stash"));
-		state.menu.AddItem("Sleeping Bag\n", any("sleeping-bag"));
+		state.menu.SetTitle("Actions -> Craft -> Items:\n");
+		state.menu.AddItem("Chest", any("small-chest"));
+		state.menu.AddItem("Large Chest", any("large-chest"));
+		state.menu.AddItem("Camp Fire", any("fire"));
+		state.menu.AddItem("Furnace", any("furnace"));
+		state.menu.AddItem("Large Furnace", any("large-furnace"));
+		state.menu.AddItem("Stash", any("stash"));
+		state.menu.AddItem("Sleeping Bag", any("sleeping-bag"));
 	}
 	else if (subMenu == "armor-menu") 
 	{
-		state.menu.SetTitle("Craft -> Armor:\n\n");
-		state.menu.AddItem("Wood Helmet\n", any("wood-helmet"));
-		state.menu.AddItem("Wood Chestplate\n", any("wood-chestplate"));
-		state.menu.AddItem("Wood Pants\n", any("wood-pants"));
-		state.menu.AddItem("Metal Helmet\n", any("metal-helmet"));
-		state.menu.AddItem("Metal Chestplate\n", any("metal-chestplate"));
-		state.menu.AddItem("Metal Pants\n", any("metal-pants"));
+		state.menu.SetTitle("Actions -> Craft -> Armor:\n");
+		state.menu.AddItem("Wood Helmet", any("wood-helmet"));
+		state.menu.AddItem("Wood Chestplate", any("wood-chestplate"));
+		state.menu.AddItem("Wood Pants", any("wood-pants"));
+		state.menu.AddItem("Metal Helmet", any("metal-helmet"));
+		state.menu.AddItem("Metal Chestplate", any("metal-chestplate"));
+		state.menu.AddItem("Metal Pants", any("metal-pants"));
 	}
 	else if (subMenu == "tool-menu")
 	{
-		state.menu.SetTitle("Craft -> Tools:\n\n");
-		state.menu.AddItem("Rock\n", any("rock"));
-		state.menu.AddItem("Torch\n", any("torch"));
-		state.menu.AddItem("Building Plan\n", any("build-plan"));
-		state.menu.AddItem("Hammer\n", any("hammer"));
-		state.menu.AddItem("Stone Hatchet\n", any("stone-axe"));
-		state.menu.AddItem("Stone Pick Axe\n", any("stone-pick"));
-		state.menu.AddItem("Metal Hatchet\n", any("metal-axe"));
-		state.menu.AddItem("Metal Pick Axe\n", any("metal-pick"));
+		state.menu.SetTitle("Actions -> Craft -> Tools:\n");
+		state.menu.AddItem("Rock", any("rock"));
+		state.menu.AddItem("Torch", any("torch"));
+		state.menu.AddItem("Building Plan", any("build-plan"));
+		state.menu.AddItem("Hammer", any("hammer"));
+		state.menu.AddItem("Stone Hatchet", any("stone-axe"));
+		state.menu.AddItem("Stone Pick Axe", any("stone-pick"));
+		state.menu.AddItem("Metal Hatchet", any("metal-axe"));
+		state.menu.AddItem("Metal Pick Axe", any("metal-pick"));
 	}
 	else if (subMenu == "medical-menu")
 	{
-		state.menu.SetTitle("Craft -> Medical:\n\n");
-		state.menu.AddItem("Bandage\n", any("bandage"));
-		state.menu.AddItem("Small Medkit\n", any("small-medkit"));
-		state.menu.AddItem("Large Medkit\n", any("large-medkit"));
-		state.menu.AddItem("Acoustic Guitar\n", any("guitar"));
+		state.menu.SetTitle("Actions -> Craft -> Medical:\n");
+		state.menu.AddItem("Bandage", any("bandage"));
+		state.menu.AddItem("Small Medkit", any("small-medkit"));
+		state.menu.AddItem("Large Medkit", any("large-medkit"));
+		state.menu.AddItem("Acoustic Guitar", any("guitar"));
 	}
 	else if (subMenu == "weapon-menu")
 	{
-		state.menu.SetTitle("Craft -> Weapons:\n\n");
-		state.menu.AddItem("Crowbar\n", any("crowbar"));
-		state.menu.AddItem("Wrench\n", any("wrench"));
-		state.menu.AddItem("Bow\n", any("bow"));
-		state.menu.AddItem("Pistol\n", any("pistol"));
-		state.menu.AddItem("Shotgun\n", any("shotgun"));
-		state.menu.AddItem("Flamethrower\n", any("flamethrower"));
-		state.menu.AddItem("Sniper Rifle\n", any("sniper"));
-		state.menu.AddItem("RPG\n", any("rpg"));
-		state.menu.AddItem("Uzi\n", any("uzi"));
-		state.menu.AddItem("Saw\n", any("saw"));
-		state.menu.AddItem("Grenade\n", any("grenade"));
-		state.menu.AddItem("Satchel charge\n", any("satchel"));
-		state.menu.AddItem("C4\n", any("c4"));
+		state.menu.SetTitle("Actions -> Craft -> Weapons:\n");
+		state.menu.AddItem("Crowbar", any("crowbar"));
+		state.menu.AddItem("Wrench", any("wrench"));
+		state.menu.AddItem("Bow", any("bow"));
+		state.menu.AddItem("Pistol", any("pistol"));
+		state.menu.AddItem("Shotgun", any("shotgun"));
+		state.menu.AddItem("Flamethrower", any("flamethrower"));
+		state.menu.AddItem("Sniper Rifle", any("sniper"));
+		state.menu.AddItem("RPG", any("rpg"));
+		state.menu.AddItem("Uzi", any("uzi"));
+		state.menu.AddItem("Saw", any("saw"));
+		state.menu.AddItem("Grenade", any("grenade"));
+		state.menu.AddItem("Satchel charge", any("satchel"));
+		state.menu.AddItem("C4", any("c4"));
 	}
 	else if (subMenu == "ammo-menu")
 	{
-		state.menu.SetTitle("Craft -> Ammo:\n\n");
-		state.menu.AddItem("Arrow\n", any("arrow"));
-		state.menu.AddItem("9mm\n", any("9mm"));
-		state.menu.AddItem("556\n", any("556"));
-		state.menu.AddItem("Buckshot\n", any("buckshot"));
-		state.menu.AddItem("Rocket\n", any("rocket"));
+		state.menu.SetTitle("Actions -> Craft -> Ammo:\n");
+		state.menu.AddItem("Arrow", any("arrow"));
+		state.menu.AddItem("9mm", any("9mm"));
+		state.menu.AddItem("556", any("556"));
+		state.menu.AddItem("Buckshot", any("buckshot"));
+		state.menu.AddItem("Rocket", any("rocket"));
+	}
+	else if (subMenu == "craft-menu")
+	{
+		state.menu.SetTitle("Actions -> Craft:\n");
+		state.menu.AddItem("Build", any("build-menu"));
+		state.menu.AddItem("Items", any("item-menu"));
+		state.menu.AddItem("Armor", any("armor-menu"));
+		state.menu.AddItem("Tools", any("tool-menu"));
+		state.menu.AddItem("Medical", any("medical-menu"));
+		state.menu.AddItem("Weapons", any("weapon-menu"));
+		state.menu.AddItem("Ammo", any("ammo-menu"));
+	}
+	else if (subMenu == "equip-menu")
+	{
+		state.menu.SetTitle("Actions -> Equip:\n");
+		
+		int count = 0;
+		InventoryList@ inv = plr.get_m_pInventory();
+		while(inv !is null)
+		{
+			CItemInventory@ item = cast<CItemInventory@>(inv.hItem.GetEntity());
+			
+			if (item !is null and item.pev.colormap > 0)
+			{
+				Item@ wep = g_items[item.pev.colormap-1];
+				if (wep !is null and wep.isWeapon)
+				{
+					state.menu.AddItem(wep.title, any("equip-" + item.pev.colormap));
+					count++;
+				}
+			}
+			
+			@inv = inv.pNext;
+		}
+		
+		if (count == 0)
+		{
+			g_PlayerFuncs.PrintKeyBindingString(plr, "You don't have any equipable items");
+			openPlayerMenu(plr, "");
+			return;
+		}
+	}
+	else if (subMenu == "unequip-menu")
+	{
+		state.menu.SetTitle("Actions -> Unequip:\n");
+		int count = 0;
+		for (uint i = 0; i < MAX_ITEM_TYPES; i++)
+		{
+			CBasePlayerItem@ item = plr.m_rgpPlayerItems(i);
+			while (item !is null)
+			{
+				Item@ invItem = getItemByClassname(item.pev.classname);
+				string displayName = invItem !is null ? invItem.title : string(item.pev.classname);
+				state.menu.AddItem(displayName, any("unequip-" + item.pev.classname));
+				@item = cast<CBasePlayerItem@>(item.m_hNextItem.GetEntity());		
+				count++;				
+			}
+		}
+		
+		if (count == 0)
+		{
+			g_PlayerFuncs.PrintKeyBindingString(plr, "You don't have any items equipped");
+			openPlayerMenu(plr, "");
+			return;
+		}
+	}
+	else if (subMenu == "drop-stack-menu")
+	{
+		state.menu.SetTitle("Actions -> Drop Stackables:\n");
+		
+		int count = 0;
+		InventoryList@ inv = plr.get_m_pInventory();
+		while(inv !is null)
+		{
+			CItemInventory@ item = cast<CItemInventory@>(inv.hItem.GetEntity());
+			if (item !is null and item.pev.colormap > 0)
+			{
+				Item@ wep = g_items[item.pev.colormap-1];
+				if (wep !is null and wep.stackable)
+				{
+					state.menu.AddItem(wep.title, any("unstack-" + item.pev.colormap));
+					count++;
+				}
+			}
+			@inv = inv.pNext;
+		}
+		
+		if (count == 0)
+		{
+			g_PlayerFuncs.PrintKeyBindingString(plr, "You don't have any stacked items");
+			openPlayerMenu(plr, "");
+			return;
+		}
+	}
+	else if (subMenu.Find("unstack-") == 0)
+	{
+		int itemId = atoi(subMenu.SubString(8));
+		Item@ invItem = g_items[itemId-1];
+		
+		string displayName = invItem.title;
+		int amount = 0;
+		CItemInventory@ wep = getInventoryItem(plr, itemId-1);
+		if (wep !is null)
+		{
+			amount = wep.pev.button;
+			displayName += " (" + amount + ")";
+		}
+		
+		if (amount <= 0)
+		{
+			openPlayerMenu(plr, "drop-stack-menu");
+			return;
+		}
+		
+		state.menu.SetTitle("Actions -> Drop " + displayName + ":\n");
+		state.menu.AddItem("Drop 1", any("drop-000001-" + itemId));
+		if (amount >= 10) state.menu.AddItem("Drop 10", any("drop-000010-" + itemId));
+		if (amount >= 100) state.menu.AddItem("Drop 100", any("drop-000100-" + itemId));
+		if (amount >= 1000) state.menu.AddItem("Drop 1,000", any("drop-001000-" + itemId));
+		if (amount >= 10000) state.menu.AddItem("Drop 10,000", any("drop-010000-" + itemId));
+		if (amount >= 10000) state.menu.AddItem("Drop 100,000", any("drop-100000-" + itemId));
 	}
 	else
 	{
-		state.menu.SetTitle("Craft:\n\n");
-		state.menu.AddItem("Build\n", any("build-menu"));
-		state.menu.AddItem("Items\n", any("item-menu"));
-		state.menu.AddItem("Armor\n", any("armor-menu"));
-		state.menu.AddItem("Tools\n", any("tool-menu"));
-		state.menu.AddItem("Medical\n", any("medical-menu"));
-		state.menu.AddItem("Weapons\n", any("weapon-menu"));
-		state.menu.AddItem("Ammo\n", any("ammo-menu"));
+		state.menu.SetTitle("Actions:\n");
+		state.menu.AddItem("Craft", any("craft-menu"));
+		state.menu.AddItem("Equip", any("equip-menu"));
+		state.menu.AddItem("Unequip", any("unequip-menu"));
+		state.menu.AddItem("Drop Stackables", any("drop-stack-menu"));
 	}
 	
 	state.openMenu(plr);
-}
-
-void te_decal(Vector pos, CBaseEntity@ brushEnt=null, string decal="{handi",
-	NetworkMessageDest msgType=MSG_BROADCAST, edict_t@ dest=null)
-{
-	NetworkMessage m(msgType, NetworkMessages::SVC_TEMPENTITY, dest);
-	m.WriteByte(TE_DECAL);
-	m.WriteCoord(pos.x);
-	m.WriteCoord(pos.y);
-	m.WriteCoord(pos.z);
-	m.WriteByte(g_EngineFuncs.DecalIndex(decal));
-	m.WriteShort(brushEnt is null ? 0 : brushEnt.entindex());
-	m.End();
-}
-
-// workaround for the "Too many decal textures" error. rip net usage.
-void decalFix()
-{
-	Vector vecSrc = Vector(0,0,128);
-	TraceResult tr2;
-	Vector vecEnd = vecSrc + Vector(0,0,-128);
-	g_Utility.TraceLine( vecSrc, vecEnd, ignore_monsters, null, tr2 );
-
-	//g_Utility.DecalTrace(tr2, g_EngineFuncs.DecalIndex("{handi"));
-	for (uint y = 0; y < 32; y++)
-		for (uint x = 0; x < 32; x++)
-			te_decal(tr2.vecEndPos + Vector(x*16, y*16, 0));
-	println("DECAL");
 }
 
 void inventoryCheck()
@@ -961,8 +1200,7 @@ void inventoryCheck()
 		{
 			CBasePlayer@ plr = cast<CBasePlayer@>(e_plr);
 			if (e_plr.pev.button & IN_RELOAD != 0 and e_plr.pev.button & IN_USE != 0) {
-				openCraftMenu(plr, "");
-				println("OPEN MENU");
+				openPlayerMenu(plr, "");
 			}
 			
 			TraceResult tr = TraceLook(plr, 96, true);
@@ -975,21 +1213,29 @@ void inventoryCheck()
 				//println("RETOUCH");
 			}
 			
-			
-			if (phit is null or phit.pev.classname == "worldspawn" or !phit.IsBSPModel())
-				continue;
-
 			HUDTextParams params;
 			params.effect = 0;
 			params.fadeinTime = 0;
 			params.fadeoutTime = 0;
 			params.holdTime = 0.2f;
-			params.x = 0.5;
-			params.y = 0.7;
-			params.channel = 1;
 			params.r1 = 255;
 			params.g1 = 255;
 			params.b1 = 255;
+			
+			/*
+			params.x = 0.99f;
+			params.y = 0.90f;
+			params.channel = 3;
+			float dur = 99;
+			g_PlayerFuncs.HudMessage(plr, params, "" + int(dur) + "%");
+			*/
+			
+			if (phit is null or phit.pev.classname == "worldspawn" or phit.pev.colormap == -1)
+				continue;
+
+			params.x = -1;
+			params.y = 0.7;
+			params.channel = 1;
 			g_PlayerFuncs.HudMessage(plr, params, 
 				string(prettyPartName(phit)) + "\n" + int(phit.pev.health) + " / " + int(phit.pev.max_health));
 		}
@@ -1605,6 +1851,12 @@ bool doRustCommand(CBasePlayer@ plr, const CCommand@ args)
 				g_PlayerFuncs.SayText(plr, "Your home is zone " + state.home_zone);
 			else
 				g_PlayerFuncs.SayText(plr, "You don't have a home. You can settle in any zone.");
+			return true;
+		}
+		if (args[0] == ".nodes")
+		{
+			g_disable_ents = !g_disable_ents;
+			g_PlayerFuncs.SayText(plr, "Nodes spawns are " + (g_disable_ents ? "disabled" : "enabled"));
 			return true;
 		}
 		if (state.codeTime > 0)

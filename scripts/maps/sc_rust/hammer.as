@@ -60,6 +60,7 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 	SOUND_CHANNEL lastChannel = CHAN_WEAPON;
 	string repairSound = "";
 	string swingSound = "sc_rust/hammer_swing.ogg";
+	string worldHitSound = "sc_rust/stone_tree.ogg";
 	array<string> repairWoodSounds = {"sc_rust/repair_wood.ogg"};
 	array<string> repairStoneSounds = {"sc_rust/repair_stone.ogg", "sc_rust/repair_stone2.ogg"};
 	array<string> repairMetalSounds = {"sc_rust/repair_metal.ogg", "sc_rust/repair_metal2.ogg"};
@@ -73,7 +74,7 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 	void Spawn()
 	{		
 		Precache();
-		g_EntityFuncs.SetModel( self, "models/w_pipe_wrench.mdl" );
+		g_EntityFuncs.SetModel( self, "models/sc_rust/w_hammer.mdl" );
 
 		//self.m_iDefaultAmmo = 0;
 		//self.m_iClip = self.m_iDefaultAmmo;
@@ -85,12 +86,13 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 	void Precache()
 	{
 		self.PrecacheCustomModels();
-		g_Game.PrecacheModel( "models/w_pipe_wrench.mdl" );
-		g_Game.PrecacheModel( "models/p_pipe_wrench.mdl" );
-		g_Game.PrecacheModel( "models/v_pipe_wrench.mdl" );
+		g_Game.PrecacheModel( "models/sc_rust/w_hammer.mdl" );
+		g_Game.PrecacheModel( "models/sc_rust/p_hammer.mdl" );
+		g_Game.PrecacheModel( "models/sc_rust/v_hammer.mdl" );
 		
 		PrecacheSound(repairSound);
 		PrecacheSound(swingSound);
+		PrecacheSound(worldHitSound);
 		
 		for (uint i = 0; i < repairWoodSounds.length(); i++)
 			PrecacheSound(repairWoodSounds[i]);
@@ -107,8 +109,8 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 		info.iMaxAmmo1 	= 20;
 		info.iMaxAmmo2 	= -1;
 		info.iMaxClip 	= 0;
-		info.iSlot 		= 0;
-		info.iPosition 	= 7;
+		info.iSlot 		= 6;
+		info.iPosition 	= 10;
 		info.iFlags 	= 6;
 		info.iWeight 	= 5;
 		
@@ -131,7 +133,7 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 	bool Deploy()
 	{
 		
-		bool bResult = self.DefaultDeploy( self.GetV_Model( "models/v_pipe_wrench.mdl" ), self.GetP_Model( "models/p_pipe_wrench.mdl" ), 0, "crowbar" );
+		bool bResult = self.DefaultDeploy( self.GetV_Model( "models/sc_rust/v_hammer.mdl" ), self.GetP_Model( "models/sc_rust/p_hammer.mdl" ), 3, "crowbar" );
 		active = true;
 		createBuildEnts();
 		
@@ -399,7 +401,7 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 					}
 					else
 					{
-						// TODO: world sounds
+						g_SoundSystem.PlaySound(plr.edict(), lastChannel, worldHitSound, 0.9f, 1.0f, 0, 90 + Math.RandomLong(0, 20));
 					}
 				}
 			}

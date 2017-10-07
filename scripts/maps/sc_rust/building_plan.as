@@ -23,19 +23,23 @@ class Item
 {
 	int type;
 	bool stackable;
+	bool isWeapon;
 	string title;
 	string desc;
+	string classname;
 	
 	Item() {
 		type = -1;
 		stackable = false;
 	}
 	
-	Item(int t, bool stack, string tit, string description) {
+	Item(int t, bool stack, bool wep, string cname, string tit, string description) {
 		type = t;
 		stackable = stack;
 		title = tit;
 		desc = description;
+		isWeapon = wep;
+		classname = cname;
 	}
 }
 
@@ -80,6 +84,19 @@ enum item_types
 	I_HIGH_STONE_WALL,
 	I_LADDER,
 	I_LADDER_HATCH,
+	
+	I_WOOD,
+	I_STONE,
+	I_HAMMER,
+	I_BUILDING_PLAN,
+	I_ROCK,
+	I_STONE_HATCHET,
+	I_STONE_PICKAXE,
+	I_METAL_HATCHET,
+	I_METAL_PICKAXE,
+	I_BOW,
+	I_SYRINGE,
+	I_FLAMETHROWER
 };
 
 enum socket_types
@@ -131,17 +148,30 @@ array<BuildPartInfo> g_part_info = {
 };
 
 array<Item> g_items = {	
-	Item(I_WOOD_DOOR, false, "Wood Door", "A hinged door which is made out of wood"),
-	Item(I_METAL_DOOR, false, "Metal Door", "b_metal_door"),
-	Item(I_WOOD_BARS, false, "Wood Window Bars", "b_wood_bars"),
-	Item(I_METAL_BARS, false, "Metal Window Bars", "b_metal_bars"),
-	Item(I_WOOD_SHUTTERS, false, "Wood Shutters", "b_wood_shutters"),
-	Item(I_CODE_LOCK, false, "Code Lock", "An electronic lock. Locked and unlocked with four-digit code. Hold your USE key while looking at the lock to activate it."),
-	Item(I_TOOL_CUPBOARD, false, "Tool Cupboard", "Only players authorized to this cupboard will be able to build near it.\nPress USE to authorize yourself and hold USE to clear previous authorizations."),
-	Item(I_HIGH_WOOD_WALL, false, "High External Wood Wall", "b_wood_wall"),
-	Item(I_HIGH_STONE_WALL, false, "High External Stone Wall", "b_stone_wall"),
-	Item(I_LADDER, false, "Ladder", "b_ladder"),
-	Item(I_LADDER_HATCH, false, "Ladder Hatch", "b_ladder_hatch"),
+	Item(I_WOOD_DOOR, false, false, "", "Wood Door", "A hinged door which is made out of wood."),
+	Item(I_METAL_DOOR, false, false, "", "Metal Door", "A hinged door which is made out of metal."),
+	Item(I_WOOD_BARS, false, false, "", "Wood Window Bars", "b_wood_bars"),
+	Item(I_METAL_BARS, false, false, "", "Metal Window Bars", "b_metal_bars"),
+	Item(I_WOOD_SHUTTERS, false, false, "", "Wood Shutters", "b_wood_shutters"),
+	Item(I_CODE_LOCK, false, false, "", "Code Lock", "An electronic lock. Locked and unlocked with four-digit code. Hold your USE key while looking at the lock to activate it."),
+	Item(I_TOOL_CUPBOARD, false, false, "", "Tool Cupboard", "Only players authorized to this cupboard will be able to build near it.\nPress USE to authorize yourself and hold USE to clear previous authorizations."),
+	Item(I_HIGH_WOOD_WALL, false, false, "", "High External Wood Wall", "b_wood_wall"),
+	Item(I_HIGH_STONE_WALL, false, false, "", "High External Stone Wall", "b_stone_wall"),
+	Item(I_LADDER, false, false, "", "Ladder", "b_ladder"),
+	Item(I_LADDER_HATCH, false, false, "", "Ladder Hatch", "b_ladder_hatch"),
+	
+	Item(I_WOOD, true, false, "", "Wood", "Collected from trees and used to build bases and craft items."),
+	Item(I_STONE, true, false, "", "Stone", "Collected from rocks and used to reinforce bases and craft items."),
+	Item(I_HAMMER, false, true, "weapon_hammer", "Hammer", "Used to upgrade, repair, and merge base parts."),
+	Item(I_BUILDING_PLAN, false, true, "weapon_building_plan", "Building Plan", "Used to craft buildings."),
+	Item(I_ROCK, false, true, "weapon_rock", "Rock", "The most basic melee weapon and gathering tool."),
+	Item(I_STONE_HATCHET, false, true, "weapon_stone_hatchet", "Stone Hatchet", "Use this to chop trees"),
+	Item(I_STONE_PICKAXE, false, true, "weapon_stone_pickaxe", "Stone Pickaxe", "Use this to mine rocks"),
+	Item(I_METAL_HATCHET, false, true, "weapon_metal_hatchet", "Metal Hatchet", "Effective tree chopper and melee weapon"),
+	Item(I_METAL_PICKAXE, false, true, "weapon_metal_pickaxe", "Metal Pickaxe", "Effective rock breaker and melee weapon"),
+	Item(I_BOW, false, true, "weapon_bow", "Hunting Bow", "Hard to aim with lag. Right-click to load and aim, left-click to fire."),
+	Item(I_SYRINGE, false, true, "weapon_syringe", "Syringe", "Right-click heals you, left-click heals a target."),
+	Item(I_FLAMETHROWER, false, true, "weapon_flamethrower", "Flame Thrower", "Effective against wood and flesh. Does not damage stone or metal."),
 };
 
 
@@ -191,8 +221,8 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 		info.iMaxAmmo1 	= 20;
 		info.iMaxAmmo2 	= -1;
 		info.iMaxClip 	= 0;
-		info.iSlot 		= 0;
-		info.iPosition 	= 6;
+		info.iSlot 		= 6;
+		info.iPosition 	= 9;
 		info.iFlags 	= 6;
 		info.iWeight 	= 5;
 		
@@ -934,9 +964,12 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 		} while (ent !is null);
 		
 		// only allow building in build zones
-		zoneid = getBuildZone(buildEnt);
-		if (zoneid == -1)
-			validBuild = false;
+		if (!g_build_anywhere)
+		{
+			zoneid = getBuildZone(buildEnt);
+			if (zoneid == -1)
+				validBuild = false;
+		}
 
 		forbidden = forbiddenByCupboard(plr, buildEnt.pev.origin);	
 		
@@ -978,38 +1011,48 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 				params.x = 0.1;
 				params.channel = 1;
 				
-				if (zoneid != -1)
+				if (!g_build_anywhere)
 				{
-					BuildZone@ zone = getBuildZone(zoneid);
-					string status;
-					if (zoneid == state.home_zone)
+					if (zoneid != -1)
 					{
-						status = "Settler";
-						params.r1 = 48;
-						params.g1 = 255;
-						params.b1 = 48;
+						BuildZone@ zone = getBuildZone(zoneid);
+						string status;
+						if (zoneid == state.home_zone)
+						{
+							status = "Settler";
+							params.r1 = 48;
+							params.g1 = 255;
+							params.b1 = 48;
+						}
+						else
+						{
+							status = "Raider";
+							params.r1 = 255;
+							params.g1 = 48;
+							params.b1 = 48;
+						}
+
+						g_PlayerFuncs.HudMessage(plr, params, "Build Zone: " + zoneid + 
+												 "\nSettlers: " + zone.numSettlers + " / " + zone.maxSettlers +
+												 "\nStatus: " + status);
 					}
 					else
 					{
-						status = "Raider";
-						params.r1 = 255;
-						params.g1 = 48;
-						params.b1 = 48;
+						g_PlayerFuncs.HudMessage(plr, params, "Build Zone: Outskirts\n(Building not allowed)");
 					}
-
-					g_PlayerFuncs.HudMessage(plr, params, "Build Zone: " + zoneid + 
-											 "\nSettlers: " + zone.numSettlers + " / " + zone.maxSettlers +
-											 "\nStatus: " + status);
+					
+					params.x = 0.8;
+					params.channel = 0;
+					int maxPoints = state.maxPoints(zoneid);
+					g_PlayerFuncs.HudMessage(plr, params,	"Build Points:\n" + (maxPoints-state.getNumParts(zoneid)) + " / " + maxPoints);
 				}
 				else
 				{
-					g_PlayerFuncs.HudMessage(plr, params, "Build Zone: Outskirts\n(Building not allowed)");
+					params.x = 0.8;
+					params.channel = 0;
+					int total = state.getNumParts(-1337);
+					g_PlayerFuncs.HudMessage(plr, params, "Built Parts:\n" + total + " / 500");
 				}
-				
-				params.x = 0.8;
-				params.channel = 0;
-				int maxPoints = state.maxPoints(zoneid);
-				g_PlayerFuncs.HudMessage(plr, params,	"Build Points:\n" + (maxPoints-state.getNumParts(zoneid)) + " / " + maxPoints);
 			}	
 			updateBuildPlaceholder();
 		}
@@ -1031,46 +1074,49 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 			g_PlayerFuncs.PrintKeyBindingString(plr, "Building blocked by tool cupboard");
 			return;
 		}
-		if (zoneid == -1)
+		if (!g_build_anywhere)
 		{
-			g_PlayerFuncs.PrintKeyBindingString(plr, "Building not allowed in outskirts");
-			return;
-		}
-		if (state.home_zone == -1)
-		{
-			BuildZone@ zone = getBuildZone(zoneid);
-			int needSpace = state.team !is null ? state.team.members.size() : 1;
-			if (zone.maxSettlers - zone.numSettlers >= needSpace)
+			if (zoneid == -1)
 			{
-				zone.numSettlers += needSpace;
-				state.home_zone = zoneid;
-				
-				string msg = "Zone " + zoneid + " is now your home. You can build a permanent base here.\n";
-				if (state.team !is null)
+				g_PlayerFuncs.PrintKeyBindingString(plr, "Building not allowed in outskirts");
+				return;
+			}
+			if (state.home_zone == -1)
+			{
+				BuildZone@ zone = getBuildZone(zoneid);
+				int needSpace = state.team !is null ? state.team.members.size() : 1;
+				if (zone.maxSettlers - zone.numSettlers >= needSpace)
 				{
-					state.team.sendMessage(msg);
-					state.team.setHomeZone(zoneid);
+					zone.numSettlers += needSpace;
+					state.home_zone = zoneid;
+					
+					string msg = "Zone " + zoneid + " is now your home. You can build a permanent base here.\n";
+					if (state.team !is null)
+					{
+						state.team.sendMessage(msg);
+						state.team.setHomeZone(zoneid);
+					}
+					else
+						g_PlayerFuncs.SayText(plr, msg);
+					
+					int previousRaiderParts = state.getNumParts(zoneid);
+					zone.numRaiderParts -= previousRaiderParts; // parts built by this player no longer count as raider parts
 				}
 				else
-					g_PlayerFuncs.SayText(plr, msg);
-				
-				int previousRaiderParts = state.getNumParts(zoneid);
-				zone.numRaiderParts -= previousRaiderParts; // parts built by this player no longer count as raider parts
+				{
+					println("Too many settlers in zone");
+					//g_PlayerFuncs.SayText(plr, "This zone has too many settlers.");
+				}
 			}
-			else
+			if (state.getNumParts(zoneid) >= state.maxPoints(zoneid))
 			{
-				println("Too many settlers in zone");
-				//g_PlayerFuncs.SayText(plr, "This zone has too many settlers.");
+				g_PlayerFuncs.PrintKeyBindingString(plr, "You're out of build points!\n\nFuse your parts (Wrench) for more points.");
+				return;
 			}
+			
+			if (zoneid != state.home_zone)
+				getBuildZone(zoneid).numRaiderParts++;
 		}
-		if (state.getNumParts(zoneid) >= state.maxPoints(zoneid))
-		{
-			g_PlayerFuncs.PrintKeyBindingString(plr, "You're out of build points!\n\nFuse your parts (Wrench) for more points.");
-			return;
-		}
-		
-		if (zoneid != state.home_zone)
-			getBuildZone(zoneid).numRaiderParts++;
 		
 		if (buildEnt !is null && validBuild) 
 		{
