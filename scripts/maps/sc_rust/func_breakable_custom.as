@@ -308,7 +308,9 @@ class func_breakable_custom : ScriptBaseEntity
 			params.holdTime = 0.0f;
 			params.channel = 2;
 			
+			bool hasSpace = getInventorySpace(plr) > 0;
 			int giveAmount = 100;
+			int giveType = I_WOOD;
 			if (nodeType == NODE_TREE)
 			{
 				if (weaponName == "weapon_rock") giveAmount = 10;
@@ -317,8 +319,9 @@ class func_breakable_custom : ScriptBaseEntity
 				if (weaponName == "weapon_stone_pickaxe") giveAmount = 10;
 				if (weaponName == "weapon_metal_pickaxe") giveAmount = 15;
 				
-				g_PlayerFuncs.HudMessage(plr, params, "+" + int(giveAmount) + " Wood");
-				giveItem(plr, I_WOOD, giveAmount, false);
+				if (hasSpace)
+					g_PlayerFuncs.HudMessage(plr, params, "+" + int(giveAmount) + " Wood");
+				giveType = I_WOOD;
 			}
 			if (nodeType == NODE_ROCK)
 			{
@@ -329,9 +332,12 @@ class func_breakable_custom : ScriptBaseEntity
 				if (weaponName == "weapon_stone_pickaxe") giveAmount = 20;
 				if (weaponName == "weapon_metal_pickaxe") giveAmount = 40;
 				
-				g_PlayerFuncs.HudMessage(plr, params, "+" + int(giveAmount) + " Stone");
-				giveItem(plr, I_STONE, giveAmount, false);
+				if (hasSpace)
+					g_PlayerFuncs.HudMessage(plr, params, "+" + int(giveAmount) + " Stone");
+				giveType = I_STONE;
 			}			
+			
+			giveItem(plr, giveType, giveAmount, false, true);
 			
 			flDamage = giveAmount;
 		}

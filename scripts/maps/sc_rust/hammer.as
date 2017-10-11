@@ -12,9 +12,13 @@ void upgradeMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTex
 	for (uint i = 0; i < MAX_ITEM_TYPES; i++)
 	{
 		CBasePlayerItem@ wep = plr.m_rgpPlayerItems(i);
-		if (wep !is null and wep.pev.classname == "weapon_hammer")
+		while (wep !is null)
 		{
-			@hammer = cast<weapon_hammer@>(CastToScriptClass(wep));
+			if (wep.pev.classname == "weapon_hammer")
+			{
+				@hammer = cast<weapon_hammer@>(CastToScriptClass(wep));
+			}
+			@wep = cast<CBasePlayerItem@>(wep.m_hNextItem.GetEntity());				
 		}
 	}
 	

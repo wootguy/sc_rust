@@ -2,13 +2,36 @@
 #include "hammer"
 #include "func_breakable_custom"
 #include "func_build_zone"
+#include "player_corpse"
 #include "../weapon_custom/v3.1/weapon_custom"
 
-void dummyCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextMenuItem@ item) {}
+// TODO:
+// corpse collision without stucking players
+// destroy items?
+// combine dropped stackables
+
+//
+// Game settings
+//
 
 int g_settler_reduction = 0; // reduces settlers per zone to increase build points
 int g_raider_points = 40; // best if multiple of zone count
 bool g_build_point_rounding = true; // rounds build points to a multiple of 10 (may reduce build points)
+bool g_disable_ents = false;
+bool g_build_anywhere = true; // disables build zones
+int g_inventory_size = 20;
+int g_max_item_drops = 2; // maximum item drops per player (more drops = less build points)
+float g_tool_cupboard_radius = 512;
+float g_corpse_time = 60.0f; // time before corpses despawn
+float g_item_time = 60.0f; // time before items despawn
+float g_revive_time = 5.0f;
+
+//
+// End game settings
+//
+
+
+void dummyCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextMenuItem@ item) {}
 
 class ZoneInfo
 {
@@ -26,7 +49,8 @@ class ZoneInfo
 	{
 		// each player entity counts towards limit, x2 is so each player can drop an item or spawn an effect or something.
 		int maxNodes = 64;
-		reservedParts = g_Engine.maxClients*2 + maxNodes; // minimum reserved
+		// players + corpses + player item drops + trees/stones/animals
+		reservedParts = (g_Engine.maxClients*2) + (g_Engine.maxClients*g_max_item_drops) + maxNodes; // minimum reserved
 		
 		int maxSettlerParts = MAX_VISIBLE_ENTS - (reservedParts+g_raider_points);
 		if (g_build_point_rounding)
@@ -132,11 +156,16 @@ class PlayerState
 	CTextMenu@ menu;
 	int useState = 0;
 	int codeTime = 0; // time left to input lock code
+	int droppedItems = 0; // number of item drops owned by the player
 	dictionary zoneParts; // number of unbroken build parts owned by the player (per zone)
 	int home_zone = -1; // zone the player is allowed to settle in (-1 = nomad)
 	array<EHandle> authedLocks; // locked objects the player can use
+	array<EHandle> droppedWeapons;
 	Team@ team = null;
 	EHandle currentLock; // lock currently being interacted with
+	EHandle currentChest; // current corpse/chest being interacted with
+	bool reviving = false;
+	float reviveStart = 0; // time this player started reviving someone
 	float lastBreakAll = 0; // last time the player used the breakall command
 	dictionary teamRequests; // outgoing requests for team members
 	
@@ -280,6 +309,19 @@ class PlayerState
 		return false;
 	}
 	
+	void updateDroppedWeapons()
+	{
+		for (uint i = 0; i < droppedWeapons.size(); i++)
+		{
+			if (!droppedWeapons[i].IsValid())
+			{
+				droppedWeapons.removeAt(i);
+				i--;
+				droppedItems--;
+			}
+		}
+	}
+	
 	void addPartCount(int num, int zoneid)
 	{
 		int count = 0;
@@ -369,6 +411,10 @@ array<EHandle> g_build_items; // every non-func_breakable_custom build item in t
 array<EHandle> g_build_zone_ents;
 array<BuildZone> g_build_zones;
 array<Team> g_teams;
+array<EHandle> g_item_drops; // items that are currently sitting around
+array<EHandle> g_weapon_drops; // these disappear when they're picked up
+array<EHandle> g_corpses; // these disappear when they're picked up
+Vector g_dead_zone; // where dead players go until they respawn
 array<string> g_upgrade_suffixes = {
 	"_twig",
 	"_wood",
@@ -380,11 +426,9 @@ array<string> g_upgrade_suffixes = {
 dictionary g_partname_to_model; // maps models to part names
 dictionary g_model_to_partname; // maps part names to models
 dictionary g_pretty_part_names;
-float g_tool_cupboard_radius = 512;
+
 int g_part_id = 0;
 //bool debug_mode = false;
-bool g_disable_ents = false;
-bool g_build_anywhere = true; // disables build zones
 ZoneInfo g_zone_info;
 
 int MAX_SAVE_DATA_LENGTH = 1015; // Maximum length of a value saved with trigger_save. Discovered through testing
@@ -399,6 +443,7 @@ void MapInit()
 	
 	g_CustomEntityFuncs.RegisterCustomEntity( "func_breakable_custom", "func_breakable_custom" );
 	g_CustomEntityFuncs.RegisterCustomEntity( "func_build_zone", "func_build_zone" );
+	g_CustomEntityFuncs.RegisterCustomEntity( "player_corpse", "player_corpse" );
 	
 	g_Hooks.RegisterHook( Hooks::Player::PlayerUse, @PlayerUse );
 	g_Hooks.RegisterHook( Hooks::Player::ClientSay, @ClientSay );
@@ -444,6 +489,7 @@ void MapInit()
 	g_Game.PrecacheModel( "models/woodgibs.mdl" );
 	g_Game.PrecacheModel( "models/sc_rust/pine_tree.mdl" );
 	g_Game.PrecacheModel( "models/sc_rust/rock.mdl" );
+	g_Game.PrecacheModel( "models/skeleton.mdl" );
 	
 	for (uint i = 0; i < g_material_damage_sounds.length(); i++)
 		for (uint k = 0; k < g_material_damage_sounds[i].length(); k++)
@@ -600,6 +646,17 @@ void MapActivate()
 	
 	g_zone_info.init();
 	
+	CBaseEntity@ dead_zone = g_EntityFuncs.FindEntityByTargetname(null, "rust_dead_zone");
+	if (dead_zone !is null)
+	{
+		g_dead_zone = dead_zone.pev.origin;
+		g_EntityFuncs.Remove(dead_zone);
+	} 
+	else 
+	{
+		println("ERROR: rust_dead_zone entity is missing. Dead players will be able to spy on people.");
+	}
+	
 	WeaponCustomMapActivate();
 }
 
@@ -696,6 +753,145 @@ void propogate_part_destruction(CBaseEntity@ ent)
 	wait_stable_check = 1;
 }
 
+void delay_remove(EHandle ent)
+{
+	if (ent)
+		g_EntityFuncs.Remove(ent);
+}
+
+void undo_drop(EHandle h_item, EHandle h_plr)
+{
+	if (h_item.IsValid() and h_plr.IsValid())
+	{
+		CBaseEntity@ item = h_item.GetEntity();
+		CBasePlayer@ plr = cast<CBasePlayer@>(h_plr.GetEntity());
+		int amt = item.pev.button > 0 ? item.pev.button : 1;
+		giveItem(plr, item.pev.colormap-1, amt, false);
+		g_EntityFuncs.Remove(item);
+	}
+}
+
+void player_respawn(CBaseEntity@ pActivator, CBaseEntity@ pCaller, USE_TYPE useType, float flValue)
+{
+	for (uint i = 0; i < g_corpses.size(); i++)
+	{
+		if (!g_corpses[i])
+			continue;
+			
+		player_corpse@ corpse = cast<player_corpse@>(CastToScriptClass(g_corpses[i]));
+		if (corpse.owner.IsValid() and corpse.owner.GetEntity().entindex() == pCaller.entindex())
+		{
+			corpse.Activate();
+		}
+	}
+}
+
+void player_killed(CBaseEntity@ pActivator, CBaseEntity@ pCaller, USE_TYPE useType, float flValue)
+{
+	if (!pCaller.IsPlayer())
+		return;
+	CBasePlayer@ plr = cast<CBasePlayer@>(pCaller);
+
+	// always die on back (because I can't make player-model-based corpse work properly)
+
+	dictionary keys;
+	keys["model"] = "models/skeleton.mdl";
+	keys["origin"] = (plr.pev.origin + Vector(0,0,-36)).ToString();
+	keys["angles"] = Vector(0, plr.pev.angles.y, 0).ToString();
+	keys["netname"] = string(plr.pev.netname);
+	CBaseEntity@ ent = g_EntityFuncs.CreateEntity("player_corpse", keys, true);
+	
+	player_corpse@ corpse = cast<player_corpse@>(CastToScriptClass(ent));
+	corpse.owner = plr;
+	
+	g_corpses.insertLast(EHandle(ent));
+}
+
+void item_dropped(CBaseEntity@ pActivator, CBaseEntity@ pCaller, USE_TYPE useType, float flValue)
+{
+	if (pCaller.pev.classname != "item_inventory" and !pActivator.IsPlayer())
+		return;
+		
+	CBasePlayer@ plr = cast<CBasePlayer@>(pActivator);
+	CItemInventory@ item = cast<CItemInventory@>(pCaller);
+	if (item.pev.renderfx == -9999)
+		return; // this was just a stackable item that was replaced with a larger stack, ignore it
+	
+	PlayerState@ state = getPlayerState(plr);
+	if (state.droppedItems >= g_max_item_drops)
+	{
+		g_PlayerFuncs.PrintKeyBindingString(plr, "Can't drop more than " + g_max_item_drops + " item" + (g_max_item_drops > 1 ? "s" : ""));
+		// timeout prevents repeating item_dropped over and over (SC bug)
+		g_Scheduler.SetTimeout("undo_drop", 0.0f, EHandle(item), EHandle(plr)); 
+		return;
+	}
+	
+	item.pev.teleport_time = g_Engine.time + g_item_time;
+	
+	state.droppedItems++;
+	item.pev.noise1 = getPlayerUniqueId(plr);
+	
+	g_item_drops.insertLast(EHandle(item));
+	item.pev.team = 0; // trigger item_collect callback
+}
+
+void remove_item_from_drops(CBaseEntity@ item)
+{
+	for (uint i = 0; i < g_item_drops.size(); i++)
+	{
+		if (!g_item_drops[i].IsValid() or g_item_drops[i].GetEntity().entindex() == item.entindex())
+		{
+			CBasePlayer@ owner = getPlayerByName(null, g_item_drops[i].GetEntity().pev.noise1, true);
+			if (owner !is null)
+				getPlayerState(owner).droppedItems--;
+			
+			g_item_drops.removeAt(i);
+			i--;
+			break;
+		}
+	}
+}
+
+void item_collected(CBaseEntity@ pActivator, CBaseEntity@ pCaller, USE_TYPE useType, float flValue)
+{
+	if (pCaller.pev.classname != "item_inventory" or !pActivator.IsPlayer())
+		return;
+		
+	CBasePlayer@ plr = cast<CBasePlayer@>(pActivator);
+	int type = pCaller.pev.colormap-1;
+	int amount = pCaller.pev.button;
+	if (amount <= 0)
+		amount = 1;
+	
+	if (pCaller.pev.team != 1)
+	{
+		g_PlayerFuncs.PrintKeyBindingString(plr, "" + amount + "x " + g_items[type].title);
+		if (g_items[type].stackSize > 1)
+		{
+			Vector oldOri = pCaller.pev.origin;
+			string oldOwner = pCaller.pev.noise1;
+			int barf = combineItemStacks(plr, type);
+			if (barf > 0)
+			{
+				CBaseEntity@ item = spawnItem(oldOri, type, barf);
+				item.pev.noise1 = oldOwner;
+				g_item_drops.insertLast(EHandle(item));
+				println("Couldn't hold " + barf + " of that");
+				return;
+			}
+		}
+			
+		remove_item_from_drops(pCaller);
+	}
+}
+
+void item_cant_collect(CBaseEntity@ pActivator, CBaseEntity@ pCaller, USE_TYPE useType, float flValue)
+{
+	if (!pActivator.IsPlayer())
+		return;
+	g_PlayerFuncs.PrintKeyBindingString(cast<CBasePlayer@>(pActivator), "Your inventory is full");
+}
+
 void part_broken(CBaseEntity@ pActivator, CBaseEntity@ pCaller, USE_TYPE useType, float flValue)
 {
 	if (pCaller.pev.effects & EF_NODRAW == 0)
@@ -777,7 +973,7 @@ void stabilityCheck()
 		
 		bool supported = searchFromPart(bpart);
 
-		println("Stability for part " + src_part.pev.team + " finished in " + numChecks + " checks (" + numSkip + " skipped). Result is " + supported);
+		//println("Stability for part " + src_part.pev.team + " finished in " + numChecks + " checks (" + numSkip + " skipped). Result is " + supported);
 		
 		if (!supported) {
 			propogate_part_destruction(src_part);
@@ -793,49 +989,185 @@ void stabilityCheck()
 	}
 }
 
-string prettyNumber(int number)
+int combineItemStacks(CBasePlayer@ plr, int addedType)
 {
-	string pretty = "";
-	int i = 0;
-	while (number > 0)
+	InventoryList@ inv = plr.get_m_pInventory();
+	
+	dictionary totals;
+	while(inv !is null)
 	{
-		int tens = number % 10;
-		number /= 10;
-		pretty = "" + tens + pretty;
-		if (i++ % 3 == 2 and number > 0)
-			pretty = "," + pretty;
+		CItemInventory@ item = cast<CItemInventory@>(inv.hItem.GetEntity());
+		@inv = inv.pNext;
+		if (item !is null)
+		{
+			int type = item.pev.colormap-1;
+			if (g_items[type].stackSize > 1 and type >= 0)
+			{
+				int newTotal = 0;
+				if (totals.exists(type))
+					totals.get(type, newTotal);
+				newTotal += item.pev.button;
+				totals[type] = newTotal;
+				
+				item.pev.renderfx = -9999;
+				g_EntityFuncs.Remove(item);
+			}
+		}
 	}
-	return pretty;
+	
+	int spaceLeft = getInventorySpace(plr);
+	array<string>@ totalKeys = totals.getKeys();
+	
+	for (uint i = 0; i < totalKeys.length(); i++)
+	{
+		if (atoi(totalKeys[i]) == addedType)
+		{
+			// newly added item should be stacked last in case there is overflow
+			// e.g. if you collect too much wood, you shouldn't drop your stack of stone
+			totalKeys.removeAt(i);
+			totalKeys.insertLast(addedType);
+			break;
+		}
+	}
+	
+	for (uint i = 0; i < totalKeys.length(); i++)
+	{
+		int type = atoi(totalKeys[i]);
+		int total = 0;
+		totals.get(totalKeys[i], total);
+		
+		while (total > 0)
+		{
+			if (spaceLeft-- > 0)
+				giveItem(plr, atoi(totalKeys[i]), Math.min(total, g_items[type].stackSize), false, false);
+			else
+			{
+				// TODO: What if this type wasn't the item given? (given stone, but drop extra wood)
+				g_PlayerFuncs.PrintKeyBindingString(plr, "Your inventory is full");
+				return total;
+			}
+			total -= g_items[type].stackSize;
+		}
+	}
+	
+	return 0;
 }
 
-CItemInventory@ giveItem(CBasePlayer@ plr, int type, int amt, bool showText=true, bool drop=false)
+CBaseEntity@ spawnItem(Vector origin, int type, int amt)
 {
 	dictionary keys;
-	keys["origin"] = plr.pev.origin.ToString();
-	keys["model"] = "models/w_357.mdl";
-	keys["weight"] = "1.0";
-	keys["spawnflags"] = "" + (256 + 512);
+	keys["origin"] = origin.ToString();
+	keys["model"] = "models/w_weaponbox.mdl";
+	keys["weight"] = "0";
+	keys["spawnflags"] = "" + (256 + 512 + 128);
+	keys["solid"] = "0";
 	keys["return_timelimit"] = "-1";
 	keys["holder_can_drop"] = "1";
 	keys["carried_hidden"] = "1";
+	keys["target_on_drop"] = "item_dropped";
+	keys["target_on_collect"] = "item_collected";
+	keys["target_cant_collect"] = "item_cant_collect";
+	
+	if (type < 0 or type > ITEM_TYPES)
+	{
+		println("spawnItem: bad type " + type);
+		return null;
+	}
 	
 	keys["netname"] = g_items[type].title; // because m_szItemName doesn't work...
 	keys["colormap"] = "" + (type+1); // +1 so that normal items don't appear as my custom ones
+	keys["team"] = "0"; // so we ignore this in the item_collected callback
 	
 	keys["display_name"] = g_items[type].title;
 	keys["description"] =  g_items[type].desc;
 	
-	println("GIB " + amt + "x " + g_items[type].title + " TO " + plr.pev.netname);
-	if (showText)
-		g_PlayerFuncs.PrintKeyBindingString(plr, "" + amt + "x " + g_items[type].title);
-	
-	int dropSpeed = Math.RandomLong(250, 400);
-	
-	if (!g_items[type].stackable)
+	if (g_items[type].stackSize == 1)
 	{
-		CBaseEntity@ lastGive = null;
+		CBaseEntity@ lastSpawn = null;
 		for (int i = 0; i < amt; i++)
 		{
+			@lastSpawn = g_EntityFuncs.CreateEntity("item_inventory", keys, true);
+		}
+		return lastSpawn;
+	}
+	else
+	{
+		keys["button"] = "" + amt;
+		keys["display_name"] = g_items[type].title + "  (" + prettyNumber(amt) + ")";
+		
+		return g_EntityFuncs.CreateEntity("item_inventory", keys, true);
+	}
+}
+
+// returns # of items that couldn't be stored (e.g. could stack 100 more but was given 300: return 200)
+int giveItem(CBasePlayer@ plr, int type, int amt, bool drop=false, bool combineStacks=true)
+{
+	dictionary keys;
+	keys["origin"] = plr.pev.origin.ToString();
+	keys["model"] = "models/w_weaponbox.mdl";
+	keys["weight"] = "0";
+	keys["spawnflags"] = "" + (256 + 512 + 128);
+	keys["solid"] = "0";
+	keys["return_timelimit"] = "-1";
+	keys["holder_can_drop"] = "1";
+	keys["carried_hidden"] = "1";
+	keys["target_on_drop"] = "item_dropped";
+	keys["target_on_collect"] = "item_collected";
+	keys["target_cant_collect"] = "item_cant_collect";
+	keys["holder_keep_on_death"] = "1";
+	keys["holder_keep_on_respawn"] = "1";
+	
+	plr.SetItemPickupTimes(0);
+	
+	if (type < 0 or type > ITEM_TYPES)
+	{
+		println("giveItem: bad type");
+		return amt;
+	}
+	
+	keys["button"] = "1"; // will be giving at least 1x of something
+	keys["netname"] = g_items[type].title; // because m_szItemName doesn't work...
+	keys["colormap"] = "" + (type+1); // +1 so that normal items don't appear as my custom ones
+	keys["team"] = drop ? "0" : "1"; // so we ignore this in the item_collected callback
+	
+	keys["display_name"] = g_items[type].title;
+	keys["description"] =  g_items[type].desc;
+	
+	//if (showText)
+	//	g_PlayerFuncs.PrintKeyBindingString(plr, "" + amt + "x " + g_items[type].title);
+	
+	int dropSpeed = Math.RandomLong(250, 400);
+	int spaceLeft = getInventorySpace(plr);
+	
+	if (g_items[type].stackSize == 1)
+	{
+		if (!g_items[type].isWeapon)
+		{
+			for (int i = 0; i < amt; i++)
+			{
+				if (spaceLeft-- <= 0 and !drop)
+				{
+					g_PlayerFuncs.PrintKeyBindingString(plr, "Your inventory is full");
+					return amt - i;
+				}
+				CBaseEntity@ ent = g_EntityFuncs.CreateEntity("item_inventory", keys, true);
+				if (drop)
+				{
+					g_EngineFuncs.MakeVectors(plr.pev.angles);
+					ent.pev.velocity = g_Engine.v_forward*dropSpeed;
+				}
+				else
+					ent.Use(@plr, @plr, USE_ON, 0.0F);
+			}
+		}
+		else
+		{
+			keys["button"] = "" + amt; // now button = ammo in clip
+			if (spaceLeft <= 0 and !drop)
+			{
+				g_PlayerFuncs.PrintKeyBindingString(plr, "Your inventory is full");
+				return 1;
+			}
 			CBaseEntity@ ent = g_EntityFuncs.CreateEntity("item_inventory", keys, true);
 			if (drop)
 			{
@@ -844,47 +1176,27 @@ CItemInventory@ giveItem(CBasePlayer@ plr, int type, int amt, bool showText=true
 			}
 			else
 				ent.Use(@plr, @plr, USE_ON, 0.0F);
-			@lastGive = @ent;
 		}
-		return cast<CItemInventory@>(lastGive);
 	}
 	else
 	{
-		InventoryList@ inv = plr.get_m_pInventory();
-		int newAmount = amt;
+		keys["button"] = "" + amt;
+		keys["display_name"] = g_items[type].title + "  (" + prettyNumber(amt) + ")";
 		
-		if (!drop)
+		CBaseEntity@ ent = g_EntityFuncs.CreateEntity("item_inventory", keys, true);
+		if (drop)
 		{
-			while(inv !is null)
-			{
-				CItemInventory@ item = cast<CItemInventory@>(inv.hItem.GetEntity());
-				@inv = inv.pNext;
-				if (item.pev.netname == g_items[type].title)
-				{
-					newAmount += item.pev.button;
-					g_EntityFuncs.Remove(item);
-				}
-			}
+			g_EngineFuncs.MakeVectors(Vector(0, plr.pev.angles.y, 0));
+			ent.pev.velocity = g_Engine.v_forward*dropSpeed;
+			item_dropped(plr, ent, USE_TOGGLE, 0);
 		}
+		else
+			ent.Use(@plr, @plr, USE_ON, 0.0F);
 		
-		keys["button"] = "" + newAmount;
-		keys["display_name"] = g_items[type].title + "  (" + prettyNumber(newAmount) + ")";
-		
-		if (newAmount > 0)
-		{
-			CBaseEntity@ ent = g_EntityFuncs.CreateEntity("item_inventory", keys, true);
-			if (drop)
-			{
-				g_EngineFuncs.MakeVectors(Vector(0, plr.pev.angles.y, 0));
-				ent.pev.velocity = g_Engine.v_forward*dropSpeed;
-			}
-			else
-				ent.Use(@plr, @plr, USE_ON, 0.0F);				
-			return cast<CItemInventory@>(ent);
-		}
-		
-		return null;
+		if (combineStacks)
+			return combineItemStacks(plr, type);
 	}
+	return 0;
 }
 
 void craftMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextMenuItem@ item)
@@ -902,27 +1214,42 @@ void craftMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextM
 	else if (action.Find("unequip-") == 0)
 	{
 		string name = action.SubString(8);
-		for (uint i = 0; i < MAX_ITEM_TYPES; i++)
+		
+		CBasePlayerItem@ wep = plr.HasNamedPlayerItem(name);
+		if (wep !is null)
 		{
-			CBasePlayerItem@ wep = plr.m_rgpPlayerItems(i);
-			while (wep !is null)
+			CBasePlayerWeapon@ cwep = cast<CBasePlayerWeapon@>(wep);
+			
+			Item@ invItem = getItemByClassname(name);
+			if (invItem !is null)
 			{
-				if (wep.pev.classname == name)
-				{
+				if (giveItem(plr, invItem.type, cwep.m_iClip) == 0)
+				{					
 					plr.RemovePlayerItem(wep);
-					Item@ invItem = getItemByClassname(name);
-					if (invItem !is null)
-					{
-						giveItem(plr, invItem.type, 1, false);
-						g_PlayerFuncs.PrintKeyBindingString(plr, invItem.title + " was moved your inventory");
-					}
-					else
-						println("Unknown item: " + name);
-					break;
+					g_PlayerFuncs.PrintKeyBindingString(plr, invItem.title + " was moved your inventory");
 				}
-				@wep = cast<CBasePlayerItem@>(wep.m_hNextItem.GetEntity());				
+			}
+			else
+				println("Unknown weapon: " + name);		
+		}
+		else
+		{
+			int ammoIdx = g_PlayerFuncs.GetAmmoIndex(name);
+			int ammo = plr.m_rgAmmo(ammoIdx);
+			if (ammo > 0)
+			{
+				Item@ ammoItem = getItemByClassname(name);
+				
+				if (ammoItem !is null)
+				{
+					int ammoLeft = giveItem(plr, ammoItem.type, ammo);
+					plr.m_rgAmmo(ammoIdx, ammoLeft);
+				}
+				else
+					println("Unknown ammo: " + name);
 			}
 		}
+
 		g_Scheduler.SetTimeout("openPlayerMenu", 0, @plr, "unequip-menu");
 	}
 	else if (action.Find("equip-") == 0)
@@ -930,20 +1257,59 @@ void craftMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextM
 		int itemId = atoi(action.SubString(6));
 		Item@ invItem = g_items[itemId-1];
 		
-		InventoryList@ inv = plr.get_m_pInventory();
-		while (inv !is null)
+		if (invItem !is null)
 		{
-			CItemInventory@ wep = cast<CItemInventory@>(inv.hItem.GetEntity());
-			@inv = inv.pNext;
-			if (wep.pev.colormap == itemId)
+			if (invItem.isWeapon)
 			{
-				g_EntityFuncs.Remove(wep);
-				break;
+				if (plr.HasNamedPlayerItem(invItem.classname) is null)
+				{
+					InventoryList@ inv = plr.get_m_pInventory();
+					int clip = 0;
+					while (inv !is null)
+					{
+						CItemInventory@ wep = cast<CItemInventory@>(inv.hItem.GetEntity());
+						@inv = inv.pNext;
+						if (wep.pev.colormap == itemId)
+						{
+							clip = wep.pev.button;
+							wep.pev.renderfx = -9999;
+							g_Scheduler.SetTimeout("delay_remove", 0, EHandle(wep));
+							break;
+						}
+					}
+					
+					plr.SetItemPickupTimes(0);
+					plr.GiveNamedItem(invItem.classname, 0);
+					CBasePlayerItem@ givenItem = plr.HasNamedPlayerItem(invItem.classname);
+					if (givenItem !is null)
+					{
+						CBasePlayerWeapon@ givenWep = cast<CBasePlayerWeapon@>(givenItem);
+						givenWep.m_iClip = clip;
+					}
+				}
+				else
+					g_PlayerFuncs.PrintKeyBindingString(plr, "You already have one of these equipped");
+			}				
+			else if (invItem.isAmmo)
+			{
+				int invAmmo = getItemCount(plr, invItem.type);
+				int ammoIdx = g_PlayerFuncs.GetAmmoIndex(invItem.classname);
+				int beforeAmmo = plr.m_rgAmmo(ammoIdx);
+				plr.GiveAmmo(invAmmo, invItem.classname, 9999); // TODO: set proper max?
+				int amtGiven = plr.m_rgAmmo(ammoIdx) - beforeAmmo;
+				
+				giveItem(plr, invItem.type, -amtGiven);
+				
+				if (amtGiven > 0)
+					g_SoundSystem.PlaySound(plr.edict(), CHAN_ITEM, "items/9mmclip1.wav", 1.0f, 1.0f, 0, 100);
+				else
+					g_PlayerFuncs.PrintKeyBindingString(plr, "Already equipped with max ammo");
 			}
 		}
+		else
+			println("Invalid item ID to equip: " + itemId);
 		
-		plr.GiveNamedItem(invItem.classname);
-		g_Scheduler.SetTimeout("openPlayerMenu", 0, @plr, "equip-menu");
+		g_Scheduler.SetTimeout("openPlayerMenu", 0.05, @plr, "equip-menu");
 	}
 	else if (action.Find("unstack-") == 0)
 	{
@@ -954,8 +1320,8 @@ void craftMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextM
 		int dropAmt = atoi(action.SubString(5,6));
 		int dropType = atoi(action.SubString(12));
 		
-		giveItem(plr, dropType-1, -dropAmt, false); // decrease stack size
-		giveItem(plr, dropType-1, dropAmt, false, true); // drop selected amount
+		giveItem(plr, dropType-1, -dropAmt); // decrease stack size
+		giveItem(plr, dropType-1, dropAmt, true); // drop selected amount
 		
 		g_Scheduler.SetTimeout("openPlayerMenu", 0, @plr, "unstack-" + dropType);
 	}
@@ -1074,16 +1440,18 @@ void openPlayerMenu(CBasePlayer@ plr, string subMenu)
 		
 		int count = 0;
 		InventoryList@ inv = plr.get_m_pInventory();
+		dictionary listed;
 		while(inv !is null)
 		{
 			CItemInventory@ item = cast<CItemInventory@>(inv.hItem.GetEntity());
-			
 			if (item !is null and item.pev.colormap > 0)
 			{
 				Item@ wep = g_items[item.pev.colormap-1];
-				if (wep !is null and wep.isWeapon)
+				if (wep !is null and (wep.isWeapon or wep.isAmmo) and !listed.exists(wep.classname))
 				{
-					state.menu.AddItem(wep.title, any("equip-" + item.pev.colormap));
+					int amt = wep.isAmmo ? getItemCount(plr, wep.type) : 1;
+					state.menu.AddItem(wep.title + (wep.isAmmo ? " (" + amt + ")" : ""), any("equip-" + item.pev.colormap));
+					listed[wep.classname] = 1;
 					count++;
 				}
 			}
@@ -1111,7 +1479,19 @@ void openPlayerMenu(CBasePlayer@ plr, string subMenu)
 				string displayName = invItem !is null ? invItem.title : string(item.pev.classname);
 				state.menu.AddItem(displayName, any("unequip-" + item.pev.classname));
 				@item = cast<CBasePlayerItem@>(item.m_hNextItem.GetEntity());		
-				count++;				
+				count++;
+			}
+		}
+		
+		for (uint i = 0; i < g_ammo_types.size(); i++)
+		{
+			int ammo = plr.m_rgAmmo(g_PlayerFuncs.GetAmmoIndex(g_ammo_types[i]));
+			if (ammo > 0)
+			{
+				Item@ item = getItemByClassname(g_ammo_types[i]);
+				string name = item !is null ? item.title : g_ammo_types[i];
+				state.menu.AddItem(name + " (" + ammo + ")", any("unequip-" + g_ammo_types[i]));
+				count++;
 			}
 		}
 		
@@ -1128,15 +1508,17 @@ void openPlayerMenu(CBasePlayer@ plr, string subMenu)
 		
 		int count = 0;
 		InventoryList@ inv = plr.get_m_pInventory();
+		dictionary types;
 		while(inv !is null)
 		{
 			CItemInventory@ item = cast<CItemInventory@>(inv.hItem.GetEntity());
 			if (item !is null and item.pev.colormap > 0)
 			{
 				Item@ wep = g_items[item.pev.colormap-1];
-				if (wep !is null and wep.stackable)
+				if (wep !is null and wep.stackSize > 1 and !types.exists(item.pev.colormap))
 				{
 					state.menu.AddItem(wep.title, any("unstack-" + item.pev.colormap));
+					types[item.pev.colormap] = true;
 					count++;
 				}
 			}
@@ -1156,15 +1538,10 @@ void openPlayerMenu(CBasePlayer@ plr, string subMenu)
 		Item@ invItem = g_items[itemId-1];
 		
 		string displayName = invItem.title;
-		int amount = 0;
-		CItemInventory@ wep = getInventoryItem(plr, itemId-1);
-		if (wep !is null)
-		{
-			amount = wep.pev.button;
+		int amount = getItemCount(plr, itemId-1);
+		if (amount > 0)
 			displayName += " (" + amount + ")";
-		}
-		
-		if (amount <= 0)
+		else
 		{
 			openPlayerMenu(plr, "drop-stack-menu");
 			return;
@@ -1190,15 +1567,112 @@ void openPlayerMenu(CBasePlayer@ plr, string subMenu)
 	state.openMenu(plr);
 }
 
+void revive_finish(EHandle h_plr)
+{
+	if (!h_plr)
+		return;
+		
+	CBaseEntity@ plr = h_plr;
+	
+	if (plr.pev.deadflag == 0)
+	{
+		plr.pev.health = 5.0f;
+		plr.pev.renderfx = 0;
+		return;
+	}
+	
+	g_Scheduler.SetTimeout("revive_finish", 0.05f, h_plr);
+}
+
 void inventoryCheck()
 {
-	CBaseEntity@ e_plr = null;
+	for (uint i = 0; i < g_item_drops.size(); i++)
+	{
+		if (!g_item_drops[i].IsValid())
+			continue;
+		if (g_item_drops[i].GetEntity().pev.teleport_time < g_Engine.time)
+		{
+			CBaseEntity@ item = g_item_drops[i];
+			item.pev.renderfx = -9999;
+			remove_item_from_drops(item);
+			g_EntityFuncs.Remove(item);
+			i--;
+		}
+		else
+			g_item_drops[i].GetEntity().pev.renderfx = 0;
+	}
+	for (uint i = 0; i < g_corpses.size(); i++)
+	{
+		if (!g_corpses[i].IsValid())
+			continue;
+		g_corpses[i].GetEntity().pev.renderfx = 0;
+	}
+	CBaseEntity@ ent = null;
+	do {
+		@ent = g_EntityFuncs.FindEntityByClassname(ent, "player");
+		if (ent !is null and ent.pev.deadflag > 0)
+		{
+			ent.pev.renderfx = 0;
+			if (ent.pev.sequence != 13)
+			{
+				ent.pev.frame = 0;
+				ent.pev.sequence = 13;
+			}
+		}
+	} while (ent !is null);
 	
+	// check for dropped weapons
+	CBaseEntity@ wep = null;
+	do {
+		@wep = g_EntityFuncs.FindEntityByClassname(wep, "weaponbox");
+		if (wep !is null and wep.pev.noise3 == "")
+		{
+			CBaseEntity@ owner = g_EntityFuncs.Instance(wep.pev.owner);
+			if (owner !is null and owner.IsPlayer())
+			{
+				CBasePlayer@ plr = cast<CBasePlayer@>(owner);
+				PlayerState@ state = getPlayerState(plr);
+				
+				if (plr.pev.deadflag > 0)
+				{
+					// don't drop weapons on death
+					wep.Touch(plr);
+					wep.pev.effects = EF_NODRAW;
+					wep.pev.movetype = MOVETYPE_NONE;
+				}
+				
+				if (state.droppedItems >= g_max_item_drops)
+				{
+					wep.Touch(plr);
+					wep.pev.effects = EF_NODRAW;
+					wep.pev.movetype = MOVETYPE_NONE;
+					g_PlayerFuncs.PrintKeyBindingString(plr, "Can't drop more than " + g_max_item_drops + " item" + (g_max_item_drops > 1 ? "s" : ""));
+				}
+				else
+				{
+					state.droppedItems++;
+					wep.pev.noise3 = getPlayerUniqueId(plr);
+					state.droppedWeapons.insertLast(EHandle(wep));
+				}
+			}
+		}
+	} while(wep !is null);
+	
+	CBaseEntity@ e_plr = null;
 	do {
 		@e_plr = g_EntityFuncs.FindEntityByClassname(e_plr, "player");
 		if (e_plr !is null)
 		{
 			CBasePlayer@ plr = cast<CBasePlayer@>(e_plr);
+			PlayerState@ state = getPlayerState(plr);
+			state.updateDroppedWeapons();
+			
+			// TODO: prevent nearby players from getting the same class
+			//plr.SetClassification(Math.RandomLong(-1, 13));
+			
+			if (plr.pev.deadflag > 0)
+				continue;
+			
 			if (e_plr.pev.button & IN_RELOAD != 0 and e_plr.pev.button & IN_USE != 0) {
 				openPlayerMenu(plr, "");
 			}
@@ -1213,6 +1687,16 @@ void inventoryCheck()
 				//println("RETOUCH");
 			}
 			
+			if (state.currentChest)
+			{
+				if ((state.currentChest.GetEntity().pev.origin - plr.pev.origin).Length() > 96)
+				{
+					state.currentChest = null;
+					g_PlayerFuncs.PrintKeyBindingString(plr, "Loot target too far away");
+					state.closeMenus();
+				}
+			}
+			
 			HUDTextParams params;
 			params.effect = 0;
 			params.fadeinTime = 0;
@@ -1221,25 +1705,69 @@ void inventoryCheck()
 			params.r1 = 255;
 			params.g1 = 255;
 			params.b1 = 255;
-			
-			/*
-			params.x = 0.99f;
-			params.y = 0.90f;
-			params.channel = 3;
-			float dur = 99;
-			g_PlayerFuncs.HudMessage(plr, params, "" + int(dur) + "%");
-			*/
-			
-			if (phit is null or phit.pev.classname == "worldspawn" or phit.pev.colormap == -1)
-				continue;
-
 			params.x = -1;
 			params.y = 0.7;
 			params.channel = 1;
+			
+			// highlight items on ground (and see what they are)
+			CBaseEntity@ closestItem = getLookItem(plr, tr.vecEndPos);
+			
+			//println("CLOSE TO  " + g_item_drops.size());
+			
+			if (closestItem !is null)
+			{
+				closestItem.pev.renderfx = kRenderFxGlowShell;
+				closestItem.pev.renderamt = 1;
+				closestItem.pev.rendercolor = Vector(200, 200, 200);
+				
+				if (closestItem.IsPlayer() and (plr.pev.button & IN_USE) != 0)
+				{
+					if (state.reviving)
+					{
+						float time = g_Engine.time - state.reviveStart;
+						float t = time / g_revive_time;
+						string progress = "\n\n[";
+						for (float i = 0; i < 1.0f; i += 0.03f)
+						{
+							progress += t > i ? "|||" : "__";
+						}
+						progress += "]";
+						
+						if (time > 0.5f)
+							g_PlayerFuncs.HudMessage(plr, params, "Reviving " + closestItem.pev.netname + progress);
+						
+						if (time > g_revive_time)
+						{
+							closestItem.EndRevive(0);
+							revive_finish(EHandle(closestItem));
+						}
+					}
+					else
+					{
+						state.reviving = true;
+						state.reviveStart = g_Engine.time;
+					}
+				}
+				else
+				{
+					state.reviving = false;
+					g_PlayerFuncs.HudMessage(plr, params, getItemDisplayName(closestItem));
+				}
+				continue;
+			}
+			else
+			{
+				state.reviving = false;
+			}
+			
+			if (phit is null or phit.pev.classname == "worldspawn" or phit.pev.colormap == -1)
+				continue;
+			
 			g_PlayerFuncs.HudMessage(plr, params, 
 				string(prettyPartName(phit)) + "\n" + int(phit.pev.health) + " / " + int(phit.pev.max_health));
 		}
 	} while(e_plr !is null);
+
 }
 
 void rotate_door(CBaseEntity@ door, bool playSound)
@@ -1420,6 +1948,249 @@ void openCodeLockMenu(CBasePlayer@ plr, CBaseEntity@ door)
 	state.openMenu(plr);
 }
 
+void lootMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextMenuItem@ mitem)
+{
+	if (mitem is null)
+		return;
+	string action;
+	mitem.m_pUserData.retrieve(action);
+	PlayerState@ state = getPlayerState(plr);
+	CBaseEntity@ chest = state.currentChest;
+	
+	if (chest is null)
+		return;
+	
+	if (action.Find("loot-") == 0)
+	{
+		string itemDesc = action.SubString(5);
+		int sep = int(itemDesc.Find(","));
+		int type = atoi( itemDesc.SubString(0, sep) );
+		int amt = atoi( itemDesc.SubString(sep+1) );
+		
+		bool found = false;
+		if (chest.IsPlayer() and chest.pev.deadflag > 0)
+		{
+			CBasePlayer@ corpse = cast<CBasePlayer@>(chest);
+			if (sep != -1)
+			{
+				InventoryList@ inv = corpse.get_m_pInventory();
+				while (inv !is null)
+				{
+					CItemInventory@ item = cast<CItemInventory@>(inv.hItem.GetEntity());
+					@inv = inv.pNext;
+					if (item !is null and item.pev.colormap == type and item.pev.button == amt)
+					{
+						if (giveItem(plr, type, amt > 0 ? amt : 1) == 0)
+						{
+							item.pev.renderfx = -9999;
+							g_Scheduler.SetTimeout("delay_remove", 0, EHandle(item));
+						}
+						
+						found = true;
+						break;
+					}
+				}
+			}
+			else
+			{
+				Item@ gItem = getItemByClassname(itemDesc);
+				CBasePlayerItem@ hasItem = corpse.HasNamedPlayerItem(itemDesc);
+				if (hasItem !is null and gItem !is null)
+				{
+					if (plr.HasNamedPlayerItem(itemDesc) is null)
+					{
+						plr.SetItemPickupTimes(0);
+						plr.GiveNamedItem(itemDesc);
+						corpse.RemovePlayerItem(hasItem);
+					}
+					else if (giveItem(plr, gItem.type, amt > 0 ? amt : 1) == 0)
+						corpse.RemovePlayerItem(hasItem);
+						
+					found = true;
+				}
+				
+				if (!found)
+				{
+					int ammoIdx = g_PlayerFuncs.GetAmmoIndex(itemDesc);
+					int ammo = corpse.m_rgAmmo(ammoIdx);
+					if (ammo > 0)
+					{
+						int beforeAmmo = plr.m_rgAmmo(ammoIdx);
+						plr.GiveAmmo( ammo, itemDesc, 9999); // TODO: set proper max?
+						int amtGiven = plr.m_rgAmmo(ammoIdx) - beforeAmmo;
+						int ammoLeft = ammo - amtGiven;
+						Item@ ammoItem = getItemByClassname(itemDesc);
+						
+						if (ammoItem !is null)
+						{
+							ammoLeft = giveItem(plr, ammoItem.type, ammoLeft);
+							
+							if (ammoLeft < ammo)
+								g_SoundSystem.PlaySound(plr.edict(), CHAN_ITEM, "items/9mmclip1.wav", 1.0f, 1.0f, 0, 100);
+							
+							corpse.m_rgAmmo(ammoIdx, ammoLeft);
+						}
+						else
+							println("Unknown ammo: " + itemDesc);
+							
+						found = true;
+					}
+				}
+				
+			}
+		}
+		else if (chest.pev.classname == "player_corpse")
+		{
+			player_corpse@ corpse = cast<player_corpse@>(CastToScriptClass(chest));
+		
+			for (uint i = 0; i < corpse.items.size(); i++)
+			{
+				if (!corpse.items[i])
+					continue;
+				CBaseEntity@ item = corpse.items[i];	
+				if (item.pev.colormap == type and item.pev.button == amt)
+				{
+					item_collected(plr, item, USE_TOGGLE, 0);
+					undo_drop(EHandle(item), EHandle(plr));
+					
+					corpse.items.removeAt(i);
+					i--;
+					found = true;
+					break;
+				}
+			}
+		}
+		if (!found)
+		{
+			g_PlayerFuncs.PrintKeyBindingString(plr, "Item no longer exists");
+		}
+	}
+	
+	g_Scheduler.SetTimeout("openLootMenu", 0.05, @plr, @chest);
+}
+
+void openLootMenu(CBasePlayer@ plr, CBaseEntity@ corpse)
+{
+	PlayerState@ state = getPlayerState(plr);
+	state.initMenu(plr, lootMenuCallback);
+	state.currentChest = corpse;
+	
+	state.menu.SetTitle("Loot " + corpse.pev.netname + "'s corpse:\n");
+	
+	int numItems = 0;
+	if (corpse.IsPlayer())
+	{
+		CBasePlayer@ pcorpse = cast<CBasePlayer@>(corpse);
+		
+		for (uint i = 0; i < MAX_ITEM_TYPES; i++)
+		{
+			CBasePlayerItem@ wep = pcorpse.m_rgpPlayerItems(i);
+			while (wep !is null)
+			{
+				state.menu.AddItem(getItemDisplayName(wep), any("loot-" + wep.pev.classname));
+				numItems++;
+				@wep = cast<CBasePlayerItem@>(wep.m_hNextItem.GetEntity());				
+			}
+		}
+		
+		for (uint i = 0; i < g_ammo_types.size(); i++)
+		{
+			int ammo = pcorpse.m_rgAmmo(g_PlayerFuncs.GetAmmoIndex(g_ammo_types[i]));
+			if (ammo > 0)
+			{
+				Item@ item = getItemByClassname(g_ammo_types[i]);
+				string name = item !is null ? item.title : g_ammo_types[i];
+				state.menu.AddItem(name + " (" + ammo + ")", any("loot-" + g_ammo_types[i]));
+			}
+		}
+		
+		InventoryList@ inv = pcorpse.get_m_pInventory();
+		while (inv !is null)
+		{
+			CItemInventory@ item = cast<CItemInventory@>(inv.hItem.GetEntity());
+			@inv = inv.pNext;
+			if (item !is null)
+			{
+				state.menu.AddItem(getItemDisplayName(item), any("loot-" + item.pev.colormap + "," + item.pev.button));
+				numItems++;
+			}
+		}
+	}
+	else if (corpse.pev.classname == "player_corpse")
+	{
+		player_corpse@ pcorpse = cast<player_corpse@>(CastToScriptClass(corpse));
+		for (uint i = 0; i < pcorpse.items.size(); i++)
+		{
+			if (!pcorpse.items[i])
+				continue;
+				
+			CBaseEntity@ item = pcorpse.items[i];
+			state.menu.AddItem(getItemDisplayName(item), any("loot-" + item.pev.colormap + "," + item.pev.button));
+		}
+		numItems = pcorpse.items.size();
+	}
+	
+	if (numItems == 0)
+	{
+		g_PlayerFuncs.PrintKeyBindingString(plr, "Nothing left to loot");
+		state.currentChest = null;
+		return;
+	}
+	
+	
+	state.openMenu(plr);
+}
+
+CBaseEntity@ getLookItem(CBasePlayer@ plr, Vector lookPos)
+{
+	// highlight items on ground (and see what they are)
+	float closestDist = 9e99;
+	CBaseEntity@ closestItem = null;
+	for (uint i = 0; i < g_item_drops.size(); i++)
+	{
+		if (!g_item_drops[i].IsValid())
+			continue;
+	
+		CBaseEntity@ item = g_item_drops[i];				
+		float dist = (item.pev.origin - lookPos).Length();
+		if (dist < 32 and dist < closestDist)
+		{
+			@closestItem = @item;
+			closestDist = dist;
+		}
+	}
+	for (uint i = 0; i < g_corpses.size(); i++)
+	{
+		if (!g_corpses[i].IsValid())
+			continue;
+	
+		CBaseEntity@ item = g_corpses[i];				
+		float dist = (item.pev.origin - lookPos).Length();
+		if (item.pev.effects != EF_NODRAW and dist < 32 and dist < closestDist)
+		{
+			@closestItem = @item;
+			closestDist = dist;
+		}
+	}
+	
+	CBaseEntity@ ent = null;
+	do {
+		@ent = g_EntityFuncs.FindEntityByClassname(ent, "player");
+		if (ent !is null and ent.pev.deadflag > 0 and (ent.pev.effects & EF_NODRAW) == 0)
+		{
+			float dist = (ent.pev.origin - lookPos).Length();
+			if (dist < 32 and dist < closestDist)
+			{
+				@closestItem = @ent;
+				closestDist = dist;
+			}
+		}
+	} while (ent !is null);
+	
+	//println("CLOSE TO  " + g_item_drops.size());
+	return closestItem;
+}
+
 HookReturnCode PlayerUse( CBasePlayer@ plr, uint& out )
 {
 	PlayerState@ state = getPlayerState(plr);
@@ -1515,6 +2286,36 @@ HookReturnCode PlayerUse( CBasePlayer@ plr, uint& out )
 					EHandle h_phit = phit;
 					state.authedLocks.insertLast(h_phit);
 					g_PlayerFuncs.PrintKeyBindingString(plr, "You are now authorized to build");
+				}
+			}
+		}
+		else
+		{			
+			TraceResult tr2 = TraceLook(plr, 96, true);
+			CBaseEntity@ lookItem = getLookItem(plr, tr2.vecEndPos);
+			
+			if (lookItem !is null)
+			{
+				if (lookItem.pev.classname == "item_inventory")
+				{
+					// I do my own pickup logic to bypass the 3 second drop wait in SC
+					int barf = giveItem(plr, lookItem.pev.colormap-1, lookItem.pev.button);
+					if (barf > 0)
+					{
+						lookItem.pev.button = barf;
+						println("Couldn't hold " + barf + " of that");
+					}
+					else
+					{
+						item_collected(plr, lookItem, USE_TOGGLE, 0);
+						lookItem.pev.renderfx = -9999;
+						g_Scheduler.SetTimeout("delay_remove", 0, EHandle(lookItem));
+					}
+					
+				}
+				if (lookItem.pev.classname == "player_corpse" or lookItem.IsPlayer())
+				{
+					openLootMenu(plr, lookItem);
 				}
 			}
 		}

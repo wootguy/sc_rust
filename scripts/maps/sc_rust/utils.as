@@ -198,17 +198,72 @@ Item@ getItemByClassname(string cname)
 	return null;
 }
 
-CItemInventory@ getInventoryItem(CBasePlayer@ plr, int itemType)
+int getItemCount(CBasePlayer@ plr, int itemType)
 {
 	InventoryList@ inv = plr.get_m_pInventory();
+	int count = 0;
 	while (inv !is null)
 	{
 		CItemInventory@ item = cast<CItemInventory@>(inv.hItem.GetEntity());
 		@inv = inv.pNext;
-		if (item.pev.colormap == (itemType+1))
-			return item;
+		if (item !is null and item.pev.colormap == (itemType+1))
+			count += item.pev.button;
 	}
-	return null;
+	return count;
+}
+
+int getInventorySpace(CBasePlayer@ plr)
+{
+	InventoryList@ inv = plr.get_m_pInventory();
+	int slotsUsed = 0;
+	while (inv !is null)
+	{
+		CItemInventory@ item = cast<CItemInventory@>(inv.hItem.GetEntity());
+		@inv = inv.pNext;
+		if (item !is null)
+			slotsUsed++;
+	}
+	return g_inventory_size - slotsUsed;
+}
+
+string prettyNumber(int number)
+{
+	string pretty = "";
+	int i = 0;
+	while (number > 0)
+	{
+		int tens = number % 10;
+		number /= 10;
+		pretty = "" + tens + pretty;
+		if (i++ % 3 == 2 and number > 0)
+			pretty = "," + pretty;
+	}
+	return pretty;
+}
+
+string getItemDisplayName(CBaseEntity@ item)
+{
+	if (item.pev.classname == "player_corpse" or item.IsPlayer())
+	{
+		return "" + item.pev.netname + "'s corpse";
+	}
+	int type = item.pev.colormap-1;
+	if (type >= 0 and type < ITEM_TYPES)
+	{
+		string name = g_items[type].title;
+		if (g_items[type].stackSize > 1)
+			name += "  (" + prettyNumber(item.pev.button) + ")";
+		return name;	
+	}
+	else
+	{
+		for (uint i = 0; i < ITEM_TYPES; i++)
+		{
+			if (g_items[i].classname == item.pev.classname)
+				return g_items[i].title;
+		}
+	}
+	return item.pev.classname;
 }
 
 string getModelSize(CBaseEntity@ part)
