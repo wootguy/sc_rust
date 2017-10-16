@@ -49,6 +49,7 @@ class func_breakable_custom : ScriptBaseEntity
 	
 	array<EHandle> children;
 	array<EHandle> connections; // all parts that are supported by or support this part
+	array<EHandle> items; // chests only
 	
 	string serialize()
 	{

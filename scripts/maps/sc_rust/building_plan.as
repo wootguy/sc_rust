@@ -71,7 +71,13 @@ enum build_types
 	B_HIGH_STONE_WALL,
 	B_LADDER,
 	B_LADDER_HATCH,
+	B_SMALL_CHEST,
+	B_LARGE_CHEST,
+	
+	B_ITEM_TYPES,
 };
+
+int B_TYPES = B_FOUNDATION_STEPS+1;
 
 enum item_types
 {
@@ -86,6 +92,8 @@ enum item_types
 	I_HIGH_STONE_WALL,
 	I_LADDER,
 	I_LADDER_HATCH,
+	I_SMALL_CHEST,
+	I_LARGE_CHEST,
 	
 	I_WOOD,
 	I_STONE,
@@ -126,9 +134,6 @@ enum builder_status
 	STATUS_OUTSKIRTS,
 }
 
-int B_TYPES = B_FOUNDATION_STEPS+1;
-int B_ITEM_TYPES = B_LADDER_HATCH+1;
-
 array<BuildPartInfo> g_part_info = {
 	BuildPartInfo(B_FOUNDATION, "Square Foundation", "b_foundation"),
 	BuildPartInfo(B_FOUNDATION_TRI, "Triangle Foundation", "b_foundation_tri"),
@@ -154,6 +159,8 @@ array<BuildPartInfo> g_part_info = {
 	BuildPartInfo(B_HIGH_STONE_WALL, "High External Stone Wall", "b_high_stone_wall"),
 	BuildPartInfo(B_LADDER, "Ladder", "b_ladder"),
 	BuildPartInfo(B_LADDER_HATCH, "Ladder Hatch", "b_ladder_hatch"),
+	BuildPartInfo(B_SMALL_CHEST, "Small Chest", "b_small_chest"),
+	BuildPartInfo(B_LARGE_CHEST, "Large Chest", "b_large_chest"),
 };
 
 array<Item> g_items = {	
@@ -168,6 +175,8 @@ array<Item> g_items = {
 	Item(I_HIGH_STONE_WALL, 1, false, false, "", "High External Stone Wall", "b_stone_wall"),
 	Item(I_LADDER, 1, false, false, "", "Ladder", "b_ladder"),
 	Item(I_LADDER_HATCH, 1, false, false, "", "Ladder Hatch", "b_ladder_hatch"),
+	Item(I_SMALL_CHEST, 1, false, false, "", "Small Chest", "Keep your things in this storage box. Stores up to X items"),
+	Item(I_LARGE_CHEST, 1, false, false, "", "Large Chest", "Keep your things in this storage box. Stores up to X items"),
 	
 	Item(I_WOOD, 200, false, false, "", "Wood", "Collected from trees and used to build bases and craft items."),
 	Item(I_STONE, 1000, false, false, "", "Stone", "Collected from rocks and used to reinforce bases and craft items."),
@@ -857,13 +866,10 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 			int attachType = phit.pev.colormap;
 			int attachSocket = socketType(attachType);
 			
-			if (buildType == B_TOOL_CUPBOARD)
+			if (isFloorPiece(phit))
 			{
-				if (isFloorPiece(phit))
-				{
-					validBuild = true;
-					attaching = true;
-				}
+				validBuild = true;
+				attaching = true;
 			}
 			else if (buildType == B_LADDER)
 			{
@@ -963,7 +969,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 						break;
 					} 
 				}
-				float maxOverlap = ent.IsBSPModel() ? 9.95f : 2.0f;
+				float maxOverlap = ent.IsBSPModel() and !isFloorItem(buildEnt) ? 9.95f : 2.0f;
 				float overlap = collisionBoxesYaw(buildEnt, ent);
 				if (overlap > maxOverlap) {
 					if (debug_mode)

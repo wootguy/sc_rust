@@ -411,7 +411,14 @@ bool isFloorPiece(CBaseEntity@ ent)
 
 bool isFloorItem(CBaseEntity@ ent)
 {
-	return ent.pev.colormap == B_TOOL_CUPBOARD;
+	switch(ent.pev.colormap)
+	{
+		case B_TOOL_CUPBOARD:
+		case B_SMALL_CHEST:
+		case B_LARGE_CHEST:
+			return true;
+	}
+	return false;
 }
 
 bool isUpgradable(CBaseEntity@ ent)

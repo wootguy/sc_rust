@@ -575,6 +575,8 @@ void MapActivate()
 		"b_high_stone_wall",
 		"b_ladder",
 		"b_ladder_hatch",
+		"b_small_chest",
+		"b_large_chest",
 		
 		"b_wood_shutter_r",
 		"b_wood_shutter_l",
@@ -1087,6 +1089,7 @@ CBaseEntity@ spawnItem(Vector origin, int type, int amt)
 		for (int i = 0; i < amt; i++)
 		{
 			@lastSpawn = g_EntityFuncs.CreateEntity("item_inventory", keys, true);
+			lastSpawn.pev.origin = origin;
 		}
 		return lastSpawn;
 	}
@@ -1155,6 +1158,7 @@ int giveItem(CBasePlayer@ plr, int type, int amt, bool drop=false, bool combineS
 				{
 					g_EngineFuncs.MakeVectors(plr.pev.angles);
 					ent.pev.velocity = g_Engine.v_forward*dropSpeed;
+					ent.pev.origin = plr.pev.origin;
 				}
 				else
 					ent.Use(@plr, @plr, USE_ON, 0.0F);
@@ -1172,6 +1176,7 @@ int giveItem(CBasePlayer@ plr, int type, int amt, bool drop=false, bool combineS
 			if (drop)
 			{
 				g_EngineFuncs.MakeVectors(plr.pev.angles);
+				ent.pev.origin = plr.pev.origin;
 				ent.pev.velocity = g_Engine.v_forward*dropSpeed;
 			}
 			else
@@ -1455,7 +1460,6 @@ void openPlayerMenu(CBasePlayer@ plr, string subMenu)
 					count++;
 				}
 			}
-			
 			@inv = inv.pNext;
 		}
 		
@@ -1621,6 +1625,7 @@ void inventoryCheck()
 		}
 	} while (ent !is null);
 	
+	/*
 	// check for dropped weapons
 	CBaseEntity@ wep = null;
 	do {
@@ -1657,6 +1662,7 @@ void inventoryCheck()
 			}
 		}
 	} while(wep !is null);
+	*/
 	
 	CBaseEntity@ e_plr = null;
 	do {
@@ -1960,7 +1966,21 @@ void lootMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextMe
 	if (chest is null)
 		return;
 	
-	if (action.Find("loot-") == 0)
+	string submenu = "";
+	
+	if (action == "do-give")
+	{
+		submenu = "give";
+	}
+	else if (action == "do-take")
+	{
+		submenu = "take";
+	}
+	else if (action.Find("give-") == 0)
+	{
+		string itemName = action.SubString(5);
+	}
+	else if (action.Find("loot-") == 0)
 	{
 		string itemDesc = action.SubString(5);
 		int sep = int(itemDesc.Find(","));
@@ -2066,16 +2086,16 @@ void lootMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextMe
 		}
 	}
 	
-	g_Scheduler.SetTimeout("openLootMenu", 0.05, @plr, @chest);
+	g_Scheduler.SetTimeout("openLootMenu", 0.05, @plr, @chest, submenu);
 }
 
-void openLootMenu(CBasePlayer@ plr, CBaseEntity@ corpse)
+void openLootMenu(CBasePlayer@ plr, CBaseEntity@ corpse, string submenu="")
 {
 	PlayerState@ state = getPlayerState(plr);
 	state.initMenu(plr, lootMenuCallback);
 	state.currentChest = corpse;
 	
-	state.menu.SetTitle("Loot " + corpse.pev.netname + "'s corpse:\n");
+	string title = "Loot " + corpse.pev.netname + "'s corpse:\n";
 	
 	int numItems = 0;
 	if (corpse.IsPlayer())
@@ -2101,6 +2121,7 @@ void openLootMenu(CBasePlayer@ plr, CBaseEntity@ corpse)
 				Item@ item = getItemByClassname(g_ammo_types[i]);
 				string name = item !is null ? item.title : g_ammo_types[i];
 				state.menu.AddItem(name + " (" + ammo + ")", any("loot-" + g_ammo_types[i]));
+				numItems++;
 			}
 		}
 		
@@ -2129,6 +2150,90 @@ void openLootMenu(CBasePlayer@ plr, CBaseEntity@ corpse)
 		}
 		numItems = pcorpse.items.size();
 	}
+	else if (corpse.IsBSPModel())
+	{
+		numItems++;
+		
+		switch(corpse.pev.colormap)
+		{
+			case B_SMALL_CHEST:
+				title = "Small Chest:\n";
+				break;
+			case B_LARGE_CHEST:
+				title = "Large Chest:\n";
+				break;
+		}
+		
+		if (submenu == "give")
+		{			
+			for (uint i = 0; i < MAX_ITEM_TYPES; i++)
+			{
+				CBasePlayerItem@ item = plr.m_rgpPlayerItems(i);
+				while (item !is null)
+				{
+					Item@ invItem = getItemByClassname(item.pev.classname);
+					string displayName = invItem !is null ? invItem.title : string(item.pev.classname);
+					state.menu.AddItem(displayName, any("give-" + item.pev.classname));
+					@item = cast<CBasePlayerItem@>(item.m_hNextItem.GetEntity());		
+				}
+			}
+			
+			dictionary stacks;
+			for (uint i = 0; i < g_ammo_types.size(); i++)
+			{
+				int ammo = plr.m_rgAmmo(g_PlayerFuncs.GetAmmoIndex(g_ammo_types[i]));
+				if (ammo > 0)
+				{
+					Item@ item = getItemByClassname(g_ammo_types[i]);
+					if (item !is null)
+						stacks[item.type] = ammo;
+				}
+			}
+			
+			InventoryList@ inv = plr.get_m_pInventory();
+			while(inv !is null)
+			{
+				CItemInventory@ item = cast<CItemInventory@>(inv.hItem.GetEntity());
+				if (item !is null and item.pev.colormap > 0)
+				{
+					Item@ wep = g_items[item.pev.colormap-1];
+					if (wep !is null)
+					{
+						if (stacks.exists(wep.type))
+						{
+							int oldCount = 0;
+							stacks.get(wep.type, oldCount);
+							stacks[wep.type] = oldCount + item.pev.button;
+						}
+						else
+							stacks[wep.type] = item.pev.button;
+					}
+				}
+				@inv = inv.pNext;
+			}
+			
+			array<string>@ stackKeys = stacks.getKeys();
+			for (uint i = 0; i < stackKeys.size(); i++)
+			{
+				Item@ item = g_items[ atoi(stackKeys[i]) ];
+				int amt = 1;
+				stacks.get(stackKeys[i], amt);
+				state.menu.AddItem(item.title + (item.stackSize > 1 ? " (" + amt + ")" : ""), any("give-" + item.type));
+			}
+		}
+		else if (submenu == "take")
+		{
+			state.menu.AddItem("some stuff", any("loot-"));
+		}
+		else
+		{
+			state.menu.AddItem("Give", any("do-give"));
+			state.menu.AddItem("Take", any("do-take"));
+		}
+		
+	}
+	
+	state.menu.SetTitle(title);
 	
 	if (numItems == 0)
 	{
@@ -2216,8 +2321,10 @@ HookReturnCode PlayerUse( CBasePlayer@ plr, uint& out )
 		TraceResult tr = TraceLook(plr, 256);
 		CBaseEntity@ phit = g_EntityFuncs.Instance( tr.pHit );
 		
+		bool didAction = false;
 		if (phit !is null and (phit.pev.classname == "func_door_rotating" or phit.pev.classname == "func_breakable_custom"))
 		{
+			didAction = true;
 			int socket = socketType(phit.pev.colormap);
 			if (socket == SOCKET_DOORWAY or (phit.pev.colormap == B_LADDER_HATCH and phit.pev.targetname != ""))
 			{
@@ -2288,8 +2395,15 @@ HookReturnCode PlayerUse( CBasePlayer@ plr, uint& out )
 					g_PlayerFuncs.PrintKeyBindingString(plr, "You are now authorized to build");
 				}
 			}
+			else if (phit.pev.colormap == B_LARGE_CHEST)
+			{
+				state.currentChest = phit;
+				openLootMenu(plr, phit);
+			}
+			else
+				didAction = false;
 		}
-		else
+		if (!didAction)
 		{			
 			TraceResult tr2 = TraceLook(plr, 96, true);
 			CBaseEntity@ lookItem = getLookItem(plr, tr2.vecEndPos);
