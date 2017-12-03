@@ -198,7 +198,7 @@ Item@ getItemByClassname(string cname)
 	return null;
 }
 
-int getItemCount(CBasePlayer@ plr, int itemType)
+int getItemCount(CBasePlayer@ plr, int itemType, bool includeEquipment = true)
 {
 	InventoryList@ inv = plr.get_m_pInventory();
 	int count = 0;
@@ -209,6 +209,14 @@ int getItemCount(CBasePlayer@ plr, int itemType)
 		if (item !is null and item.pev.colormap == (itemType+1))
 			count += item.pev.button;
 	}
+	
+	if (includeEquipment and itemType >= 0 and itemType < int(g_items.size()))
+	{
+		Item@ item = g_items[itemType];
+		if (item.isAmmo)
+			count += plr.m_rgAmmo(g_PlayerFuncs.GetAmmoIndex(item.classname));
+	}
+	
 	return count;
 }
 

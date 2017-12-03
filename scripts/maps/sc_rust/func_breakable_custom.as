@@ -1,4 +1,7 @@
 
+const int CHEST_ITEM_MAX_SMALL = 14; // 2 menu pages
+const int CHEST_ITEM_MAX_LARGE = 28; // 4 menu pages
+
 class BMaterial
 {
 	array<string> hitSounds;
@@ -50,6 +53,7 @@ class func_breakable_custom : ScriptBaseEntity
 	array<EHandle> children;
 	array<EHandle> connections; // all parts that are supported by or support this part
 	array<EHandle> items; // chests only
+	int maxItems;
 	
 	string serialize()
 	{
@@ -117,6 +121,62 @@ class func_breakable_custom : ScriptBaseEntity
 	void Use(CBaseEntity@ pActivator, CBaseEntity@ pCaller, USE_TYPE useType, float flValue = 0.0f)
 	{
 		//println("USED BY " + pCaller.pev.classname);
+	}
+	
+	int spaceLeft()
+	{
+		return capacity() - items.size();
+	}
+	
+	int capacity()
+	{
+		return pev.colormap == B_LARGE_CHEST ? CHEST_ITEM_MAX_LARGE : CHEST_ITEM_MAX_SMALL;
+	}
+	
+	int depositItem(EHandle item)
+	{
+		if (!item.IsValid())
+			return 0;
+		
+		int type = item.GetEntity().pev.colormap-1;
+		if (type >= 0 and type < int(g_items.size()))
+		{
+			Item@ giveItem = g_items[type];
+			if (giveItem.stackSize > 1)
+			{
+				int giveLeft = item.GetEntity().pev.button;
+				for (uint i = 0; i < items.size(); i++)
+				{
+					if (!items[i].IsValid())
+						continue;
+					CBaseEntity@ stack = items[i].GetEntity();
+						
+					if (stack.pev.colormap == giveItem.type+1 and stack.pev.button < giveItem.stackSize)
+					{
+						int addAmt = Math.min(giveItem.stackSize - stack.pev.button, giveLeft);
+						stack.pev.button += addAmt;
+						item.GetEntity().pev.button -= addAmt;
+						giveLeft -= addAmt;
+					}
+				}
+				
+				if (giveLeft <= 0)
+				{
+					g_Scheduler.SetTimeout("delay_remove", 0, item);
+					return 0;
+				}
+			}
+		}
+		
+		if (int(items.size()) >= capacity())
+		{
+			g_Scheduler.SetTimeout("delay_remove", 0, item);
+			return item.GetEntity().pev.button;
+		}
+		
+		items.insertLast(item);
+			
+		return 0;
 	}
 	
 	int entindex()
