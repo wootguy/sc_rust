@@ -1,6 +1,11 @@
 
 const int CHEST_ITEM_MAX_SMALL = 14; // 2 menu pages
 const int CHEST_ITEM_MAX_LARGE = 28; // 4 menu pages
+const int CHEST_ITEM_MAX_FURNACE = 3; // slots for wood, ore, and result
+
+float COOK_TIME_WOOD = 2.0f;
+float COOK_TIME_METAL = 3.0f;
+float COOK_TIME_HQMETAL = 6.0f;
 
 class BMaterial
 {
@@ -34,6 +39,14 @@ array<BMaterial> g_materials = {
 	BMaterial(g_material_damage_sounds[2], g_material_break_sounds[2])
 };
 
+// The think function won't let me set nextthink (it's always ~5 seconds or so) for this entity
+void weird_think_bug_workaround(EHandle h_ent)
+{
+	if (!h_ent.IsValid())
+		return;
+	func_breakable_custom@ ent = cast<func_breakable_custom@>(CastToScriptClass(h_ent.GetEntity()));
+	ent.FurnaceThink();
+}
 
 class func_breakable_custom : ScriptBaseEntity
 {
@@ -45,7 +58,12 @@ class func_breakable_custom : ScriptBaseEntity
 	bool isDoor = false;
 	bool isLadder = false;
 	bool isNode = false;
+	bool isFurnace = false;
 	bool supported = false; // is connected to a foundation somehow?
+	bool smelting = false; // true if this is a furnace with wood and ore inside
+	float lastSmelt = 0;
+	float lastWoodBurn = 0;
+	float lastThink = 0;
 	string killtarget;
 	
 	int nodeType = -1;
@@ -64,7 +82,7 @@ class func_breakable_custom : ScriptBaseEntity
 	}
 
 	bool KeyValue( const string& in szKey, const string& in szValue )
-	{		
+	{
 		if (szKey == "id") id = atoi(szValue);
 		else if (szKey == "parent") parent = atoi(szValue);
 		else if (szKey == "zoneid") zoneid = atoi(szValue);
@@ -87,6 +105,7 @@ class func_breakable_custom : ScriptBaseEntity
 		isDoor = self.pev.targetname != "";
 		isLadder = self.pev.colormap == B_LADDER;
 		isNode = self.pev.colormap == -1;
+		isFurnace = self.pev.colormap == B_FURNACE;
 		//println("CREATE PART " + id + " WITH PARENT " + parent);
 		
 		if (isNode)
@@ -99,18 +118,162 @@ class func_breakable_custom : ScriptBaseEntity
 		g_EntityFuncs.SetOrigin(self, self.pev.origin);
 		
 		material = g_materials[0];
-		
-		SetThink( ThinkFunction( DoorThink ) );
-		pev.nextthink = g_Engine.time;
-		
+
 		if (!isNode)
 			updateConnections();
+		
+		if (isDoor)
+		{
+			SetThink( ThinkFunction( DoorThink ) );
+			pev.nextthink = g_Engine.time;
+		}
+		else if (isFurnace)
+		{
+			FurnaceThink();
+		}
+	}
+	
+	void FurnaceThink()
+	{
+		// EF_FRAMEANIMTEXTURES doesn't work so I have to constantly set the frame (possible net lag)
+		pev.frame = smelting ? 1 : 0;
+		if (lastThink + 1.0f > g_Engine.time)
+		{
+			if (!dead)
+				g_Scheduler.SetTimeout("weird_think_bug_workaround", 0, EHandle(self));
+			return;
+		}
+			
+		lastThink = g_Engine.time;
+		bool hasWood = false;
+		bool hasOre = false;
+		int oreType = -1;
+		int outputType = -1;
+		for (uint i = 0; i < items.size(); i++)
+		{
+			if (!items[i].IsValid())
+				continue;
+			int itemType = items[i].GetEntity().pev.colormap-1;
+			if (itemType == I_WOOD)
+				hasWood = true;
+			if (itemType == I_METAL_ORE or itemType == I_HQMETAL_ORE)
+			{
+				hasOre = true;
+				oreType = itemType;
+				outputType = itemType == I_METAL_ORE ? I_METAL : I_HQMETAL;
+			}
+		}
+		
+		bool roomForOutput = items.size() < CHEST_ITEM_MAX_FURNACE;
+		if (!roomForOutput)
+		{
+			for (uint i = 0; i < items.size(); i++)
+			{
+				if (!items[i].IsValid())
+					continue;
+				int itemType = items[i].GetEntity().pev.colormap-1;
+				if (itemType < 0 and itemType >= int(g_items.size()))
+					continue;
+				Item@ itemDef = g_items[itemType];
+				if (itemType == I_METAL and oreType == I_METAL_ORE or itemType == I_HQMETAL and oreType == I_HQMETAL_ORE)
+				{
+					outputType = itemType;
+					if (items[i].GetEntity().pev.button < itemDef.stackSize)
+						roomForOutput = true;
+				}
+			}
+		}
+		
+		bool canSmelt = hasWood and hasOre and roomForOutput;
+		
+		if (canSmelt)
+		{
+			if (!smelting)
+			{
+				lastSmelt = g_Engine.time;
+				g_SoundSystem.PlaySound(self.edict(), CHAN_BODY, "ambience/burning3.wav", 0.5f, 1.0f, 0, 80);
+			}
+			pev.frame = 1;
+			smelting = true;
+			
+			if (smelting)
+			{
+				float smeltTime = outputType == I_HQMETAL_ORE ? COOK_TIME_HQMETAL : COOK_TIME_METAL; 
+				if (lastSmelt + smeltTime < g_Engine.time)
+				{
+					lastSmelt = g_Engine.time;
+					bool hasOutput = false;
+					for (uint i = 0; i < items.size(); i++)
+					{
+						if (!items[i].IsValid())
+						continue;
+						int itemType = items[i].GetEntity().pev.colormap-1;
+						if (itemType == oreType)
+						{
+							if (--items[i].GetEntity().pev.button <= 0)
+							{
+								g_Scheduler.SetTimeout("delay_remove", 0, items[i]);
+								items.removeAt(i);
+								i--;
+							}
+						}
+						if (itemType == outputType)
+						{
+							items[i].GetEntity().pev.button++;
+							hasOutput = true;
+						}
+					}
+					if (!hasOutput)
+					{
+						println("TRY TO SPAWN: " + outputType);
+						CBaseEntity@ newItem = spawnItem(pev.origin, outputType, 1);
+						newItem.pev.effects = EF_NODRAW;
+						depositItem(EHandle(newItem));
+					}
+				}
+				if (lastWoodBurn + COOK_TIME_WOOD < g_Engine.time)
+				{
+					lastWoodBurn = g_Engine.time;
+					for (uint i = 0; i < items.size(); i++)
+					{
+						if (!items[i].IsValid())
+							continue;
+						int itemType = items[i].GetEntity().pev.colormap-1;
+						if (itemType == I_WOOD)
+						{
+							if (--items[i].GetEntity().pev.button <= 0)
+							{
+								g_Scheduler.SetTimeout("delay_remove", 0, items[i]);
+								items.removeAt(i);
+								i--;
+							}
+						}
+					}
+				}
+			}
+		}
+		else
+		{
+			if (smelting)
+			{
+				pev.frame = 0;
+				g_SoundSystem.StopSound(self.edict(), CHAN_BODY, "ambience/burning3.wav");
+			}
+			smelting = false;
+		}
+			
+		if (!dead)
+			g_Scheduler.SetTimeout("weird_think_bug_workaround", 0, EHandle(self));
 	}
 	
 	void DoorThink()
 	{
-		//self.pev.angles = self.pev.angles + self.pev.avelocity;
-		pev.nextthink = g_Engine.time;
+		if (isDoor)
+		{
+			//self.pev.angles = self.pev.angles + self.pev.avelocity;
+			pev.nextthink = g_Engine.time;
+			return;
+		}
 	}
 	
 	void Touch( CBaseEntity@ pOther )
@@ -130,7 +293,13 @@ class func_breakable_custom : ScriptBaseEntity
 	
 	int capacity()
 	{
-		return pev.colormap == B_LARGE_CHEST ? CHEST_ITEM_MAX_LARGE : CHEST_ITEM_MAX_SMALL;
+		switch(pev.colormap)
+		{
+			case B_LARGE_CHEST: return CHEST_ITEM_MAX_LARGE;
+			case B_SMALL_CHEST: return CHEST_ITEM_MAX_LARGE;
+			case B_FURNACE: return CHEST_ITEM_MAX_FURNACE;
+		}
+		return 0;
 	}
 	
 	int depositItem(EHandle item)
@@ -393,14 +562,29 @@ class func_breakable_custom : ScriptBaseEntity
 				if (weaponName == "weapon_stone_pickaxe") giveAmount = 20;
 				if (weaponName == "weapon_metal_pickaxe") giveAmount = 40;
 				
-				if (hasSpace)
-					g_PlayerFuncs.HudMessage(plr, params, "+" + int(giveAmount) + " Stone");
 				giveType = I_STONE;
+				if (Math.RandomLong(0,5) <= 1)
+				{
+					if (Math.RandomLong(0, 3) == 0)
+					{
+						giveType = I_HQMETAL_ORE;
+						giveAmount /= 5;
+					}
+					else
+					{
+						giveType = I_METAL_ORE;
+						giveAmount /= 2;
+					}
+					
+				}
+				
+				if (hasSpace)
+					g_PlayerFuncs.HudMessage(plr, params, "+" + int(giveAmount) + " " + g_items[giveType].title);
 			}			
 			
 			giveItem(plr, giveType, giveAmount, false, true);
 			
-			flDamage = giveAmount;
+			flDamage = giveAmount > 0 ? 10 : 0;
 		}
 		
 		pev.health -= flDamage;

@@ -56,7 +56,7 @@ class func_build_zone : ScriptBaseEntity
 		g_EntityFuncs.SetOrigin(self, self.pev.origin);
 		
 		
-		SetThink( ThinkFunction( Think ) );
+		SetThink( ThinkFunction( ZoneThink ) );
 		pev.nextthink = g_Engine.time;
 	}
 	
@@ -92,7 +92,7 @@ class func_build_zone : ScriptBaseEntity
 		return true;
 	}
 	
-	void Think()
+	void ZoneThink()
 	{
 		if (!g_disable_ents and nodes.size() < 32)
 		{

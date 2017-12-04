@@ -69,6 +69,9 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 	array<string> repairStoneSounds = {"sc_rust/repair_stone.ogg", "sc_rust/repair_stone2.ogg"};
 	array<string> repairMetalSounds = {"sc_rust/repair_metal.ogg", "sc_rust/repair_metal2.ogg"};
 	array<string> hitFleshSounds = {"weapons/pwrench_hitbod1.wav", "weapons/pwrench_hitbod2.wav", "weapons/pwrench_hitbod3.wav"};
+	array<string> upgradeWoodSounds = {"sc_rust/build1.ogg", "sc_rust/build2.ogg"};
+	array<string> upgradeStoneSounds = {"sc_rust/upgrade_stone.ogg", "sc_rust/upgrade_stone2.ogg", "sc_rust/upgrade_stone3.ogg"};
+	array<string> upgradeMetalSounds = {"sc_rust/upgrade_metal.ogg", "sc_rust/upgrade_metal2.ogg", "sc_rust/upgrade_metal3.ogg"};
 	
 	// repair sounds:
 	// wood and twig share sounds
@@ -104,6 +107,14 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 			PrecacheSound(repairStoneSounds[i]);
 		for (uint i = 0; i < repairMetalSounds.length(); i++)
 			PrecacheSound(repairMetalSounds[i]);
+			
+		for (uint i = 0; i < upgradeWoodSounds.length(); i++)
+			PrecacheSound(upgradeWoodSounds[i]);
+		for (uint i = 0; i < upgradeStoneSounds.length(); i++)
+			PrecacheSound(upgradeStoneSounds[i]);
+		for (uint i = 0; i < upgradeMetalSounds.length(); i++)
+			PrecacheSound(upgradeMetalSounds[i]);
+			
 		for (uint i = 0; i < hitFleshSounds.length(); i++)
 			PrecacheSound(hitFleshSounds[i]);
 	}
@@ -417,33 +428,164 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 		}
 	}
 	
+	Item@ getUpgradeItem(int materialType)
+	{
+		switch(materialType)
+		{
+			case 0: return g_items[I_WOOD];
+			case 1: return g_items[I_STONE];
+			case 2: return g_items[I_METAL];
+			case 3: return g_items[I_HQMETAL];
+		}
+		return g_items[I_WOOD];
+	}
+	
+	int getUpgradeCost(int materialType, int partType)
+	{
+		if (materialType == 0)
+		{	
+			switch(partType)
+			{
+				case B_FOUNDATION: 			return 200;
+				case B_FOUNDATION_TRI: 		return 100;
+				case B_FOUNDATION_STEPS: 	return 100;
+				case B_FLOOR: 				return 100;
+				case B_FLOOR_TRI: 			return 50;
+				case B_WALL: 				return 200;
+				case B_LOW_WALL: 			return 100;
+				case B_DOORWAY: 			return 140;
+				case B_WINDOW: 				return 140;
+				case B_STAIRS: 				return 200;
+				case B_STAIRS_L: 			return 200;
+				case B_ROOF: 				return 200;
+			}
+		}
+		else if (materialType == 1)
+		{
+			switch(partType)
+			{
+				case B_FOUNDATION: 			return 300;
+				case B_FOUNDATION_TRI: 		return 150;
+				case B_FOUNDATION_STEPS: 	return 150;
+				case B_FLOOR: 				return 150;
+				case B_FLOOR_TRI: 			return 75;
+				case B_WALL: 				return 300;
+				case B_LOW_WALL: 			return 150;
+				case B_DOORWAY: 			return 210;
+				case B_WINDOW: 				return 210;
+				case B_STAIRS: 				return 300;
+				case B_STAIRS_L: 			return 300;
+				case B_ROOF: 				return 300;
+			}
+		}
+		else if (materialType == 2)
+		{
+			switch(partType)
+			{
+				case B_FOUNDATION: 			return 150;
+				case B_FOUNDATION_TRI: 		return 75;
+				case B_FOUNDATION_STEPS: 	return 75;
+				case B_FLOOR: 				return 75;
+				case B_FLOOR_TRI: 			return 40;
+				case B_WALL: 				return 150;
+				case B_LOW_WALL: 			return 75;
+				case B_DOORWAY: 			return 100;
+				case B_WINDOW: 				return 100;
+				case B_STAIRS: 				return 150;
+				case B_STAIRS_L: 			return 150;
+				case B_ROOF: 				return 150;
+			}
+		}
+		else if (materialType == 3)
+		{
+			switch(partType)
+			{
+				case B_FOUNDATION: 			return 100;
+				case B_FOUNDATION_TRI: 		return 50;
+				case B_FOUNDATION_STEPS: 	return 50;
+				case B_FLOOR: 				return 50;
+				case B_FLOOR_TRI: 			return 25;
+				case B_WALL: 				return 100;
+				case B_LOW_WALL: 			return 50;
+				case B_DOORWAY: 			return 75;
+				case B_WINDOW: 				return 75;
+				case B_STAIRS: 				return 100;
+				case B_STAIRS_L: 			return 100;
+				case B_ROOF: 				return 100;
+			}
+		}
+		return 0;
+	}
+	
 	void UpgradeMenu()
 	{
 		CBasePlayer@ plr = getPlayer();
 		PlayerState@ state = getPlayerState(getPlayer());
 		state.initMenu(plr, upgradeMenuCallback);
+		
+		int partType = lookEnt.pev.colormap;
 
-		state.menu.SetTitle("Upgrade to:\n\n");
-		state.menu.AddItem("Wood\n", any("wood"));
-		state.menu.AddItem("Stone\n", any("stone"));
-		state.menu.AddItem("Metal\n", any("metal"));
-		state.menu.AddItem("Armor\n", any("armor"));
+		state.menu.SetTitle("Upgrade to:\n");
+		state.menu.AddItem("Wood (" + getUpgradeCost(0, partType) + " " + getUpgradeItem(0).title + ")", any("wood"));
+		state.menu.AddItem("Stone (" + getUpgradeCost(1, partType) + " " + getUpgradeItem(1).title + ")", any("stone"));
+		state.menu.AddItem("Metal (" + getUpgradeCost(2, partType) + " " + getUpgradeItem(2).title + ")", any("metal"));
+		state.menu.AddItem("Armor (" + getUpgradeCost(3, partType) + " " + getUpgradeItem(3).title + ")", any("armor"));
 		
 		state.openMenu(plr);
 	}
 	
 	void Upgrade(int material)
 	{
-		if (active and upgrading) 
-		{			
+		CBasePlayer@ plr = getPlayer();
+		if (active and upgrading)
+		{
 			string matname = g_upgrade_suffixes[material+1];
 			string partname = g_part_info[lookEnt.pev.colormap].copy_ent;
 			string size = getModelSize(lookEnt);
 			if (size == "_1x1")
 				size = "";
+			int partType = lookEnt.pev.colormap;
+			if (!g_free_build)
+			{
+				Item@ materialItem = getUpgradeItem(material);
+				int cost = getUpgradeCost(material, partType);
+				if (getItemCount(plr, materialItem.type) < cost)
+				{
+					g_PlayerFuncs.PrintKeyBindingString(plr, "You don't have enough " + materialItem.title);
+					return;
+				}
+				else
+				{
+					HUDTextParams params;
+					params.x = -1;
+					params.y = -1;
+					params.effect = 0;
+					params.r1 = 255;
+					params.g1 = 255;
+					params.b1 = 255;
+					params.fadeinTime = 0;
+					params.fadeoutTime = 0.5f;
+					params.holdTime = 0.0f;
+					params.channel = 2;
+				
+					g_PlayerFuncs.HudMessage(plr, params, "-" + cost + " " + materialItem.title);
+					giveItem(plr, materialItem.type, -cost, false);
+				}
+			}
+			
+			array<string> upgradeSounds = upgradeWoodSounds;
+			switch(material)
+			{
+				case 0: upgradeSounds = upgradeWoodSounds; break;
+				case 1: upgradeSounds = upgradeStoneSounds; break;
+				case 2: upgradeSounds = upgradeMetalSounds; break;
+				case 3: upgradeSounds = upgradeMetalSounds; break;
+			}
+			g_SoundSystem.PlaySound(plr.edict(), lastChannel, getRandomSound(upgradeSounds), 1.0f, 1.0f, 0, 90 + Math.RandomLong(0, 20));
+			lastChannel = lastChannel == CHAN_WEAPON ? CHAN_VOICE : CHAN_WEAPON;
 			
 			g_EntityFuncs.SetModel( lookEnt, getModelFromName(partname + size + matname));
-			if (lookEnt.pev.colormap == B_ROOF)
+			if (partType == B_ROOF)
 				updateRoofWalls(lookEnt);
 			if (buildEnt !is null)
 				buildEnt.pev.rendercolor = Vector(0, 255, 255);

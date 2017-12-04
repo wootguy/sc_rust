@@ -20,6 +20,7 @@ int g_raider_points = 40; // best if multiple of zone count
 bool g_build_point_rounding = true; // rounds build points to a multiple of 10 (may reduce build points)
 bool g_disable_ents = false;
 bool g_build_anywhere = true; // disables build zones
+bool g_free_build = true; // buildings don't cost any materials
 int g_inventory_size = 20;
 int g_max_item_drops = 2; // maximum item drops per player (more drops = less build points)
 float g_tool_cupboard_radius = 512;
@@ -487,6 +488,7 @@ void MapInit()
 	PrecacheSound("debris/wood1.wav");
 	PrecacheSound("debris/wood2.wav");
 	PrecacheSound("debris/wood3.wav");
+	PrecacheSound("ambience/burning3.wav"); // furnace
 	g_Game.PrecacheModel( "models/woodgibs.mdl" );
 	g_Game.PrecacheModel( "models/sc_rust/pine_tree.mdl" );
 	g_Game.PrecacheModel( "models/sc_rust/rock.mdl" );
@@ -578,6 +580,7 @@ void MapActivate()
 		"b_ladder_hatch",
 		"b_small_chest",
 		"b_large_chest",
+		"b_furnace",
 		
 		"b_wood_shutter_r",
 		"b_wood_shutter_l",
@@ -1362,10 +1365,22 @@ void craftMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextM
 			g_Scheduler.SetTimeout("openPlayerMenu", 0, @plr, "unstack-" + (dropType+1));
 		}
 	}
-	else
+	else if (action.Find("craft-") == 0)
 	{
-		if (action == "wood-door") giveItem(@plr, I_WOOD_DOOR, 1);
-		if (action == "tool-cupboard") giveItem(@plr, I_TOOL_CUPBOARD, 1);
+		int itemType = atoi(action.SubString(6));
+		if (itemType >= 0 and itemType < int(g_items.size()))
+		{
+			Item@ craftItem = g_items[itemType];
+			// Try to equip immediately
+			if (craftItem.isWeapon and @plr.HasNamedPlayerItem(craftItem.classname) == null)
+			{
+				plr.SetItemPickupTimes(0);
+				plr.GiveNamedItem(craftItem.classname);
+			}
+			else
+				giveItem(@plr, itemType, 1);
+		}
+		
 		g_Scheduler.SetTimeout("openPlayerMenu", 0, @plr, "");
 	}
 	
@@ -1381,28 +1396,28 @@ void openPlayerMenu(CBasePlayer@ plr, string subMenu)
 	if (subMenu == "build-menu") 
 	{
 		state.menu.SetTitle("Actions -> Craft -> Build:\n");
-		state.menu.AddItem("Wood Door", any("wood-door"));
-		state.menu.AddItem("Metal Door", any("metal-door"));
-		state.menu.AddItem("Wood Shutters", any("wood-shutters"));
-		state.menu.AddItem("Wood Window Bars", any("wood-window-bars"));
-		state.menu.AddItem("Metal Window Bars", any("metal-window-bars"));
-		state.menu.AddItem("Code Lock", any("code-lock"));
-		state.menu.AddItem("Tool Cupboard", any("tool-cupboard"));
-		state.menu.AddItem("High External Wood Wall", any("wood-wall"));
-		state.menu.AddItem("High External Stone Wall", any("stone-wall"));
-		state.menu.AddItem("Ladder", any("ladder"));
-		state.menu.AddItem("Ladder Hatch", any("ladder-hatch"));
+		state.menu.AddItem("Wood Door", any("craft-" + I_WOOD_DOOR));
+		state.menu.AddItem("Wood Shutters", any("craft-" + I_WOOD_SHUTTERS));
+		state.menu.AddItem("Wood Window Bars", any("craft-" + I_WOOD_BARS));
+		state.menu.AddItem("Metal Door", any("craft-" + I_METAL_DOOR));
+		state.menu.AddItem("Metal Window Bars", any("craft-" + I_METAL_BARS));
+		state.menu.AddItem("High External Wood Wall", any("craft-" + I_HIGH_WOOD_WALL));
+		state.menu.AddItem("High External Stone Wall", any("craft-" + I_HIGH_STONE_WALL));
 	}
 	else if (subMenu == "item-menu") 
 	{
 		state.menu.SetTitle("Actions -> Craft -> Items:\n");
-		state.menu.AddItem("Chest", any("small-chest"));
-		state.menu.AddItem("Large Chest", any("large-chest"));
-		state.menu.AddItem("Camp Fire", any("fire"));
-		state.menu.AddItem("Furnace", any("furnace"));
-		state.menu.AddItem("Large Furnace", any("large-furnace"));
-		state.menu.AddItem("Stash", any("stash"));
-		state.menu.AddItem("Sleeping Bag", any("sleeping-bag"));
+		state.menu.AddItem("Code Lock", any("craft-" + I_CODE_LOCK));
+		state.menu.AddItem("Chest", any("craft-" + I_SMALL_CHEST));
+		state.menu.AddItem("Large Chest", any("craft-" + I_LARGE_CHEST));
+		//state.menu.AddItem("Camp Fire", any("fire")); // let's keep things simple and not have a hunger/thirst system
+		state.menu.AddItem("Furnace", any("craft-" + I_FURNACE));
+		state.menu.AddItem("Ladder", any("craft-" + I_LADDER));
+		state.menu.AddItem("Ladder Hatch", any("craft-" + I_LADDER_HATCH));
+		state.menu.AddItem("Tool Cupboard", any("craft-" + I_TOOL_CUPBOARD));
+		//state.menu.AddItem("Large Furnace", any("large-furnace"));
+		//state.menu.AddItem("Stash", any("stash"));
+		//state.menu.AddItem("Sleeping Bag", any("sleeping-bag"));
 	}
 	else if (subMenu == "armor-menu") 
 	{
@@ -1417,21 +1432,23 @@ void openPlayerMenu(CBasePlayer@ plr, string subMenu)
 	else if (subMenu == "tool-menu")
 	{
 		state.menu.SetTitle("Actions -> Craft -> Tools:\n");
-		state.menu.AddItem("Rock", any("rock"));
-		state.menu.AddItem("Torch", any("torch"));
-		state.menu.AddItem("Building Plan", any("build-plan"));
-		state.menu.AddItem("Hammer", any("hammer"));
-		state.menu.AddItem("Stone Hatchet", any("stone-axe"));
-		state.menu.AddItem("Stone Pick Axe", any("stone-pick"));
-		state.menu.AddItem("Metal Hatchet", any("metal-axe"));
-		state.menu.AddItem("Metal Pick Axe", any("metal-pick"));
+		state.menu.AddItem("Rock", any("craft-" + I_ROCK));
+		//state.menu.AddItem("Torch", any("craft-" + I_TORCH)); // no night time due to sc bug
+		state.menu.AddItem("Building Plan", any("craft-" + I_BUILDING_PLAN));
+		state.menu.AddItem("Hammer", any("craft-" + I_HAMMER));
+		state.menu.AddItem("Stone Hatchet", any("craft-" + I_STONE_HATCHET));
+		state.menu.AddItem("Stone Pick Axe", any("craft-" + I_STONE_PICKAXE));
+		state.menu.AddItem("Metal Hatchet", any("craft-" + I_METAL_HATCHET));
+		state.menu.AddItem("Metal Pick Axe", any("craft-" + I_METAL_PICKAXE));
 	}
 	else if (subMenu == "medical-menu")
 	{
 		state.menu.SetTitle("Actions -> Craft -> Medical:\n");
-		state.menu.AddItem("Bandage", any("bandage"));
-		state.menu.AddItem("Small Medkit", any("small-medkit"));
-		state.menu.AddItem("Large Medkit", any("large-medkit"));
+		//state.menu.AddItem("Bandage", any("bandage"));
+		state.menu.AddItem("Syringe", any("craft-" + I_SYRINGE));
+		state.menu.AddItem("Medkit", any("small-medkit"));
+		state.menu.AddItem("Armor Piece", any("small-medkit"));
+		//state.menu.AddItem("Large Medkit", any("large-medkit"));
 		state.menu.AddItem("Acoustic Guitar", any("guitar"));
 	}
 	else if (subMenu == "weapon-menu")
@@ -1629,12 +1646,15 @@ void openPlayerMenu(CBasePlayer@ plr, string subMenu)
 		
 		state.menu.SetTitle("Actions -> Drop " + displayName + ":\n");
 		
-		for (int i = stackSize, k = 0; i >= 5 and k < 8; i /= 2, k++)
+		for (int i = stackSize, k = 0; i >= Math.min(stackSize, 5) and k < 8; i /= 2, k++)
 		{
-			if (i > 10 and i != stackSize)
-				i = (i / 10) * 10;
-			else if (i < 10)
-				i = 5;
+			if (i != stackSize)
+			{
+				if (i > 10)
+					i = (i / 10) * 10;
+				else if (i < 10)
+					i = 5;
+			}
 				
 			string stackString = i;
 			if (i < 10) stackString = "0" + stackString;
@@ -1645,7 +1665,8 @@ void openPlayerMenu(CBasePlayer@ plr, string subMenu)
 			if (amount >= i and stackSize >= i) 
 				state.menu.AddItem("Drop " + prettyNumber(i), any("drop-" + stackString + "-" + itemId));
 		}
-		state.menu.AddItem("Drop 1", any("drop-000001-" + itemId));
+		if (stackSize != 1)
+			state.menu.AddItem("Drop 1", any("drop-000001-" + itemId));
 	}
 	else
 	{
@@ -2053,6 +2074,7 @@ void lootMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextMe
 	if (chest is null)
 		return;
 	func_breakable_custom@ c_chest = cast<func_breakable_custom@>(CastToScriptClass(chest));
+	string chestName = chest.pev.colormap == B_FURNACE ? "Furnace" : "Chest";
 	
 	string submenu = "";
 	
@@ -2111,7 +2133,14 @@ void lootMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextMe
 			}
 			
 			if (overflow > 0)
-				g_PlayerFuncs.PrintKeyBindingString(plr, "Chest is full");
+				g_PlayerFuncs.PrintKeyBindingString(plr, chestName + " is full");
+			
+			if (overflow < amt)
+			{
+				g_PlayerFuncs.PrintKeyBindingString(plr, depositItem.title + " (" + (amt - overflow) + ") was put into the " 
+																+ chestName + "\n\n" + chestName + " capacity: " + 
+																c_chest.items.size() + " / " + c_chest.capacity());
+			}
 		}
 	}
 	else if (action.Find("give-") == 0)
@@ -2142,8 +2171,9 @@ void lootMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextMe
 						c_chest.depositItem(EHandle(newItem));
 						
 						plr.RemovePlayerItem(wep);
-						g_PlayerFuncs.PrintKeyBindingString(plr, wepItem.title + " was put into the chest\n\nChest capacity: " 
-															+ c_chest.items.size() + " / " + c_chest.capacity());
+						g_PlayerFuncs.PrintKeyBindingString(plr, wepItem.title + " was put into the " + chestName + "\n\n" + 
+																chestName + " capacity: " + 
+																c_chest.items.size() + " / " + c_chest.capacity());
 					}
 					else
 						println("Unknown weapon: " + itemName);		
@@ -2169,7 +2199,7 @@ void lootMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextMe
 				}
 			}
 			else
-				g_PlayerFuncs.PrintKeyBindingString(plr, "Chest is full");
+				g_PlayerFuncs.PrintKeyBindingString(plr, chestName + " is full");
 		}			
 	}
 	else if (action.Find("loot-") == 0)
@@ -2392,13 +2422,18 @@ void openLootMenu(CBasePlayer@ plr, CBaseEntity@ corpse, string submenu="")
 			case B_LARGE_CHEST:
 				title = "Large Chest:";
 				break;
+			case B_FURNACE:
+				title = "Furnace:";
+				break;
 		}
 		
 		if (submenu == "give")
 		{			
 			title += " -> Give";
+			bool isFurnace = corpse.pev.colormap == B_FURNACE;
+			int count = 0;
 			
-			for (uint i = 0; i < MAX_ITEM_TYPES; i++)
+			for (uint i = 0; i < MAX_ITEM_TYPES and !isFurnace; i++)
 			{
 				CBasePlayerItem@ item = plr.m_rgpPlayerItems(i);
 				while (item !is null)
@@ -2406,12 +2441,13 @@ void openLootMenu(CBasePlayer@ plr, CBaseEntity@ corpse, string submenu="")
 					Item@ invItem = getItemByClassname(item.pev.classname);
 					string displayName = invItem !is null ? invItem.title : string(item.pev.classname);
 					state.menu.AddItem(displayName, any("give-" + item.pev.classname));
+					count++;
 					@item = cast<CBasePlayerItem@>(item.m_hNextItem.GetEntity());		
 				}
 			}
 			
 			dictionary stacks;
-			for (uint i = 0; i < g_ammo_types.size(); i++)
+			for (uint i = 0; i < g_ammo_types.size() and !isFurnace; i++)
 			{
 				int ammo = plr.m_rgAmmo(g_PlayerFuncs.GetAmmoIndex(g_ammo_types[i]));
 				if (ammo > 0)
@@ -2431,14 +2467,18 @@ void openLootMenu(CBasePlayer@ plr, CBaseEntity@ corpse, string submenu="")
 					Item@ wep = g_items[item.pev.colormap-1];
 					if (wep !is null)
 					{
-						if (stacks.exists(wep.type))
+						if (!isFurnace or (wep.type == I_WOOD or wep.type == I_METAL_ORE or wep.type == I_HQMETAL_ORE))
 						{
-							int oldCount = 0;
-							stacks.get(wep.type, oldCount);
-							stacks[wep.type] = oldCount + item.pev.button;
+							if (stacks.exists(wep.type))
+							{
+								int oldCount = 0;
+								stacks.get(wep.type, oldCount);
+								stacks[wep.type] = oldCount + item.pev.button;
+							}
+							else
+								stacks[wep.type] = item.pev.button;
 						}
-						else
-							stacks[wep.type] = item.pev.button;
+						
 					}
 				}
 				@inv = inv.pNext;
@@ -2451,7 +2491,10 @@ void openLootMenu(CBasePlayer@ plr, CBaseEntity@ corpse, string submenu="")
 				int amt = 1;
 				stacks.get(stackKeys[i], amt);
 				state.menu.AddItem(item.title + (item.stackSize > 1 ? " (" + amt + ")" : ""), any("give-" + item.type));
+				count++;
 			}
+			if (count == 0)
+				state.menu.AddItem("(no items to gives)", any(""));
 		}
 		else if (submenu.Find("givestack-") == 0)
 		{
@@ -2472,12 +2515,15 @@ void openLootMenu(CBasePlayer@ plr, CBaseEntity@ corpse, string submenu="")
 			
 			title += " -> Give " + displayName;
 			
-			for (int i = stackSize, k = 0; i >= 5 and k < 8; i /= 2, k++)
+			for (int i = stackSize, k = 0; i >= Math.min(stackSize, 5) and k < 8; i /= 2, k++)
 			{
-				if (i > 10 and i != stackSize)
-					i = (i / 10) * 10;
-				else if (i < 10)
-					i = 5;
+				if (i != stackSize)
+				{
+					if (i > 10)
+						i = (i / 10) * 10;
+					else if (i < 10)
+						i = 5;
+				}
 					
 				string stackString = i;
 				if (i < 10) stackString = "0" + stackString;
@@ -2488,7 +2534,8 @@ void openLootMenu(CBasePlayer@ plr, CBaseEntity@ corpse, string submenu="")
 				if (amount >= i and stackSize >= i) 
 					state.menu.AddItem("Give " + prettyNumber(i), any("givestack-" + stackString + "-" + itemId));
 			}
-			state.menu.AddItem("Give 1", any("givestack-000001-" + itemId));
+			if (stackSize != 1)
+				state.menu.AddItem("Give 1", any("givestack-000001-" + itemId));
 		}
 		else if (submenu == "take")
 		{
@@ -2675,7 +2722,7 @@ HookReturnCode PlayerUse( CBasePlayer@ plr, uint& out )
 					g_PlayerFuncs.PrintKeyBindingString(plr, "You are now authorized to build");
 				}
 			}
-			else if (phit.pev.colormap == B_LARGE_CHEST)
+			else if (phit.pev.colormap == B_LARGE_CHEST or phit.pev.colormap == B_SMALL_CHEST or phit.pev.colormap == B_FURNACE)
 			{
 				state.currentChest = phit;
 				openLootMenu(plr, phit);
@@ -3322,6 +3369,7 @@ void loadPart(int idx)
 			keys["renderamt"] = "255";
 			keys["id"] = "" + id;
 			keys["parent"] = "" + parent;
+			keys["colormap"] = "" + type;
 			
 			int socket = socketType(type);
 			if (socket == SOCKET_DOORWAY or type == B_WOOD_SHUTTERS or type == B_LADDER_HATCH)
@@ -3345,7 +3393,6 @@ void loadPart(int idx)
 			CBaseEntity@ ent = g_EntityFuncs.CreateEntity(classname, keys, true);
 			int zoneid = getBuildZone(ent);
 			ent.KeyValue("zoneid", "" + zoneid);
-			ent.pev.colormap = type;
 			ent.pev.button = button;
 			ent.pev.body = body;
 			ent.pev.vuser1 = vuser1;

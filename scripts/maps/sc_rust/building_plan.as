@@ -1,21 +1,24 @@
 #include "utils"
 
 float EPSILON = 0.03125f;
+int BUILD_MATERIAL = I_WOOD; // material needed to build stuff
 
 class BuildPartInfo
 {
 	int type;
 	string copy_ent;
 	string title;
+	int cost; // material needed to build
 	
 	BuildPartInfo() {
 		type = -1;
 	}
 	
-	BuildPartInfo(int t, string tit, string copy) {
+	BuildPartInfo(int t, string tit, string copy, int matCost) {
 		type = t;
 		copy_ent = copy;
 		title = tit;
+		cost = matCost;
 	}
 }
 
@@ -73,6 +76,7 @@ enum build_types
 	B_LADDER_HATCH,
 	B_SMALL_CHEST,
 	B_LARGE_CHEST,
+	B_FURNACE,
 	
 	B_ITEM_TYPES,
 };
@@ -94,9 +98,14 @@ enum item_types
 	I_LADDER_HATCH,
 	I_SMALL_CHEST,
 	I_LARGE_CHEST,
+	I_FURNACE,
 	
 	I_WOOD,
 	I_STONE,
+	I_METAL,
+	I_HQMETAL,
+	I_METAL_ORE,
+	I_HQMETAL_ORE,
 	I_HAMMER,
 	I_BUILDING_PLAN,
 	I_ROCK,
@@ -135,32 +144,33 @@ enum builder_status
 }
 
 array<BuildPartInfo> g_part_info = {
-	BuildPartInfo(B_FOUNDATION, "Square Foundation", "b_foundation"),
-	BuildPartInfo(B_FOUNDATION_TRI, "Triangle Foundation", "b_foundation_tri"),
-	BuildPartInfo(B_WALL, "Wall", "b_wall"),
-	BuildPartInfo(B_DOORWAY, "Doorway", "b_doorway"),
-	BuildPartInfo(B_WINDOW, "Window", "b_window"),
-	BuildPartInfo(B_LOW_WALL, "Low Wall", "b_low_wall"),
-	BuildPartInfo(B_FLOOR, "Square Floor", "b_floor"),
-	BuildPartInfo(B_FLOOR_TRI, "Triangle Floor", "b_floor_tri"),
-	BuildPartInfo(B_ROOF, "Roof", "b_roof"),
-	BuildPartInfo(B_STAIRS, "Stairs (U-shape)", "b_stairs"),
-	BuildPartInfo(B_STAIRS_L, "Stairs (L-shape)", "b_stairs_l"),
-	BuildPartInfo(B_FOUNDATION_STEPS, "Foundation Steps", "b_foundation_steps"),
+	BuildPartInfo(B_FOUNDATION, "Square Foundation", "b_foundation", 200),
+	BuildPartInfo(B_FOUNDATION_TRI, "Triangle Foundation", "b_foundation_tri", 100),
+	BuildPartInfo(B_WALL, "Wall", "b_wall", 200),
+	BuildPartInfo(B_DOORWAY, "Doorway", "b_doorway", 140),
+	BuildPartInfo(B_WINDOW, "Window", "b_window", 140),
+	BuildPartInfo(B_LOW_WALL, "Low Wall", "b_low_wall", 100),
+	BuildPartInfo(B_FLOOR, "Square Floor", "b_floor", 100),
+	BuildPartInfo(B_FLOOR_TRI, "Triangle Floor", "b_floor_tri", 50),
+	BuildPartInfo(B_ROOF, "Roof", "b_roof", 200),
+	BuildPartInfo(B_STAIRS, "Stairs (U-shape)", "b_stairs", 200),
+	BuildPartInfo(B_STAIRS_L, "Stairs (L-shape)", "b_stairs_l", 200),
+	BuildPartInfo(B_FOUNDATION_STEPS, "Foundation Steps", "b_foundation_steps", 100),
 	
-	BuildPartInfo(B_WOOD_DOOR, "Wood Door", "b_wood_door"),
-	BuildPartInfo(B_METAL_DOOR, "Metal Door", "b_metal_door"),
-	BuildPartInfo(B_WOOD_BARS, "Wood Window Bars", "b_wood_bars"),
-	BuildPartInfo(B_METAL_BARS, "Metal Window Bars", "b_metal_bars"),
-	BuildPartInfo(B_WOOD_SHUTTERS, "Wood Shutters", "b_wood_shutters"),
-	BuildPartInfo(B_CODE_LOCK, "Code Lock", "b_code_lock"),
-	BuildPartInfo(B_TOOL_CUPBOARD, "Tool Cupboard", "b_tool_cupboard"),
-	BuildPartInfo(B_HIGH_WOOD_WALL, "High External Wood Wall", "b_high_wood_wall"),
-	BuildPartInfo(B_HIGH_STONE_WALL, "High External Stone Wall", "b_high_stone_wall"),
-	BuildPartInfo(B_LADDER, "Ladder", "b_ladder"),
-	BuildPartInfo(B_LADDER_HATCH, "Ladder Hatch", "b_ladder_hatch"),
-	BuildPartInfo(B_SMALL_CHEST, "Small Chest", "b_small_chest"),
-	BuildPartInfo(B_LARGE_CHEST, "Large Chest", "b_large_chest"),
+	BuildPartInfo(B_WOOD_DOOR, "Wood Door", "b_wood_door", 0),
+	BuildPartInfo(B_METAL_DOOR, "Metal Door", "b_metal_door", 0),
+	BuildPartInfo(B_WOOD_BARS, "Wood Window Bars", "b_wood_bars", 0),
+	BuildPartInfo(B_METAL_BARS, "Metal Window Bars", "b_metal_bars", 0),
+	BuildPartInfo(B_WOOD_SHUTTERS, "Wood Shutters", "b_wood_shutters", 0),
+	BuildPartInfo(B_CODE_LOCK, "Code Lock", "b_code_lock", 0),
+	BuildPartInfo(B_TOOL_CUPBOARD, "Tool Cupboard", "b_tool_cupboard", 0),
+	BuildPartInfo(B_HIGH_WOOD_WALL, "High External Wood Wall", "b_high_wood_wall", 0),
+	BuildPartInfo(B_HIGH_STONE_WALL, "High External Stone Wall", "b_high_stone_wall", 0),
+	BuildPartInfo(B_LADDER, "Ladder", "b_ladder", 0),
+	BuildPartInfo(B_LADDER_HATCH, "Ladder Hatch", "b_ladder_hatch", 0),
+	BuildPartInfo(B_SMALL_CHEST, "Small Chest", "b_small_chest", 0),
+	BuildPartInfo(B_LARGE_CHEST, "Large Chest", "b_large_chest", 0),
+	BuildPartInfo(B_FURNACE, "Furnace", "b_furnace", 0),
 };
 
 array<Item> g_items = {	
@@ -175,11 +185,16 @@ array<Item> g_items = {
 	Item(I_HIGH_STONE_WALL, 1, false, false, "", "High External Stone Wall", "b_stone_wall"),
 	Item(I_LADDER, 1, false, false, "", "Ladder", "b_ladder"),
 	Item(I_LADDER_HATCH, 1, false, false, "", "Ladder Hatch", "b_ladder_hatch"),
-	Item(I_SMALL_CHEST, 1, false, false, "", "Small Chest", "Keep your things in this storage box. Stores up to X items"),
-	Item(I_LARGE_CHEST, 1, false, false, "", "Large Chest", "Keep your things in this storage box. Stores up to X items"),
+	Item(I_SMALL_CHEST, 1, false, false, "", "Small Chest", "Keep your things in this storage box. Stores up to " + CHEST_ITEM_MAX_SMALL + " items."),
+	Item(I_LARGE_CHEST, 1, false, false, "", "Large Chest", "Keep your things in this storage box. Stores up to " + CHEST_ITEM_MAX_LARGE + " items."),
+	Item(I_FURNACE, 1, false, false, "", "Furnace", "Use this to smelt mined ore."),
 	
 	Item(I_WOOD, 200, false, false, "", "Wood", "Collected from trees and used to build bases and craft items."),
 	Item(I_STONE, 1000, false, false, "", "Stone", "Collected from rocks and used to reinforce bases and craft items."),
+	Item(I_METAL, 1000, false, false, "", "Metal", "Smelted from metal ore."),
+	Item(I_HQMETAL, 100, false, false, "", "HQ Metal", "High quality metal smelted from HQ Metal Ore."),
+	Item(I_METAL_ORE, 1000, false, false, "", "Metal Ore", "Collected from rocks. Smelt this in a furnace to produce Metal."),
+	Item(I_HQMETAL_ORE, 100, false, false, "", "HQ Metal Ore", "Collected from rocks. Smelt this in a furnace to produce HQ Metal."),
 	Item(I_HAMMER, 1, true, false, "weapon_hammer", "Hammer", "Used to upgrade, repair, and merge base parts."),
 	Item(I_BUILDING_PLAN, 1, true, false, "weapon_building_plan", "Building Plan", "Used to craft buildings."),
 	Item(I_ROCK, 1, true, false, "weapon_rock", "Rock", "The most basic melee weapon and gathering tool."),
@@ -312,7 +327,9 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 		// increment force_retouch
 		//g_EntityFuncs.FireTargets("push", null, null, USE_TOGGLE);
 		
-		g_PlayerFuncs.PrintKeyBindingString(getPlayer(), g_part_info[buildType].title);
+		string cost = "\n\n(" + g_part_info[buildType].cost + " " + g_items[BUILD_MATERIAL].title + ")";
+		
+		g_PlayerFuncs.PrintKeyBindingString(getPlayer(), g_part_info[buildType].title + cost);
 	}
 	
 	void Holster(int iSkipLocal = 0) 
@@ -1137,6 +1154,32 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 			
 			if (zoneid != state.home_zone)
 				getBuildZone(zoneid).numRaiderParts++;
+		}
+		
+		if (!g_free_build)
+		{
+			if (getItemCount(plr, BUILD_MATERIAL) < g_part_info[buildType].cost)
+			{
+				g_PlayerFuncs.PrintKeyBindingString(plr, "You don't have enough " + g_items[BUILD_MATERIAL].title);
+				return;
+			}
+			else
+			{
+				HUDTextParams params;
+				params.x = -1;
+				params.y = -1;
+				params.effect = 0;
+				params.r1 = 255;
+				params.g1 = 255;
+				params.b1 = 255;
+				params.fadeinTime = 0;
+				params.fadeoutTime = 0.5f;
+				params.holdTime = 0.0f;
+				params.channel = 2;
+			
+				g_PlayerFuncs.HudMessage(plr, params, "-" + g_part_info[buildType].cost + " " + g_items[BUILD_MATERIAL].title);
+				giveItem(plr, BUILD_MATERIAL, -g_part_info[buildType].cost, false);
+			}
 		}
 		
 		if (buildEnt !is null && validBuild) 
