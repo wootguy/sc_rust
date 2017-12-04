@@ -203,7 +203,7 @@ array<Item> g_items = {
 	Item(I_METAL_HATCHET, 1, true, false, "weapon_metal_hatchet", "Metal Hatchet", "Effective tree chopper and melee weapon"),
 	Item(I_METAL_PICKAXE, 1, true, false, "weapon_metal_pickaxe", "Metal Pickaxe", "Effective rock breaker and melee weapon"),
 	Item(I_BOW, 1, true, false, "weapon_bow", "Hunting Bow", "Hard to aim with lag. Right-click to load and aim, left-click to fire."),
-	Item(I_SYRINGE, 1, true, false, "weapon_syringe", "Syringe", "Right-click heals you, left-click heals a target."),
+	Item(I_SYRINGE, 100, true, false, "weapon_syringe", "Syringe", "Right-click heals you, left-click heals a target."),
 	Item(I_FLAMETHROWER, 1, true, false, "weapon_flamethrower", "Flame Thrower", "Effective against wood and flesh. Does not damage stone or metal."),
 	Item(I_SAW, 1, true, false, "weapon_m249", "M249 SAW", "Powerful machine gun with a high firing rate and damage."),
 	

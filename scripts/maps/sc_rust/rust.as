@@ -1226,6 +1226,8 @@ void craftMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextM
 	else if (action.Find("unequip-") == 0)
 	{
 		string name = action.SubString(8);
+		if (name == "health")
+			name = "weapon_syringe";
 		
 		CBasePlayerItem@ wep = plr.HasNamedPlayerItem(name);
 		if (wep !is null)
@@ -1235,9 +1237,17 @@ void craftMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextM
 			Item@ invItem = getItemByClassname(name);
 			if (invItem !is null)
 			{
-				if (giveItem(plr, invItem.type, cwep.m_iClip) == 0)
+				int clip = cwep.m_iClip;
+				
+				int ammoIdx = g_PlayerFuncs.GetAmmoIndex("health");
+				if (invItem.type == I_SYRINGE)
+					clip = plr.m_rgAmmo(ammoIdx);
+				
+				if (giveItem(plr, invItem.type, clip) == 0)
 				{					
 					plr.RemovePlayerItem(wep);
+					if (invItem.type == I_SYRINGE)
+						plr.m_rgAmmo(ammoIdx, 0);
 					g_PlayerFuncs.PrintKeyBindingString(plr, invItem.title + " was moved your inventory");
 				}
 			}
@@ -1297,6 +1307,26 @@ void craftMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextM
 					{
 						CBasePlayerWeapon@ givenWep = cast<CBasePlayerWeapon@>(givenItem);
 						givenWep.m_iClip = clip;
+						if (invItem.type == I_SYRINGE)
+							plr.GiveAmmo(clip, "health", 9999);
+					}
+				}
+				else if (invItem.type == I_SYRINGE)
+				{
+					InventoryList@ inv = plr.get_m_pInventory();
+					int clip = 0;
+					while (inv !is null)
+					{
+						CItemInventory@ wep = cast<CItemInventory@>(inv.hItem.GetEntity());
+						@inv = inv.pNext;
+						if (wep.pev.colormap == itemId)
+						{
+							clip = wep.pev.button;
+							wep.pev.renderfx = -9999;
+							plr.GiveAmmo(clip, "health", 9999);
+							g_Scheduler.SetTimeout("delay_remove", 0, EHandle(wep));
+							break;
+						}
 					}
 				}
 				else
@@ -1347,11 +1377,15 @@ void craftMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextM
 				dropLeft -= giveInvAmt;
 			}
 			
-			if (dropLeft > 0 and dropItem.isAmmo)
+			bool noMoreAmmo = false;
+			if (dropLeft > 0 and (dropItem.isAmmo or dropItem.type == I_SYRINGE))
 			{
-				int ammoIdx = g_PlayerFuncs.GetAmmoIndex(dropItem.classname);
+				string cname = dropItem.type == I_SYRINGE ? "health" : dropItem.classname;
+				int ammoIdx = g_PlayerFuncs.GetAmmoIndex(cname);
 				int ammo = plr.m_rgAmmo(ammoIdx);
 				int giveAmmo = Math.min(ammo, dropLeft);
+				
+				noMoreAmmo = ammo <= giveAmmo;
 				
 				if (giveAmmo > 0)
 				{			
@@ -1361,6 +1395,10 @@ void craftMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextM
 			}
 			
 			giveItem(plr, dropType, dropAmt - dropLeft, true); // drop selected/max amount
+			if (dropItem.type == I_SYRINGE and noMoreAmmo)
+			{
+				g_EntityFuncs.Remove(@plr.HasNamedPlayerItem(dropItem.classname));
+			}
 			
 			g_Scheduler.SetTimeout("openPlayerMenu", 0, @plr, "unstack-" + (dropType+1));
 		}
@@ -1372,7 +1410,22 @@ void craftMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextM
 		{
 			Item@ craftItem = g_items[itemType];
 			// Try to equip immediately
-			if (craftItem.isWeapon and @plr.HasNamedPlayerItem(craftItem.classname) == null)
+			if (craftItem.classname == "weapon_syringe")
+			{					
+				int ammoIdx = g_PlayerFuncs.GetAmmoIndex("health");
+				int oldAmmo = plr.m_rgAmmo(ammoIdx);
+				if (oldAmmo < 100)
+					plr.GiveAmmo(1, "health", 9999);
+				else
+					giveItem(@plr, itemType, 1);
+					
+				if (@plr.HasNamedPlayerItem(craftItem.classname) == null)
+				{
+					plr.SetItemPickupTimes(0);
+					plr.GiveNamedItem(craftItem.classname);
+				}
+			}
+			else if (craftItem.isWeapon and @plr.HasNamedPlayerItem(craftItem.classname) == null)
 			{
 				plr.SetItemPickupTimes(0);
 				plr.GiveNamedItem(craftItem.classname);
@@ -1381,7 +1434,7 @@ void craftMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextM
 				giveItem(@plr, itemType, 1);
 		}
 		
-		g_Scheduler.SetTimeout("openPlayerMenu", 0, @plr, "");
+		g_Scheduler.SetTimeout("openPlayerMenu", 0, @plr, "craft-menu");
 	}
 	
 	menu.Unregister();
@@ -1503,8 +1556,8 @@ void openPlayerMenu(CBasePlayer@ plr, string subMenu)
 				Item@ wep = g_items[item.pev.colormap-1];
 				if (wep !is null and (wep.isWeapon or wep.isAmmo) and !listed.exists(wep.classname))
 				{
-					int amt = wep.isAmmo ? getItemCount(plr, wep.type, false) : 1;
-					state.menu.AddItem(wep.title + (wep.isAmmo ? " (" + amt + ")" : ""), any("equip-" + item.pev.colormap));
+					int amt = wep.isAmmo ? getItemCount(plr, wep.type, false) : item.pev.button;
+					state.menu.AddItem(wep.title + (wep.stackSize > 1 ? " (" + amt + ")" : ""), any("equip-" + item.pev.colormap));
 					listed[wep.classname] = 1;
 					count++;
 				}
@@ -1529,8 +1582,11 @@ void openPlayerMenu(CBasePlayer@ plr, string subMenu)
 			while (item !is null)
 			{
 				Item@ invItem = getItemByClassname(item.pev.classname);
-				string displayName = invItem !is null ? invItem.title : string(item.pev.classname);
-				state.menu.AddItem(displayName, any("unequip-" + item.pev.classname));
+				if (invItem.type != I_SYRINGE)
+				{
+					string displayName = invItem !is null ? invItem.title : string(item.pev.classname);
+					state.menu.AddItem(displayName, any("unequip-" + item.pev.classname));
+				}
 				@item = cast<CBasePlayerItem@>(item.m_hNextItem.GetEntity());		
 				count++;
 			}
@@ -1568,9 +1624,10 @@ void openPlayerMenu(CBasePlayer@ plr, string subMenu)
 			if (item !is null and item.pev.colormap > 0)
 			{
 				Item@ wep = g_items[item.pev.colormap-1];
-				if (wep !is null and !wep.isAmmo and wep.stackSize > 1 and !types.exists(item.pev.colormap))
+				if (wep !is null and !wep.isAmmo and !wep.isWeapon and wep.stackSize > 1 and !types.exists(item.pev.colormap))
 				{
-					state.menu.AddItem(wep.title, any("unstack-" + item.pev.colormap));
+					string title = wep.title;
+					state.menu.AddItem(title, any("unstack-" + item.pev.colormap));
 					types[item.pev.colormap] = true;
 					count++;
 				}
@@ -1616,7 +1673,7 @@ void openPlayerMenu(CBasePlayer@ plr, string subMenu)
 			Item@ item = g_items[ atoi(stackKeys[i]) ];
 			int amt = 1;
 			stacks.get(stackKeys[i], amt);
-			state.menu.AddItem(item.title + (item.stackSize > 1 ? " (" + amt + ")" : ""), any("unstack-" + (item.type+1)));
+			state.menu.AddItem(item.title + (item.stackSize > 1 or item.type == I_SYRINGE ? " (" + amt + ")" : ""), any("unstack-" + (item.type+1)));
 			count++;
 		}
 		
@@ -2111,11 +2168,14 @@ void lootMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextMe
 				giveItem(plr, depositItem.type, -giveInvAmt);
 			}
 			
-			if (overflow == 0 and depositItem.isAmmo)
+			if (overflow == 0 and depositItem.isAmmo or depositItem.type == I_SYRINGE)
 			{
 				amt -= giveInvAmt; // now give from equipped ammo if not enough was in inventory
 				
-				int ammoIdx = g_PlayerFuncs.GetAmmoIndex(depositItem.classname);
+				string ammoName = depositItem.classname;
+				if (depositItem.type == I_SYRINGE)
+					ammoName = "health";
+				int ammoIdx = g_PlayerFuncs.GetAmmoIndex(ammoName);
 				int ammo = plr.m_rgAmmo(ammoIdx);
 				int giveAmmo = Math.min(ammo, amt);
 				
@@ -2130,6 +2190,9 @@ void lootMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextMe
 					giveItem(plr, depositItem.type, -giveAmmo);
 					plr.m_rgAmmo(ammoIdx, ammo - giveAmmo);
 				}
+				
+				if (giveAmmo >= ammo and depositItem.type == I_SYRINGE)
+					g_EntityFuncs.Remove(plr.HasNamedPlayerItem("weapon_syringe"));
 			}
 			
 			if (overflow > 0)
@@ -2313,11 +2376,30 @@ void lootMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextMe
 					}
 					
 					int amtLeft = amt;
-					if (takeItem.isWeapon and @plr.HasNamedPlayerItem(takeItem.classname) == null)
+					if (takeItem.type == I_SYRINGE)
+					{
+						if (@plr.HasNamedPlayerItem(takeItem.classname) == null)
+						{
+							plr.SetItemPickupTimes(0);
+							plr.GiveNamedItem(takeItem.classname);
+						}
+						
+						int ammoIdx = g_PlayerFuncs.GetAmmoIndex("health");
+						int beforeAmmo = plr.m_rgAmmo(ammoIdx);
+						plr.GiveAmmo(item.pev.button, "health", 9999); // TODO: set proper max?
+						int amtGiven = plr.m_rgAmmo(ammoIdx) - beforeAmmo;
+						item.pev.button -= amtGiven;
+						amtLeft = giveItem(plr, item.pev.colormap-1, item.pev.button);
+						
+						if (amtGiven > 0)
+							g_SoundSystem.PlaySound(plr.edict(), CHAN_ITEM, "items/9mmclip1.wav", 1.0f, 1.0f, 0, 100);
+					}
+					else if (takeItem.isWeapon and @plr.HasNamedPlayerItem(takeItem.classname) == null)
 					{
 						plr.SetItemPickupTimes(0);
 						plr.GiveNamedItem(takeItem.classname);
-						amt = 0;
+						amtLeft = amt = 0;
+						cast<CBasePlayerWeapon@>(plr.HasNamedPlayerItem(takeItem.classname)).m_iClip = item.pev.button;
 					}
 					else
 						amtLeft = giveItem(plr, type-1, amt);
@@ -2439,9 +2521,12 @@ void openLootMenu(CBasePlayer@ plr, CBaseEntity@ corpse, string submenu="")
 				while (item !is null)
 				{
 					Item@ invItem = getItemByClassname(item.pev.classname);
-					string displayName = invItem !is null ? invItem.title : string(item.pev.classname);
-					state.menu.AddItem(displayName, any("give-" + item.pev.classname));
-					count++;
+					if (invItem.type != I_SYRINGE)
+					{
+						string displayName = invItem !is null ? invItem.title : string(item.pev.classname);
+						state.menu.AddItem(displayName, any("give-" + item.pev.classname));
+						count++;
+					}
 					@item = cast<CBasePlayerItem@>(item.m_hNextItem.GetEntity());		
 				}
 			}
@@ -2747,11 +2832,30 @@ HookReturnCode PlayerUse( CBasePlayer@ plr, uint& out )
 						// try to equip immediately
 						Item@ item = g_items[lookType];
 						int barf = 1;
-						if (item.isWeapon and @plr.HasNamedPlayerItem(item.classname) == null)
+						if (item.type == I_SYRINGE)
+						{
+							if (@plr.HasNamedPlayerItem(item.classname) == null)
+							{
+								plr.SetItemPickupTimes(0);
+								plr.GiveNamedItem(item.classname);
+							}
+							
+							int ammoIdx = g_PlayerFuncs.GetAmmoIndex("health");
+							int beforeAmmo = plr.m_rgAmmo(ammoIdx);
+							plr.GiveAmmo(lookItem.pev.button, "health", 9999); // TODO: set proper max?
+							int amtGiven = plr.m_rgAmmo(ammoIdx) - beforeAmmo;
+							lookItem.pev.button -= amtGiven;
+							barf = giveItem(plr, lookItem.pev.colormap-1, lookItem.pev.button);
+							
+							if (amtGiven > 0)
+								g_SoundSystem.PlaySound(plr.edict(), CHAN_ITEM, "items/9mmclip1.wav", 1.0f, 1.0f, 0, 100);
+						}
+						else if (item.isWeapon and @plr.HasNamedPlayerItem(item.classname) == null)
 						{
 							plr.SetItemPickupTimes(0);
 							plr.GiveNamedItem(item.classname);
 							barf = 0;
+							cast<CBasePlayerWeapon@>(plr.HasNamedPlayerItem(item.classname)).m_iClip = lookItem.pev.button;
 						}
 						else if (item.isAmmo)
 						{

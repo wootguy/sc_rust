@@ -192,6 +192,8 @@ string getModelFromName(string partName)
 
 Item@ getItemByClassname(string cname)
 {
+	if (cname == "health")
+		cname = "weapon_syringe";
 	for (uint i = 0; i < g_items.size(); i++)
 		if (cname == g_items[i].classname)
 			return @g_items[i];
@@ -215,6 +217,8 @@ int getItemCount(CBasePlayer@ plr, int itemType, bool includeEquipment = true)
 		Item@ item = g_items[itemType];
 		if (item.isAmmo)
 			count += plr.m_rgAmmo(g_PlayerFuncs.GetAmmoIndex(item.classname));
+		else if (item.type == I_SYRINGE)
+			count += plr.m_rgAmmo(g_PlayerFuncs.GetAmmoIndex("health"));
 	}
 	
 	return count;
