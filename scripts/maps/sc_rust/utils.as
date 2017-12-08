@@ -192,10 +192,8 @@ string getModelFromName(string partName)
 
 Item@ getItemByClassname(string cname)
 {
-	if (cname == "health")
-		cname = "weapon_syringe";
 	for (uint i = 0; i < g_items.size(); i++)
-		if (cname == g_items[i].classname)
+		if (cname == g_items[i].classname or cname == g_items[i].ammoName)
 			return @g_items[i];
 	return null;
 }
@@ -215,10 +213,13 @@ int getItemCount(CBasePlayer@ plr, int itemType, bool includeEquipment = true)
 	if (includeEquipment and itemType >= 0 and itemType < int(g_items.size()))
 	{
 		Item@ item = g_items[itemType];
-		if (item.isAmmo)
-			count += plr.m_rgAmmo(g_PlayerFuncs.GetAmmoIndex(item.classname));
-		else if (item.type == I_SYRINGE)
-			count += plr.m_rgAmmo(g_PlayerFuncs.GetAmmoIndex("health"));
+		if (item.isAmmo or item.stackSize > 1)
+		{
+			string ammoName = item.classname;
+			if (item.stackSize > 1 and !item.isAmmo)
+				ammoName = item.ammoName;
+			count += plr.m_rgAmmo(g_PlayerFuncs.GetAmmoIndex(ammoName));
+		}
 	}
 	
 	return count;
@@ -428,6 +429,7 @@ bool isFloorItem(CBaseEntity@ ent)
 		case B_TOOL_CUPBOARD:
 		case B_SMALL_CHEST:
 		case B_LARGE_CHEST:
+		case B_FURNACE:
 			return true;
 	}
 	return false;
@@ -438,7 +440,7 @@ bool isUpgradable(CBaseEntity@ ent)
 	int type = ent.pev.colormap;
 	int socket = socketType(type);
 	return ent.pev.classname == "func_breakable_custom" and socket != SOCKET_WINDOW and type != B_LADDER_HATCH and
-			type != B_LADDER and socket != SOCKET_HIGH_WALL and !isFloorItem(ent);
+			type != B_LADDER and socket != SOCKET_HIGH_WALL and !isFloorItem(ent) and type != -1;
 }
 
 bool canPlaceOnTerrain(int partType)
@@ -523,6 +525,15 @@ TraceResult TraceLook(CBasePlayer@ plr, float dist=128, bool bigHull=false)
 	else
 		g_Utility.TraceLine( vecSrc, vecEnd, dont_ignore_monsters, plr.edict(), tr );
 	return tr;
+}
+
+// returns amount that was actually given
+int giveAmmo(CBasePlayer@ plr, int amt, string type)
+{
+	int ammoIdx = g_PlayerFuncs.GetAmmoIndex(type);
+	int beforeAmmo = plr.m_rgAmmo(ammoIdx);
+	plr.GiveAmmo(amt, type, 9999); // TODO: set proper max?
+	return plr.m_rgAmmo(ammoIdx) - beforeAmmo;
 }
 
 // actual center of the part, not the origin

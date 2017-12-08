@@ -489,6 +489,8 @@ void MapInit()
 	PrecacheSound("debris/wood2.wav");
 	PrecacheSound("debris/wood3.wav");
 	PrecacheSound("ambience/burning3.wav"); // furnace
+	PrecacheSound("items/ammopickup1.wav"); // armor
+	PrecacheSound("items/ammopickup2.wav"); // armor
 	g_Game.PrecacheModel( "models/woodgibs.mdl" );
 	g_Game.PrecacheModel( "models/sc_rust/pine_tree.mdl" );
 	g_Game.PrecacheModel( "models/sc_rust/rock.mdl" );
@@ -1012,14 +1014,18 @@ int combineItemStacks(CBasePlayer@ plr, int addedType)
 			int type = item.pev.colormap-1;
 			if (g_items[type].stackSize > 1 and type >= 0)
 			{
-				int newTotal = 0;
-				if (totals.exists(type))
-					totals.get(type, newTotal);
-				newTotal += item.pev.button;
-				totals[type] = newTotal;
-				
-				item.pev.renderfx = -9999;
-				g_EntityFuncs.Remove(item);
+				if (item.pev.button != g_items[type].stackSize)
+				{
+					int newTotal = 0;
+					if (totals.exists(type))
+						totals.get(type, newTotal);
+					newTotal += item.pev.button;
+					totals[type] = newTotal;
+					
+					item.pev.renderfx = -9999;
+					
+					g_EntityFuncs.Remove(item);
+				}
 			}
 		}
 	}
@@ -1239,20 +1245,27 @@ void craftMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextM
 			{
 				int clip = cwep.m_iClip;
 				
-				int ammoIdx = g_PlayerFuncs.GetAmmoIndex("health");
-				if (invItem.type == I_SYRINGE)
-					clip = plr.m_rgAmmo(ammoIdx);
+				if (invItem.stackSize > 1)
+					clip = plr.m_rgAmmo(g_PlayerFuncs.GetAmmoIndex(invItem.ammoName));
 				
 				if (giveItem(plr, invItem.type, clip) == 0)
 				{					
 					plr.RemovePlayerItem(wep);
-					if (invItem.type == I_SYRINGE)
-						plr.m_rgAmmo(ammoIdx, 0);
+					if (!invItem.isAmmo and invItem.stackSize > 1)
+						plr.m_rgAmmo(g_PlayerFuncs.GetAmmoIndex(invItem.ammoName), 0);
 					g_PlayerFuncs.PrintKeyBindingString(plr, invItem.title + " was moved your inventory");
 				}
 			}
 			else
 				println("Unknown weapon: " + name);		
+		}
+		else if (name == "armor")
+		{
+			if (plr.pev.armorvalue >= ARMOR_VALUE and giveItem(plr, I_ARMOR, 1) == 0)
+			{
+				plr.pev.armorvalue -= ARMOR_VALUE;
+				g_SoundSystem.PlaySound(plr.edict(), CHAN_ITEM, "items/ammopickup1.wav", 1.0f, 1.0f, 0, 100);
+			}
 		}
 		else
 		{
@@ -1306,12 +1319,13 @@ void craftMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextM
 					if (givenItem !is null)
 					{
 						CBasePlayerWeapon@ givenWep = cast<CBasePlayerWeapon@>(givenItem);
-						givenWep.m_iClip = clip;
-						if (invItem.type == I_SYRINGE)
-							plr.GiveAmmo(clip, "health", 9999);
+						if (invItem.stackSize > 1)
+							plr.GiveAmmo(clip, invItem.ammoName, 9999);
+						else
+							givenWep.m_iClip = clip;
 					}
 				}
-				else if (invItem.type == I_SYRINGE)
+				else if (invItem.stackSize > 1)
 				{
 					InventoryList@ inv = plr.get_m_pInventory();
 					int clip = 0;
@@ -1323,8 +1337,12 @@ void craftMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextM
 						{
 							clip = wep.pev.button;
 							wep.pev.renderfx = -9999;
-							plr.GiveAmmo(clip, "health", 9999);
-							g_Scheduler.SetTimeout("delay_remove", 0, EHandle(wep));
+							int amtGiven = giveAmmo(plr, clip, invItem.ammoName);
+							if (amtGiven >= clip)
+								g_Scheduler.SetTimeout("delay_remove", 0, EHandle(wep));
+							else
+								wep.pev.button = clip - amtGiven;
+							
 							break;
 						}
 					}
@@ -1335,10 +1353,7 @@ void craftMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextM
 			else if (invItem.isAmmo)
 			{
 				int invAmmo = getItemCount(plr, invItem.type);
-				int ammoIdx = g_PlayerFuncs.GetAmmoIndex(invItem.classname);
-				int beforeAmmo = plr.m_rgAmmo(ammoIdx);
-				plr.GiveAmmo(invAmmo, invItem.classname, 9999); // TODO: set proper max?
-				int amtGiven = plr.m_rgAmmo(ammoIdx) - beforeAmmo;
+				int amtGiven = giveAmmo(plr, invAmmo, invItem.ammoName);
 				
 				giveItem(plr, invItem.type, -amtGiven);
 				
@@ -1346,6 +1361,19 @@ void craftMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextM
 					g_SoundSystem.PlaySound(plr.edict(), CHAN_ITEM, "items/9mmclip1.wav", 1.0f, 1.0f, 0, 100);
 				else
 					g_PlayerFuncs.PrintKeyBindingString(plr, "Already equipped with max ammo");
+			}
+			else if (invItem.type == I_ARMOR)
+			{
+				if (plr.pev.armorvalue < 100)
+				{
+					plr.pev.armorvalue += ARMOR_VALUE;
+					if (plr.pev.armorvalue > 100)
+						plr.pev.armorvalue = 100;
+					g_SoundSystem.PlaySound(plr.edict(), CHAN_ITEM, "items/ammopickup2.wav", 1.0f, 1.0f, 0, 100);
+					giveItem(plr, invItem.type, -1);
+				}
+				else
+					g_PlayerFuncs.PrintKeyBindingString(plr, "Maximum armor equipped");
 			}
 		}
 		else
@@ -1378,9 +1406,9 @@ void craftMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextM
 			}
 			
 			bool noMoreAmmo = false;
-			if (dropLeft > 0 and (dropItem.isAmmo or dropItem.type == I_SYRINGE))
+			if (dropLeft > 0 and (dropItem.isAmmo or dropItem.stackSize > 1))
 			{
-				string cname = dropItem.type == I_SYRINGE ? "health" : dropItem.classname;
+				string cname = dropItem.isAmmo ? dropItem.classname : dropItem.ammoName;
 				int ammoIdx = g_PlayerFuncs.GetAmmoIndex(cname);
 				int ammo = plr.m_rgAmmo(ammoIdx);
 				int giveAmmo = Math.min(ammo, dropLeft);
@@ -1388,14 +1416,14 @@ void craftMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextM
 				noMoreAmmo = ammo <= giveAmmo;
 				
 				if (giveAmmo > 0)
-				{			
+				{
 					plr.m_rgAmmo(ammoIdx, ammo - giveAmmo);
 					dropLeft -= giveAmmo;
 				}
 			}
 			
 			giveItem(plr, dropType, dropAmt - dropLeft, true); // drop selected/max amount
-			if (dropItem.type == I_SYRINGE and noMoreAmmo)
+			if (!dropItem.isAmmo and dropItem.stackSize > 1 and noMoreAmmo)
 			{
 				g_EntityFuncs.Remove(@plr.HasNamedPlayerItem(dropItem.classname));
 			}
@@ -1405,7 +1433,8 @@ void craftMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextM
 	}
 	else if (action.Find("craft-") == 0)
 	{
-		int itemType = atoi(action.SubString(6));
+		int imenu = atoi(action.SubString(6,1));
+		int itemType = atoi(action.SubString(8));
 		if (itemType >= 0 and itemType < int(g_items.size()))
 		{
 			Item@ craftItem = g_items[itemType];
@@ -1415,7 +1444,10 @@ void craftMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextM
 				int ammoIdx = g_PlayerFuncs.GetAmmoIndex("health");
 				int oldAmmo = plr.m_rgAmmo(ammoIdx);
 				if (oldAmmo < 100)
+				{
 					plr.GiveAmmo(1, "health", 9999);
+					g_SoundSystem.PlaySound(plr.edict(), CHAN_ITEM, "items/9mmclip1.wav", 1.0f, 1.0f, 0, 100);
+				}
 				else
 					giveItem(@plr, itemType, 1);
 					
@@ -1434,7 +1466,20 @@ void craftMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextM
 				giveItem(@plr, itemType, 1);
 		}
 		
-		g_Scheduler.SetTimeout("openPlayerMenu", 0, @plr, "craft-menu");
+		string submenu;
+		switch(imenu)
+		{
+			case 0: submenu = "build-menu"; break;
+			case 1: submenu = "item-menu"; break;
+			case 2: submenu = "tool-menu"; break;
+			case 3: submenu = "medical-menu"; break;
+			case 4: submenu = "weapon-menu"; break;
+			case 5: submenu = "explode-menu"; break;
+			case 6: submenu = "ammo-menu"; break;
+			default: submenu = "craft-menu"; break;
+		}
+		
+		g_Scheduler.SetTimeout("openPlayerMenu", 0, @plr, submenu);
 	}
 	
 	menu.Unregister();
@@ -1449,25 +1494,27 @@ void openPlayerMenu(CBasePlayer@ plr, string subMenu)
 	if (subMenu == "build-menu") 
 	{
 		state.menu.SetTitle("Actions -> Craft -> Build:\n");
-		state.menu.AddItem("Wood Door", any("craft-" + I_WOOD_DOOR));
-		state.menu.AddItem("Wood Shutters", any("craft-" + I_WOOD_SHUTTERS));
-		state.menu.AddItem("Wood Window Bars", any("craft-" + I_WOOD_BARS));
-		state.menu.AddItem("Metal Door", any("craft-" + I_METAL_DOOR));
-		state.menu.AddItem("Metal Window Bars", any("craft-" + I_METAL_BARS));
-		state.menu.AddItem("High External Wood Wall", any("craft-" + I_HIGH_WOOD_WALL));
-		state.menu.AddItem("High External Stone Wall", any("craft-" + I_HIGH_STONE_WALL));
+		state.menu.AddItem("Back\n", any("craft-menu"));
+		state.menu.AddItem("Wood Door", any("craft-0-" + I_WOOD_DOOR));
+		state.menu.AddItem("Wood Shutters", any("craft-0-" + I_WOOD_SHUTTERS));
+		state.menu.AddItem("Wood Window Bars", any("craft-0-" + I_WOOD_BARS));
+		state.menu.AddItem("Metal Door", any("craft-0-" + I_METAL_DOOR));
+		state.menu.AddItem("Metal Window Bars", any("craft-0-" + I_METAL_BARS));
+		state.menu.AddItem("High External Wood Wall", any("craft-0-" + I_HIGH_WOOD_WALL));
+		state.menu.AddItem("High External Stone Wall", any("craft-0-" + I_HIGH_STONE_WALL));
 	}
 	else if (subMenu == "item-menu") 
 	{
 		state.menu.SetTitle("Actions -> Craft -> Items:\n");
-		state.menu.AddItem("Code Lock", any("craft-" + I_CODE_LOCK));
-		state.menu.AddItem("Chest", any("craft-" + I_SMALL_CHEST));
-		state.menu.AddItem("Large Chest", any("craft-" + I_LARGE_CHEST));
+		state.menu.AddItem("Back\n", any("craft-menu"));
+		state.menu.AddItem("Code Lock", any("craft-1-" + I_CODE_LOCK));
+		state.menu.AddItem("Chest", any("craft-1-" + I_SMALL_CHEST));
+		state.menu.AddItem("Large Chest", any("craft-1-" + I_LARGE_CHEST));
 		//state.menu.AddItem("Camp Fire", any("fire")); // let's keep things simple and not have a hunger/thirst system
-		state.menu.AddItem("Furnace", any("craft-" + I_FURNACE));
-		state.menu.AddItem("Ladder", any("craft-" + I_LADDER));
-		state.menu.AddItem("Ladder Hatch", any("craft-" + I_LADDER_HATCH));
-		state.menu.AddItem("Tool Cupboard", any("craft-" + I_TOOL_CUPBOARD));
+		state.menu.AddItem("Furnace", any("craft-1-" + I_FURNACE));
+		state.menu.AddItem("Ladder", any("craft-1-" + I_LADDER));
+		state.menu.AddItem("Ladder Hatch", any("craft-1-" + I_LADDER_HATCH));
+		state.menu.AddItem("Tool Cupboard", any("craft-1-" + I_TOOL_CUPBOARD));
 		//state.menu.AddItem("Large Furnace", any("large-furnace"));
 		//state.menu.AddItem("Stash", any("stash"));
 		//state.menu.AddItem("Sleeping Bag", any("sleeping-bag"));
@@ -1485,61 +1532,73 @@ void openPlayerMenu(CBasePlayer@ plr, string subMenu)
 	else if (subMenu == "tool-menu")
 	{
 		state.menu.SetTitle("Actions -> Craft -> Tools:\n");
-		state.menu.AddItem("Rock", any("craft-" + I_ROCK));
+		state.menu.AddItem("Back\n", any("craft-menu"));
+		state.menu.AddItem("Rock", any("craft-2-" + I_ROCK));
 		//state.menu.AddItem("Torch", any("craft-" + I_TORCH)); // no night time due to sc bug
-		state.menu.AddItem("Building Plan", any("craft-" + I_BUILDING_PLAN));
-		state.menu.AddItem("Hammer", any("craft-" + I_HAMMER));
-		state.menu.AddItem("Stone Hatchet", any("craft-" + I_STONE_HATCHET));
-		state.menu.AddItem("Stone Pick Axe", any("craft-" + I_STONE_PICKAXE));
-		state.menu.AddItem("Metal Hatchet", any("craft-" + I_METAL_HATCHET));
-		state.menu.AddItem("Metal Pick Axe", any("craft-" + I_METAL_PICKAXE));
+		state.menu.AddItem("Building Plan", any("craft-2-" + I_BUILDING_PLAN));
+		state.menu.AddItem("Hammer", any("craft-2-" + I_HAMMER));
+		state.menu.AddItem("Stone Hatchet", any("craft-2-" + I_STONE_HATCHET));
+		state.menu.AddItem("Stone Pick Axe", any("craft-2-" + I_STONE_PICKAXE));
+		state.menu.AddItem("Metal Hatchet", any("craft-2-" + I_METAL_HATCHET));
+		state.menu.AddItem("Metal Pick Axe", any("craft-2-" + I_METAL_PICKAXE));
 	}
 	else if (subMenu == "medical-menu")
 	{
 		state.menu.SetTitle("Actions -> Craft -> Medical:\n");
+		
+		state.menu.AddItem("Back\n", any("craft-menu"));
 		//state.menu.AddItem("Bandage", any("bandage"));
-		state.menu.AddItem("Syringe", any("craft-" + I_SYRINGE));
-		state.menu.AddItem("Medkit", any("small-medkit"));
-		state.menu.AddItem("Armor Piece", any("small-medkit"));
+		state.menu.AddItem("Syringe", any("craft-3-" + I_SYRINGE));
+		//state.menu.AddItem("Medkit", any("small-medkit"));
+		state.menu.AddItem("Armor Piece", any("craft-3-" + I_ARMOR));
 		//state.menu.AddItem("Large Medkit", any("large-medkit"));
-		state.menu.AddItem("Acoustic Guitar", any("guitar"));
+		//state.menu.AddItem("Acoustic Guitar", any("guitar"));
+		
 	}
 	else if (subMenu == "weapon-menu")
 	{
 		state.menu.SetTitle("Actions -> Craft -> Weapons:\n");
-		state.menu.AddItem("Crowbar", any("crowbar"));
-		state.menu.AddItem("Wrench", any("wrench"));
-		state.menu.AddItem("Bow", any("bow"));
-		state.menu.AddItem("Pistol", any("pistol"));
-		state.menu.AddItem("Shotgun", any("shotgun"));
-		state.menu.AddItem("Flamethrower", any("flamethrower"));
-		state.menu.AddItem("Sniper Rifle", any("sniper"));
-		state.menu.AddItem("RPG", any("rpg"));
-		state.menu.AddItem("Uzi", any("uzi"));
-		state.menu.AddItem("Saw", any("saw"));
-		state.menu.AddItem("Grenade", any("grenade"));
-		state.menu.AddItem("Satchel charge", any("satchel"));
-		state.menu.AddItem("C4", any("c4"));
+		state.menu.AddItem("Back\n", any("craft-menu"));
+		state.menu.AddItem("Crowbar", any("craft-4-" + I_CROWBAR));
+		state.menu.AddItem("Bow", any("craft-4-" + I_BOW));
+		state.menu.AddItem("Desert Eagle", any("craft-4-" + I_DEAGLE));
+		state.menu.AddItem("Shotgun", any("craft-4-" + I_SHOTGUN));
+		state.menu.AddItem("Sniper Rifle", any("craft-4-" + I_SNIPER));
+		state.menu.AddItem("Uzi", any("craft-4-" + I_UZI));
+		state.menu.AddItem("Saw", any("craft-4-" + I_SAW));
+	}
+	else if (subMenu == "explode-menu")
+	{
+		state.menu.SetTitle("Actions -> Craft -> Explosives:\n");
+		state.menu.AddItem("Back\n", any("craft-menu"));
+		state.menu.AddItem("Flamethrower", any("craft-5-" + I_FLAMETHROWER));
+		state.menu.AddItem("RPG", any("craft-5-" + I_RPG));
+		state.menu.AddItem("Grenade", any("craft-5-" + I_GRENADE));
+		state.menu.AddItem("Satchel charge", any("craft-5-" + I_SATCHEL));
+		state.menu.AddItem("C4", any("craft-5-" + I_C4));
 	}
 	else if (subMenu == "ammo-menu")
 	{
 		state.menu.SetTitle("Actions -> Craft -> Ammo:\n");
-		state.menu.AddItem("Arrow", any("arrow"));
-		state.menu.AddItem("9mm", any("9mm"));
-		state.menu.AddItem("556", any("556"));
-		state.menu.AddItem("Buckshot", any("buckshot"));
-		state.menu.AddItem("Rocket", any("rocket"));
+		state.menu.AddItem("Back\n", any("craft-menu"));
+		state.menu.AddItem("Arrow", any("craft-6-" + I_ARROW));
+		state.menu.AddItem("9mm", any("craft-6-" + I_9MM));
+		state.menu.AddItem("556", any("craft-6-" + I_556));
+		state.menu.AddItem("Buckshot", any("craft-6-" + I_BUCKSHOT));
+		state.menu.AddItem("Rocket", any("craft-6-" + I_ROCKET));
+		state.menu.AddItem("Fuel", any("craft-6-" + I_FUEL));
 	}
 	else if (subMenu == "craft-menu")
 	{
 		state.menu.SetTitle("Actions -> Craft:\n");
 		state.menu.AddItem("Build", any("build-menu"));
 		state.menu.AddItem("Items", any("item-menu"));
-		state.menu.AddItem("Armor", any("armor-menu"));
+		//state.menu.AddItem("Armor", any("armor-menu"));
 		state.menu.AddItem("Tools", any("tool-menu"));
-		state.menu.AddItem("Medical", any("medical-menu"));
+		state.menu.AddItem("Medical / Armor", any("medical-menu"));
 		state.menu.AddItem("Weapons", any("weapon-menu"));
-		state.menu.AddItem("Ammo", any("ammo-menu"));
+		state.menu.AddItem("Explosives", any("explode-menu"));
+		state.menu.AddItem("Ammo\n\n", any("ammo-menu"));
 	}
 	else if (subMenu == "equip-menu")
 	{
@@ -1554,9 +1613,9 @@ void openPlayerMenu(CBasePlayer@ plr, string subMenu)
 			if (item !is null and item.pev.colormap > 0)
 			{
 				Item@ wep = g_items[item.pev.colormap-1];
-				if (wep !is null and (wep.isWeapon or wep.isAmmo) and !listed.exists(wep.classname))
+				if (wep !is null and (wep.isWeapon or wep.isAmmo or wep.type == I_ARMOR) and !listed.exists(wep.classname))
 				{
-					int amt = wep.isAmmo ? getItemCount(plr, wep.type, false) : item.pev.button;
+					int amt = wep.isAmmo or wep.type == I_ARMOR ? getItemCount(plr, wep.type, false) : item.pev.button;
 					state.menu.AddItem(wep.title + (wep.stackSize > 1 ? " (" + amt + ")" : ""), any("equip-" + item.pev.colormap));
 					listed[wep.classname] = 1;
 					count++;
@@ -1582,11 +1641,10 @@ void openPlayerMenu(CBasePlayer@ plr, string subMenu)
 			while (item !is null)
 			{
 				Item@ invItem = getItemByClassname(item.pev.classname);
-				if (invItem.type != I_SYRINGE)
-				{
-					string displayName = invItem !is null ? invItem.title : string(item.pev.classname);
-					state.menu.AddItem(displayName, any("unequip-" + item.pev.classname));
-				}
+				string displayName = invItem.title;
+				if (invItem.stackSize > 1)
+					displayName += " (" + prettyNumber(plr.m_rgAmmo(g_PlayerFuncs.GetAmmoIndex(invItem.ammoName))) + ")";
+				state.menu.AddItem(displayName, any("unequip-" + item.pev.classname));
 				@item = cast<CBasePlayerItem@>(item.m_hNextItem.GetEntity());		
 				count++;
 			}
@@ -1594,6 +1652,18 @@ void openPlayerMenu(CBasePlayer@ plr, string subMenu)
 		
 		for (uint i = 0; i < g_ammo_types.size(); i++)
 		{
+			bool dont_show = false;
+			for (uint k = 0; k < g_items.size(); k++) // unequip as a weapon only, not as ammo
+			{
+				if (g_items[k].ammoName == g_ammo_types[i])
+				{
+					dont_show = true;
+					break;
+				}
+			}
+			if (dont_show)
+				continue;
+						
 			int ammo = plr.m_rgAmmo(g_PlayerFuncs.GetAmmoIndex(g_ammo_types[i]));
 			if (ammo > 0)
 			{
@@ -1603,6 +1673,9 @@ void openPlayerMenu(CBasePlayer@ plr, string subMenu)
 				count++;
 			}
 		}
+		
+		if (plr.pev.armorvalue >= ARMOR_VALUE)
+			state.menu.AddItem(g_items[I_ARMOR].title + " (" + (plr.pev.armorvalue / ARMOR_VALUE) + ")", any("unequip-armor"));
 		
 		if (count == 0)
 		{
@@ -1616,24 +1689,6 @@ void openPlayerMenu(CBasePlayer@ plr, string subMenu)
 		state.menu.SetTitle("Actions -> Drop Stackables:\n");
 		
 		int count = 0;
-		InventoryList@ inv = plr.get_m_pInventory();
-		dictionary types;
-		while(inv !is null)
-		{
-			CItemInventory@ item = cast<CItemInventory@>(inv.hItem.GetEntity());
-			if (item !is null and item.pev.colormap > 0)
-			{
-				Item@ wep = g_items[item.pev.colormap-1];
-				if (wep !is null and !wep.isAmmo and !wep.isWeapon and wep.stackSize > 1 and !types.exists(item.pev.colormap))
-				{
-					string title = wep.title;
-					state.menu.AddItem(title, any("unstack-" + item.pev.colormap));
-					types[item.pev.colormap] = true;
-					count++;
-				}
-			}
-			@inv = inv.pNext;
-		}
 		
 		dictionary stacks;
 		for (uint i = 0; i < g_ammo_types.size(); i++)
@@ -1646,23 +1701,24 @@ void openPlayerMenu(CBasePlayer@ plr, string subMenu)
 					stacks[item.type] = ammo;
 			}
 		}
-		@inv = plr.get_m_pInventory();
+		InventoryList@ inv = plr.get_m_pInventory();
 		while(inv !is null)
 		{
 			CItemInventory@ item = cast<CItemInventory@>(inv.hItem.GetEntity());
 			if (item !is null and item.pev.colormap > 0)
 			{
 				Item@ wep = g_items[item.pev.colormap-1];
-				if (wep !is null)
+				if (wep !is null and wep.stackSize > 1)
 				{
+					int amt = item.pev.button;
 					if (stacks.exists(wep.type))
 					{
 						int oldCount = 0;
 						stacks.get(wep.type, oldCount);
-						stacks[wep.type] = oldCount + item.pev.button;
+						stacks[wep.type] = oldCount + amt;
 					}
 					else
-						stacks[wep.type] = item.pev.button;
+						stacks[wep.type] = amt;
 				}
 			}
 			@inv = inv.pNext;
@@ -1673,7 +1729,7 @@ void openPlayerMenu(CBasePlayer@ plr, string subMenu)
 			Item@ item = g_items[ atoi(stackKeys[i]) ];
 			int amt = 1;
 			stacks.get(stackKeys[i], amt);
-			state.menu.AddItem(item.title + (item.stackSize > 1 or item.type == I_SYRINGE ? " (" + amt + ")" : ""), any("unstack-" + (item.type+1)));
+			state.menu.AddItem(item.title + (item.stackSize > 1 ? " (" + amt + ")" : ""), any("unstack-" + (item.type+1)));
 			count++;
 		}
 		
@@ -2168,13 +2224,13 @@ void lootMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextMe
 				giveItem(plr, depositItem.type, -giveInvAmt);
 			}
 			
-			if (overflow == 0 and depositItem.isAmmo or depositItem.type == I_SYRINGE)
+			if (overflow == 0 and depositItem.isAmmo or depositItem.stackSize > 1)
 			{
 				amt -= giveInvAmt; // now give from equipped ammo if not enough was in inventory
 				
 				string ammoName = depositItem.classname;
-				if (depositItem.type == I_SYRINGE)
-					ammoName = "health";
+				if (!depositItem.isAmmo and depositItem.stackSize > 1)
+					ammoName = depositItem.ammoName;
 				int ammoIdx = g_PlayerFuncs.GetAmmoIndex(ammoName);
 				int ammo = plr.m_rgAmmo(ammoIdx);
 				int giveAmmo = Math.min(ammo, amt);
@@ -2320,9 +2376,8 @@ void lootMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextMe
 					int ammo = corpse.m_rgAmmo(ammoIdx);
 					if (ammo > 0)
 					{
-						int beforeAmmo = plr.m_rgAmmo(ammoIdx);
-						plr.GiveAmmo( ammo, itemDesc, 9999); // TODO: set proper max?
-						int amtGiven = plr.m_rgAmmo(ammoIdx) - beforeAmmo;
+						int amtGiven = giveAmmo(plr, ammo, itemDesc);
+						
 						int ammoLeft = ammo - amtGiven;
 						Item@ ammoItem = getItemByClassname(itemDesc);
 						
@@ -2366,17 +2421,14 @@ void lootMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextMe
 					// try equipping immediately
 					if (takeItem.isAmmo)
 					{
-						int ammoIdx = g_PlayerFuncs.GetAmmoIndex(takeItem.classname);
-						int beforeAmmo = plr.m_rgAmmo(ammoIdx);
-						plr.GiveAmmo( amt, takeItem.classname, 9999); // TODO: set proper max?
-						int amtGiven = plr.m_rgAmmo(ammoIdx) - beforeAmmo;
+						int amtGiven = giveAmmo(plr, amt, takeItem.classname);
 						amt -= amtGiven;
 						if (amtGiven > 0)
 							g_SoundSystem.PlaySound(plr.edict(), CHAN_ITEM, "items/9mmclip1.wav", 1.0f, 1.0f, 0, 100);
 					}
 					
 					int amtLeft = amt;
-					if (takeItem.type == I_SYRINGE)
+					if (takeItem.isWeapon and takeItem.stackSize > 1)
 					{
 						if (@plr.HasNamedPlayerItem(takeItem.classname) == null)
 						{
@@ -2384,10 +2436,7 @@ void lootMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextMe
 							plr.GiveNamedItem(takeItem.classname);
 						}
 						
-						int ammoIdx = g_PlayerFuncs.GetAmmoIndex("health");
-						int beforeAmmo = plr.m_rgAmmo(ammoIdx);
-						plr.GiveAmmo(item.pev.button, "health", 9999); // TODO: set proper max?
-						int amtGiven = plr.m_rgAmmo(ammoIdx) - beforeAmmo;
+						int amtGiven = giveAmmo(plr, item.pev.button, takeItem.ammoName);
 						item.pev.button -= amtGiven;
 						amtLeft = giveItem(plr, item.pev.colormap-1, item.pev.button);
 						
@@ -2521,12 +2570,11 @@ void openLootMenu(CBasePlayer@ plr, CBaseEntity@ corpse, string submenu="")
 				while (item !is null)
 				{
 					Item@ invItem = getItemByClassname(item.pev.classname);
-					if (invItem.type != I_SYRINGE)
-					{
-						string displayName = invItem !is null ? invItem.title : string(item.pev.classname);
-						state.menu.AddItem(displayName, any("give-" + item.pev.classname));
-						count++;
-					}
+					string displayName = invItem !is null ? invItem.title : string(item.pev.classname);
+					if (invItem.stackSize > 1)
+						displayName += " (" + prettyNumber(plr.m_rgAmmo(g_PlayerFuncs.GetAmmoIndex(invItem.ammoName))) + ")";
+					state.menu.AddItem(displayName, any("give-" + invItem.type));
+					count++;
 					@item = cast<CBasePlayerItem@>(item.m_hNextItem.GetEntity());		
 				}
 			}
@@ -2534,6 +2582,18 @@ void openLootMenu(CBasePlayer@ plr, CBaseEntity@ corpse, string submenu="")
 			dictionary stacks;
 			for (uint i = 0; i < g_ammo_types.size() and !isFurnace; i++)
 			{
+				bool dont_show = false;
+				for (uint k = 0; k < g_items.size(); k++) // unequip as a weapon only, not as ammo
+				{
+					if (g_items[k].ammoName == g_ammo_types[i])
+					{
+						dont_show = true;
+						break;
+					}
+				}
+				if (dont_show)
+					continue;
+				
 				int ammo = plr.m_rgAmmo(g_PlayerFuncs.GetAmmoIndex(g_ammo_types[i]));
 				if (ammo > 0)
 				{
@@ -2832,7 +2892,7 @@ HookReturnCode PlayerUse( CBasePlayer@ plr, uint& out )
 						// try to equip immediately
 						Item@ item = g_items[lookType];
 						int barf = 1;
-						if (item.type == I_SYRINGE)
+						if (item.isWeapon and item.stackSize > 1)
 						{
 							if (@plr.HasNamedPlayerItem(item.classname) == null)
 							{
@@ -2840,10 +2900,7 @@ HookReturnCode PlayerUse( CBasePlayer@ plr, uint& out )
 								plr.GiveNamedItem(item.classname);
 							}
 							
-							int ammoIdx = g_PlayerFuncs.GetAmmoIndex("health");
-							int beforeAmmo = plr.m_rgAmmo(ammoIdx);
-							plr.GiveAmmo(lookItem.pev.button, "health", 9999); // TODO: set proper max?
-							int amtGiven = plr.m_rgAmmo(ammoIdx) - beforeAmmo;
+							int amtGiven = giveAmmo(plr, lookItem.pev.button, item.ammoName);
 							lookItem.pev.button -= amtGiven;
 							barf = giveItem(plr, lookItem.pev.colormap-1, lookItem.pev.button);
 							
@@ -2859,10 +2916,7 @@ HookReturnCode PlayerUse( CBasePlayer@ plr, uint& out )
 						}
 						else if (item.isAmmo)
 						{
-							int ammoIdx = g_PlayerFuncs.GetAmmoIndex(item.classname);
-							int beforeAmmo = plr.m_rgAmmo(ammoIdx);
-							plr.GiveAmmo(lookItem.pev.button, item.classname, 9999); // TODO: set proper max?
-							int amtGiven = plr.m_rgAmmo(ammoIdx) - beforeAmmo;
+							int amtGiven = giveAmmo(plr, lookItem.pev.button, item.classname);
 							lookItem.pev.button -= amtGiven;
 							barf = giveItem(plr, lookItem.pev.colormap-1, lookItem.pev.button);
 							

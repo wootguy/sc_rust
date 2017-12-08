@@ -2,6 +2,7 @@
 
 float EPSILON = 0.03125f;
 int BUILD_MATERIAL = I_WOOD; // material needed to build stuff
+float ARMOR_VALUE = 10;
 
 class BuildPartInfo
 {
@@ -31,13 +32,14 @@ class Item
 	string title;
 	string desc;
 	string classname;
+	string ammoName;
 	
 	Item() {
 		type = -1;
 		stackSize = 1;
 	}
 	
-	Item(int t, int stackSz, bool wep, bool ammo, string cname, string tit, string description) {
+	Item(int t, int stackSz, bool wep, bool ammo, string cname, string ammoName, string tit, string description) {
 		type = t;
 		stackSize = stackSz;
 		title = tit;
@@ -45,6 +47,7 @@ class Item
 		isWeapon = wep;
 		isAmmo = ammo;
 		classname = cname;
+		this.ammoName = ammoName;
 	}
 }
 
@@ -113,14 +116,27 @@ enum item_types
 	I_STONE_PICKAXE,
 	I_METAL_HATCHET,
 	I_METAL_PICKAXE,
+	I_CROWBAR,
 	I_BOW,
 	I_SYRINGE,
+	I_ARMOR,
 	I_FLAMETHROWER,
+	I_RPG,
+	I_GRENADE,
+	I_SATCHEL,
+	I_C4,
+	I_DEAGLE,
+	I_SHOTGUN,
+	I_SNIPER,
+	I_UZI,
 	I_SAW,
 	
 	I_ARROW,
 	I_FUEL,
 	I_556,
+	I_9MM,
+	I_BUCKSHOT,
+	I_ROCKET,
 	
 	ITEM_TYPES,
 };
@@ -174,42 +190,55 @@ array<BuildPartInfo> g_part_info = {
 };
 
 array<Item> g_items = {	
-	Item(I_WOOD_DOOR, 1, false, false, "", "Wood Door", "A hinged door which is made out of wood."),
-	Item(I_METAL_DOOR, 1, false, false, "", "Metal Door", "A hinged door which is made out of metal."),
-	Item(I_WOOD_BARS, 1, false, false, "", "Wood Window Bars", "b_wood_bars"),
-	Item(I_METAL_BARS, 1, false, false, "", "Metal Window Bars", "b_metal_bars"),
-	Item(I_WOOD_SHUTTERS, 1, false, false, "", "Wood Shutters", "b_wood_shutters"),
-	Item(I_CODE_LOCK, 1, false, false, "", "Code Lock", "An electronic lock. Locked and unlocked with four-digit code. Hold your USE key while looking at the lock to activate it."),
-	Item(I_TOOL_CUPBOARD, 1, false, false, "", "Tool Cupboard", "Only players authorized to this cupboard will be able to build near it.\nPress USE to authorize yourself and hold USE to clear previous authorizations."),
-	Item(I_HIGH_WOOD_WALL, 1, false, false, "", "High External Wood Wall", "b_wood_wall"),
-	Item(I_HIGH_STONE_WALL, 1, false, false, "", "High External Stone Wall", "b_stone_wall"),
-	Item(I_LADDER, 1, false, false, "", "Ladder", "b_ladder"),
-	Item(I_LADDER_HATCH, 1, false, false, "", "Ladder Hatch", "b_ladder_hatch"),
-	Item(I_SMALL_CHEST, 1, false, false, "", "Small Chest", "Keep your things in this storage box. Stores up to " + CHEST_ITEM_MAX_SMALL + " items."),
-	Item(I_LARGE_CHEST, 1, false, false, "", "Large Chest", "Keep your things in this storage box. Stores up to " + CHEST_ITEM_MAX_LARGE + " items."),
-	Item(I_FURNACE, 1, false, false, "", "Furnace", "Use this to smelt mined ore."),
+	Item(I_WOOD_DOOR, 1, false, false, "", "", "Wood Door", "A hinged door which is made out of wood."),
+	Item(I_METAL_DOOR, 1, false, false, "", "", "Metal Door", "A hinged door which is made out of metal."),
+	Item(I_WOOD_BARS, 1, false, false, "", "", "Wood Window Bars", "b_wood_bars"),
+	Item(I_METAL_BARS, 1, false, false, "", "", "Metal Window Bars", "b_metal_bars"),
+	Item(I_WOOD_SHUTTERS, 1, false, false, "", "", "Wood Shutters", "b_wood_shutters"),
+	Item(I_CODE_LOCK, 1, false, false, "", "", "Code Lock", "An electronic lock. Locked and unlocked with four-digit code. Hold your USE key while looking at the lock to activate it."),
+	Item(I_TOOL_CUPBOARD, 1, false, false, "", "", "Tool Cupboard", "Only players authorized to this cupboard will be able to build near it.\nPress USE to authorize yourself and hold USE to clear previous authorizations."),
+	Item(I_HIGH_WOOD_WALL, 1, false, false, "", "", "High External Wood Wall", "b_wood_wall"),
+	Item(I_HIGH_STONE_WALL, 1, false, false, "", "", "High External Stone Wall", "b_stone_wall"),
+	Item(I_LADDER, 1, false, false, "", "", "Ladder", "b_ladder"),
+	Item(I_LADDER_HATCH, 1, false, false, "", "", "Ladder Hatch", "b_ladder_hatch"),
+	Item(I_SMALL_CHEST, 1, false, false, "", "", "Small Chest", "Keep your things in this storage box. Stores up to " + CHEST_ITEM_MAX_SMALL + " items."),
+	Item(I_LARGE_CHEST, 1, false, false, "", "", "Large Chest", "Keep your things in this storage box. Stores up to " + CHEST_ITEM_MAX_LARGE + " items."),
+	Item(I_FURNACE, 1, false, false, "", "", "Furnace", "Use this to smelt mined ore."),
 	
-	Item(I_WOOD, 200, false, false, "", "Wood", "Collected from trees and used to build bases and craft items."),
-	Item(I_STONE, 1000, false, false, "", "Stone", "Collected from rocks and used to reinforce bases and craft items."),
-	Item(I_METAL, 1000, false, false, "", "Metal", "Smelted from metal ore."),
-	Item(I_HQMETAL, 100, false, false, "", "HQ Metal", "High quality metal smelted from HQ Metal Ore."),
-	Item(I_METAL_ORE, 1000, false, false, "", "Metal Ore", "Collected from rocks. Smelt this in a furnace to produce Metal."),
-	Item(I_HQMETAL_ORE, 100, false, false, "", "HQ Metal Ore", "Collected from rocks. Smelt this in a furnace to produce HQ Metal."),
-	Item(I_HAMMER, 1, true, false, "weapon_hammer", "Hammer", "Used to upgrade, repair, and merge base parts."),
-	Item(I_BUILDING_PLAN, 1, true, false, "weapon_building_plan", "Building Plan", "Used to craft buildings."),
-	Item(I_ROCK, 1, true, false, "weapon_rock", "Rock", "The most basic melee weapon and gathering tool."),
-	Item(I_STONE_HATCHET, 1, true, false, "weapon_stone_hatchet", "Stone Hatchet", "Use this to chop trees"),
-	Item(I_STONE_PICKAXE, 1, true, false, "weapon_stone_pickaxe", "Stone Pickaxe", "Use this to mine rocks"),
-	Item(I_METAL_HATCHET, 1, true, false, "weapon_metal_hatchet", "Metal Hatchet", "Effective tree chopper and melee weapon"),
-	Item(I_METAL_PICKAXE, 1, true, false, "weapon_metal_pickaxe", "Metal Pickaxe", "Effective rock breaker and melee weapon"),
-	Item(I_BOW, 1, true, false, "weapon_bow", "Hunting Bow", "Hard to aim with lag. Right-click to load and aim, left-click to fire."),
-	Item(I_SYRINGE, 100, true, false, "weapon_syringe", "Syringe", "Right-click heals you, left-click heals a target."),
-	Item(I_FLAMETHROWER, 1, true, false, "weapon_flamethrower", "Flame Thrower", "Effective against wood and flesh. Does not damage stone or metal."),
-	Item(I_SAW, 1, true, false, "weapon_m249", "M249 SAW", "Powerful machine gun with a high firing rate and damage."),
+	Item(I_WOOD, 200, false, false, "", "", "Wood", "Collected from trees and used to build bases and craft items."),
+	Item(I_STONE, 1000, false, false, "", "", "Stone", "Collected from rocks and used to reinforce bases and craft items."),
+	Item(I_METAL, 1000, false, false, "", "", "Metal", "Smelted from metal ore."),
+	Item(I_HQMETAL, 100, false, false, "", "", "HQ Metal", "High quality metal smelted from HQ Metal Ore."),
+	Item(I_METAL_ORE, 1000, false, false, "", "", "Metal Ore", "Collected from rocks. Smelt this in a furnace to produce Metal."),
+	Item(I_HQMETAL_ORE, 100, false, false, "", "", "HQ Metal Ore", "Collected from rocks. Smelt this in a furnace to produce HQ Metal."),
+	Item(I_HAMMER, 1, true, false, "weapon_hammer", "", "Hammer", "Used to upgrade, repair, and merge base parts."),
+	Item(I_BUILDING_PLAN, 1, true, false, "weapon_building_plan", "", "Building Plan", "Used to craft buildings."),
+	Item(I_ROCK, 1, true, false, "weapon_rock", "", "Rock", "The most basic melee weapon and gathering tool."),
+	Item(I_STONE_HATCHET, 1, true, false, "weapon_stone_hatchet", "", "Stone Hatchet", "Use this to chop trees"),
+	Item(I_STONE_PICKAXE, 1, true, false, "weapon_stone_pickaxe", "", "Stone Pickaxe", "Use this to mine rocks"),
+	Item(I_METAL_HATCHET, 1, true, false, "weapon_metal_hatchet", "", "Metal Hatchet", "Effective tree chopper and melee weapon"),
+	Item(I_METAL_PICKAXE, 1, true, false, "weapon_metal_pickaxe", "", "Metal Pickaxe", "Effective rock breaker and melee weapon"),
+	Item(I_CROWBAR, 1, true, false, "weapon_crowbar", "", "Crowbar", "TING TING TING"),
+	Item(I_BOW, 1, true, false, "weapon_bow", "health", "Hunting Bow", "Hard to use with lag. Right-click to load and aim, left-click to fire."),
+	Item(I_SYRINGE, 100, true, false, "weapon_syringe", "", "Syringe", "Right-click heals you, left-click heals a target."),
+	Item(I_ARMOR, 10, false, false, "item_battery", "", "Armor Piece", "Equip this to increase your current armor by " + ARMOR_VALUE + "."),
+	Item(I_FLAMETHROWER, 1, true, false, "weapon_flamethrower", "", "Flame Thrower", "Effective against wood and flesh. Does not damage stone or metal. Uses Fuel as ammo."),
+	Item(I_RPG, 1, true, false, "weapon_rpg", "", "RPG", "Rocket launcher. Effective against buildings. Uses rockets as ammo."),
+	Item(I_GRENADE, 10, true, false, "weapon_handgrenade", "hand grenade", "Hand Grenade", "Effective against people, but doesn't do much damage to buildings."),
+	Item(I_SATCHEL, 5, true, false, "weapon_satchel", "satchel charge", "Satchel Charge", "Effective against doors and buildings."),
+	Item(I_C4, 1, true, false, "weapon_c4", "", "C4", "Effective against doors and buildings."),
+	Item(I_DEAGLE, 1, true, false, "weapon_eagle", "", "Desert Eagle", "Powerful pistol with a laser sight. Uses 3.57 ammo."),
+	Item(I_SHOTGUN, 1, true, false, "weapon_shotgun", "", "Shotgun", "Most effective at close range. Uses buckshot ammo."),
+	Item(I_SNIPER, 1, true, false, "weapon_sniperrifle", "", "Sniper Rifle", "Camp in your base with this. Uses 7.26 ammo."),
+	Item(I_UZI, 1, true, false, "weapon_uzi", "", "Uzi", "Rapid-fire weapon. Uses 9MM ammo."),
+	Item(I_SAW, 1, true, false, "weapon_m249", "", "M249 SAW", "Powerful machine gun with a high firing rate and damage. Uses 5.56 ammo."),
 	
-	Item(I_ARROW, 64, false, true, "arrows", "Wooden Arrow", "Used with the hunting bow and crossbow."),
-	Item(I_FUEL, 500, false, true, "fuel", "Fuel", "Used with the flame thrower."),
-	Item(I_556, 128, false, true, "556", "5.56 Rifle Ammo", "Used with the saw and sniper rifle."),
+	Item(I_ARROW, 64, false, true, "arrows", "", "Wooden Arrow", "Used with the hunting bow and crossbow."),
+	Item(I_FUEL, 500, false, true, "fuel", "", "Fuel", "Used with the flame thrower."),
+	Item(I_556, 100, false, true, "556", "", "5.56 Ammo", "Used with the saw and sniper rifle."),
+	Item(I_9MM, 100, false, true, "9mm", "", "9mm Ammo", "Used with the uzi."),
+	Item(I_BUCKSHOT, 50, false, true, "buckshot", "", "Shotgun Shell", "Used with the shotgun."),
+	Item(I_ROCKET, 5, false, true, "rockets", "", "Rocket", "Used with the RPG."),
 };
 
 
