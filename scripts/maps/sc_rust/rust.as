@@ -1012,20 +1012,17 @@ int combineItemStacks(CBasePlayer@ plr, int addedType)
 		if (item !is null)
 		{
 			int type = item.pev.colormap-1;
-			if (g_items[type].stackSize > 1 and type >= 0)
+			if (g_items[type].stackSize > 1 and type >= 0 and item.pev.button != g_items[type].stackSize)
 			{
-				if (item.pev.button != g_items[type].stackSize)
-				{
-					int newTotal = 0;
-					if (totals.exists(type))
-						totals.get(type, newTotal);
-					newTotal += item.pev.button;
-					totals[type] = newTotal;
-					
-					item.pev.renderfx = -9999;
-					
-					g_EntityFuncs.Remove(item);
-				}
+				int newTotal = 0;
+				if (totals.exists(type))
+					totals.get(type, newTotal);
+				newTotal += item.pev.button;
+				totals[type] = newTotal;
+				
+				item.pev.renderfx = -9999;
+				
+				g_EntityFuncs.Remove(item);
 			}
 		}
 	}
@@ -1051,13 +1048,38 @@ int combineItemStacks(CBasePlayer@ plr, int addedType)
 		int total = 0;
 		totals.get(totalKeys[i], total);
 		
+		if (total < 0)
+		{
+			// remove stacks
+			@inv = plr.get_m_pInventory();
+			while(inv !is null and total < 0)
+			{
+				CItemInventory@ item = cast<CItemInventory@>(inv.hItem.GetEntity());
+				@inv = inv.pNext;
+				if (item !is null)
+				{
+					if (item.pev.colormap-1 == type)
+					{
+						if (item.pev.button > -total)
+						{
+							giveItem(plr, type, item.pev.button + total, false, false);
+							total = 0;
+						}
+						else
+							total += item.pev.button;
+						
+						item.pev.renderfx = -9999;
+						g_Scheduler.SetTimeout("delay_remove", 0, EHandle(item));
+					}
+				}
+			}
+		}
 		while (total > 0)
 		{
 			if (spaceLeft-- > 0)
-				giveItem(plr, atoi(totalKeys[i]), Math.min(total, g_items[type].stackSize), false, false);
+				giveItem(plr, type, Math.min(total, g_items[type].stackSize), false, false);
 			else
 			{
-				// TODO: What if this type wasn't the item given? (given stone, but drop extra wood)
 				g_PlayerFuncs.PrintKeyBindingString(plr, "Your inventory is full");
 				return total;
 			}
@@ -1290,7 +1312,7 @@ void craftMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextM
 	else if (action.Find("equip-") == 0)
 	{
 		int itemId = atoi(action.SubString(6));
-		Item@ invItem = g_items[itemId-1];
+		Item@ invItem = g_items[itemId];
 		
 		if (invItem !is null)
 		{
@@ -1304,7 +1326,7 @@ void craftMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextM
 					{
 						CItemInventory@ wep = cast<CItemInventory@>(inv.hItem.GetEntity());
 						@inv = inv.pNext;
-						if (wep.pev.colormap == itemId)
+						if (wep.pev.colormap-1 == itemId)
 						{
 							clip = wep.pev.button;
 							wep.pev.renderfx = -9999;
@@ -1333,7 +1355,7 @@ void craftMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextM
 					{
 						CItemInventory@ wep = cast<CItemInventory@>(inv.hItem.GetEntity());
 						@inv = inv.pNext;
-						if (wep.pev.colormap == itemId)
+						if (wep.pev.colormap-1 == itemId)
 						{
 							clip = wep.pev.button;
 							wep.pev.renderfx = -9999;
@@ -1353,7 +1375,7 @@ void craftMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextM
 			else if (invItem.isAmmo)
 			{
 				int invAmmo = getItemCount(plr, invItem.type);
-				int amtGiven = giveAmmo(plr, invAmmo, invItem.ammoName);
+				int amtGiven = giveAmmo(plr, invAmmo, invItem.classname);
 				
 				giveItem(plr, invItem.type, -amtGiven);
 				
@@ -1388,7 +1410,7 @@ void craftMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextM
 	else if (action.Find("drop-") == 0)
 	{
 		int dropAmt = atoi(action.SubString(5,6));
-		int dropType = atoi(action.SubString(12)) - 1;
+		int dropType = atoi(action.SubString(12));
 		
 		if (dropType >= 0 and dropType < int(g_items.size()))
 		{
@@ -1428,7 +1450,7 @@ void craftMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextM
 				g_EntityFuncs.Remove(@plr.HasNamedPlayerItem(dropItem.classname));
 			}
 			
-			g_Scheduler.SetTimeout("openPlayerMenu", 0, @plr, "unstack-" + (dropType+1));
+			g_Scheduler.SetTimeout("openPlayerMenu", 0, @plr, "unstack-" + dropType);
 		}
 	}
 	else if (action.Find("craft-") == 0)
@@ -1484,6 +1506,47 @@ void craftMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextM
 	
 	menu.Unregister();
 	@menu = null;
+}
+
+array<string> getStackOptions(CBasePlayer@ plr, int itemId)
+{
+	array<string> options;
+	Item@ invItem = g_items[itemId];
+	
+	string displayName = invItem.title;
+	int amount = getItemCount(plr, itemId);
+	int stackSize = Math.min(invItem.stackSize, amount);
+	
+	if (amount > 0)
+		displayName += " (" + amount + ")";
+	else
+		return options;
+	
+	options.insertLast(displayName); // not an option but yolo
+	
+	for (int i = stackSize, k = 0; i >= Math.min(stackSize, 5) and k < 8; i /= 2, k++)
+	{
+		if (i != stackSize)
+		{
+			if (i > 10)
+				i = (i / 10) * 10;
+			else if (i < 10)
+				i = 5;
+		}
+			
+		string stackString = i;
+		if (i < 10) stackString = "0" + stackString;
+		if (i < 100) stackString = "0" + stackString;
+		if (i < 1000) stackString = "0" + stackString;
+		if (i < 10000) stackString = "0" + stackString;
+		if (i < 100000) stackString = "0" + stackString;
+		if (amount >= i and stackSize >= i) 
+			options.insertLast(stackString);
+	}
+	if (stackSize != 1)
+		options.insertLast("000001");
+		
+	return options;
 }
 
 void openPlayerMenu(CBasePlayer@ plr, string subMenu)
@@ -1604,29 +1667,26 @@ void openPlayerMenu(CBasePlayer@ plr, string subMenu)
 	{
 		state.menu.SetTitle("Actions -> Equip:\n");
 		
-		int count = 0;
-		InventoryList@ inv = plr.get_m_pInventory();
-		dictionary listed;
-		while(inv !is null)
+		array<Item@> all_items = getAllItems(plr);
+		int options = 0;
+		
+		for (uint i = 0; i < all_items.size(); i++)
 		{
-			CItemInventory@ item = cast<CItemInventory@>(inv.hItem.GetEntity());
-			if (item !is null and item.pev.colormap > 0)
-			{
-				Item@ wep = g_items[item.pev.colormap-1];
-				if (wep !is null and (wep.isWeapon or wep.isAmmo or wep.type == I_ARMOR) and !listed.exists(wep.classname))
-				{
-					int amt = wep.isAmmo or wep.type == I_ARMOR ? getItemCount(plr, wep.type, false) : item.pev.button;
-					state.menu.AddItem(wep.title + (wep.stackSize > 1 ? " (" + amt + ")" : ""), any("equip-" + item.pev.colormap));
-					listed[wep.classname] = 1;
-					count++;
-				}
-			}
-			@inv = inv.pNext;
+			Item@ item = all_items[i];
+			int count = getItemCount(plr, item.type, false, true);
+			if (count <= 0)
+				continue;
+				
+			options++;
+			string displayName = item.title;
+			if (item.stackSize > 1)
+				displayName += " (" + count + ")";
+			state.menu.AddItem(displayName, any("equip-" + item.type));
 		}
 		
-		if (count == 0)
+		if (options == 0)
 		{
-			g_PlayerFuncs.PrintKeyBindingString(plr, "You don't have any equipable items");
+			g_PlayerFuncs.PrintKeyBindingString(plr, "You don't have any equippable items");
 			openPlayerMenu(plr, "");
 			return;
 		}
@@ -1634,50 +1694,25 @@ void openPlayerMenu(CBasePlayer@ plr, string subMenu)
 	else if (subMenu == "unequip-menu")
 	{
 		state.menu.SetTitle("Actions -> Unequip:\n");
-		int count = 0;
-		for (uint i = 0; i < MAX_ITEM_TYPES; i++)
-		{
-			CBasePlayerItem@ item = plr.m_rgpPlayerItems(i);
-			while (item !is null)
-			{
-				Item@ invItem = getItemByClassname(item.pev.classname);
-				string displayName = invItem.title;
-				if (invItem.stackSize > 1)
-					displayName += " (" + prettyNumber(plr.m_rgAmmo(g_PlayerFuncs.GetAmmoIndex(invItem.ammoName))) + ")";
-				state.menu.AddItem(displayName, any("unequip-" + item.pev.classname));
-				@item = cast<CBasePlayerItem@>(item.m_hNextItem.GetEntity());		
-				count++;
-			}
-		}
 		
-		for (uint i = 0; i < g_ammo_types.size(); i++)
+		array<Item@> all_items = getAllItems(plr);
+		int options = 0;
+		
+		for (uint i = 0; i < all_items.size(); i++)
 		{
-			bool dont_show = false;
-			for (uint k = 0; k < g_items.size(); k++) // unequip as a weapon only, not as ammo
-			{
-				if (g_items[k].ammoName == g_ammo_types[i])
-				{
-					dont_show = true;
-					break;
-				}
-			}
-			if (dont_show)
+			Item@ item = all_items[i];
+			int count = getItemCount(plr, item.type, true, false);
+			if (count <= 0)
 				continue;
-						
-			int ammo = plr.m_rgAmmo(g_PlayerFuncs.GetAmmoIndex(g_ammo_types[i]));
-			if (ammo > 0)
-			{
-				Item@ item = getItemByClassname(g_ammo_types[i]);
-				string name = item !is null ? item.title : g_ammo_types[i];
-				state.menu.AddItem(name + " (" + ammo + ")", any("unequip-" + g_ammo_types[i]));
-				count++;
-			}
+				
+			options++;
+			string displayName = item.title;
+			if (item.stackSize > 1)
+				displayName += " (" + count + ")";
+			state.menu.AddItem(displayName, any("unequip-" + item.classname));
 		}
 		
-		if (plr.pev.armorvalue >= ARMOR_VALUE)
-			state.menu.AddItem(g_items[I_ARMOR].title + " (" + (plr.pev.armorvalue / ARMOR_VALUE) + ")", any("unequip-armor"));
-		
-		if (count == 0)
+		if (options == 0)
 		{
 			g_PlayerFuncs.PrintKeyBindingString(plr, "You don't have any items equipped");
 			openPlayerMenu(plr, "");
@@ -1688,54 +1723,28 @@ void openPlayerMenu(CBasePlayer@ plr, string subMenu)
 	{
 		state.menu.SetTitle("Actions -> Drop Stackables:\n");
 		
-		int count = 0;
+		array<Item@> all_items = getAllItems(plr);
+		int options = 0;
 		
-		dictionary stacks;
-		for (uint i = 0; i < g_ammo_types.size(); i++)
+		for (uint i = 0; i < all_items.size(); i++)
 		{
-			int ammo = plr.m_rgAmmo(g_PlayerFuncs.GetAmmoIndex(g_ammo_types[i]));
-			if (ammo > 0)
-			{
-				Item@ item = getItemByClassname(g_ammo_types[i]);
-				if (item !is null)
-					stacks[item.type] = ammo;
-			}
-		}
-		InventoryList@ inv = plr.get_m_pInventory();
-		while(inv !is null)
-		{
-			CItemInventory@ item = cast<CItemInventory@>(inv.hItem.GetEntity());
-			if (item !is null and item.pev.colormap > 0)
-			{
-				Item@ wep = g_items[item.pev.colormap-1];
-				if (wep !is null and wep.stackSize > 1)
-				{
-					int amt = item.pev.button;
-					if (stacks.exists(wep.type))
-					{
-						int oldCount = 0;
-						stacks.get(wep.type, oldCount);
-						stacks[wep.type] = oldCount + amt;
-					}
-					else
-						stacks[wep.type] = amt;
-				}
-			}
-			@inv = inv.pNext;
-		}
-		array<string>@ stackKeys = stacks.getKeys();
-		for (uint i = 0; i < stackKeys.size(); i++)
-		{
-			Item@ item = g_items[ atoi(stackKeys[i]) ];
-			int amt = 1;
-			stacks.get(stackKeys[i], amt);
-			state.menu.AddItem(item.title + (item.stackSize > 1 ? " (" + amt + ")" : ""), any("unstack-" + (item.type+1)));
-			count++;
+			Item@ item = all_items[i];
+			if (item.stackSize <= 1)
+				continue;
+			int count = getItemCount(plr, item.type, true, true);
+			if (count <= 0)
+				continue;
+				
+			options++;
+			string displayName = item.title;
+			if (item.stackSize > 1)
+				displayName += " (" + count + ")";
+			state.menu.AddItem(displayName, any("unstack-" + item.type));
 		}
 		
-		if (count == 0)
+		if (options == 0)
 		{
-			g_PlayerFuncs.PrintKeyBindingString(plr, "You don't have any stacked items");
+			g_PlayerFuncs.PrintKeyBindingString(plr, "You don't have any stackable items");
 			openPlayerMenu(plr, "");
 			return;
 		}
@@ -1743,43 +1752,19 @@ void openPlayerMenu(CBasePlayer@ plr, string subMenu)
 	else if (subMenu.Find("unstack-") == 0)
 	{
 		int itemId = atoi(subMenu.SubString(8));
-		Item@ invItem = g_items[itemId-1];
-		
-		string displayName = invItem.title;
-		int amount = getItemCount(plr, itemId-1);
-		int stackSize = Math.min(invItem.stackSize, amount);
-		
-		if (amount > 0)
-			displayName += " (" + amount + ")";
-		else
+		array<string> stackOptions = getStackOptions(plr, itemId);
+		if (stackOptions.size() == 0)
 		{
 			openPlayerMenu(plr, "drop-stack-menu");
 			return;
 		}
 		
-		state.menu.SetTitle("Actions -> Drop " + displayName + ":\n");
-		
-		for (int i = stackSize, k = 0; i >= Math.min(stackSize, 5) and k < 8; i /= 2, k++)
+		state.menu.SetTitle("Actions -> Drop " + stackOptions[0] + ":\n");
+		for (uint i = 1; i < stackOptions.size(); i++)
 		{
-			if (i != stackSize)
-			{
-				if (i > 10)
-					i = (i / 10) * 10;
-				else if (i < 10)
-					i = 5;
-			}
-				
-			string stackString = i;
-			if (i < 10) stackString = "0" + stackString;
-			if (i < 100) stackString = "0" + stackString;
-			if (i < 1000) stackString = "0" + stackString;
-			if (i < 10000) stackString = "0" + stackString;
-			if (i < 100000) stackString = "0" + stackString;
-			if (amount >= i and stackSize >= i) 
-				state.menu.AddItem("Drop " + prettyNumber(i), any("drop-" + stackString + "-" + itemId));
+			int count = atoi(stackOptions[i]);
+			state.menu.AddItem("Drop " + prettyNumber(count), any("drop-" + stackOptions[i] + "-" + itemId));
 		}
-		if (stackSize != 1)
-			state.menu.AddItem("Drop 1", any("drop-000001-" + itemId));
 	}
 	else
 	{
@@ -2644,43 +2629,19 @@ void openLootMenu(CBasePlayer@ plr, CBaseEntity@ corpse, string submenu="")
 		else if (submenu.Find("givestack-") == 0)
 		{
 			int itemId = atoi(submenu.SubString(10));
-			Item@ invItem = g_items[itemId];
-			
-			string displayName = invItem.title;
-			int amount = getItemCount(plr, itemId);
-			int stackSize = Math.min(invItem.stackSize, amount);
-			
-			if (amount > 0)
-				displayName += " (" + amount + ")";
-			else
+			array<string> stackOptions = getStackOptions(plr, itemId);
+			if (stackOptions.size() == 0)
 			{
 				openLootMenu(plr, corpse, "give");
 				return;
 			}
 			
-			title += " -> Give " + displayName;
-			
-			for (int i = stackSize, k = 0; i >= Math.min(stackSize, 5) and k < 8; i /= 2, k++)
+			title += " -> Give " + stackOptions[0];
+			for (uint i = 1; i < stackOptions.size(); i++)
 			{
-				if (i != stackSize)
-				{
-					if (i > 10)
-						i = (i / 10) * 10;
-					else if (i < 10)
-						i = 5;
-				}
-					
-				string stackString = i;
-				if (i < 10) stackString = "0" + stackString;
-				if (i < 100) stackString = "0" + stackString;
-				if (i < 1000) stackString = "0" + stackString;
-				if (i < 10000) stackString = "0" + stackString;
-				if (i < 100000) stackString = "0" + stackString;
-				if (amount >= i and stackSize >= i) 
-					state.menu.AddItem("Give " + prettyNumber(i), any("givestack-" + stackString + "-" + itemId));
+				int count = atoi(stackOptions[i]);
+				state.menu.AddItem("Give " + prettyNumber(count), any("givestack-" + stackOptions[i] + "-" + itemId));
 			}
-			if (stackSize != 1)
-				state.menu.AddItem("Give 1", any("givestack-000001-" + itemId));
 		}
 		else if (submenu == "take")
 		{

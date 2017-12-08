@@ -198,31 +198,124 @@ Item@ getItemByClassname(string cname)
 	return null;
 }
 
-int getItemCount(CBasePlayer@ plr, int itemType, bool includeEquipment = true)
+int getItemCount(CBasePlayer@ plr, int itemType, bool includeEquipment = true, bool includeInventory = true)
 {
-	InventoryList@ inv = plr.get_m_pInventory();
+	if (itemType <= 0 or itemType >= int(g_items.size()))
+		return 0;
+		
+	Item@ checkItem = g_items[itemType];
 	int count = 0;
-	while (inv !is null)
+	
+	if (includeInventory)
 	{
-		CItemInventory@ item = cast<CItemInventory@>(inv.hItem.GetEntity());
-		@inv = inv.pNext;
-		if (item !is null and item.pev.colormap == (itemType+1))
-			count += item.pev.button;
+		InventoryList@ inv = plr.get_m_pInventory();
+		while (inv !is null)
+		{
+			CItemInventory@ item = cast<CItemInventory@>(inv.hItem.GetEntity());
+			if (item.pev.colormap-1 == itemType)
+				count += checkItem.stackSize > 1 ? item.pev.button : 1;
+			@inv = inv.pNext;
+		}
 	}
 	
-	if (includeEquipment and itemType >= 0 and itemType < int(g_items.size()))
+	if (includeEquipment)
 	{
-		Item@ item = g_items[itemType];
-		if (item.isAmmo or item.stackSize > 1)
+		if (checkItem.isAmmo or checkItem.stackSize > 1)
 		{
-			string ammoName = item.classname;
-			if (item.stackSize > 1 and !item.isAmmo)
-				ammoName = item.ammoName;
+			string ammoName = checkItem.classname;
+			if (checkItem.stackSize > 1 and !checkItem.isAmmo)
+				ammoName = checkItem.ammoName;
 			count += plr.m_rgAmmo(g_PlayerFuncs.GetAmmoIndex(ammoName));
+		}
+		else if (checkItem.isWeapon)
+		{
+			if (@plr.HasNamedPlayerItem(checkItem.classname) !is null)
+				count += 1;
 		}
 	}
 	
 	return count;
+}
+
+array<Item@> getAllItems(CBasePlayer@ plr)
+{
+	array<Item@> all_items;
+	
+	// held weapons/items
+	for (uint i = 0; i < MAX_ITEM_TYPES; i++)
+	{
+		CBasePlayerItem@ item = plr.m_rgpPlayerItems(i);
+		while (item !is null)
+		{
+			Item@ invItem = getItemByClassname(item.pev.classname);
+			if (invItem !is null)
+				all_items.insertLast(invItem);
+			@item = cast<CBasePlayerItem@>(item.m_hNextItem.GetEntity());		
+		}
+	}
+	
+	// held ammo
+	dictionary stacks;
+	for (uint i = 0; i < g_ammo_types.size(); i++)
+	{
+		bool dont_show = false;
+		for (uint k = 0; k < g_items.size(); k++) // unequip as a weapon only, not as ammo
+		{
+			if (g_items[k].ammoName == g_ammo_types[i])
+			{
+				dont_show = true;
+				break;
+			}
+		}
+		if (dont_show)
+			continue;
+		
+		int ammo = plr.m_rgAmmo(g_PlayerFuncs.GetAmmoIndex(g_ammo_types[i]));
+		if (ammo > 0)
+		{
+			Item@ item = getItemByClassname(g_ammo_types[i]);
+			if (item !is null)
+				stacks[item.type] = ammo;
+		}
+	}
+	
+	// equipped armor
+	if (plr.pev.armorvalue >= ARMOR_VALUE)
+		stacks[I_ARMOR] = plr.pev.armorvalue / ARMOR_VALUE;
+	
+	// inventory items
+	InventoryList@ inv = plr.get_m_pInventory();
+	while(inv !is null)
+	{
+		CItemInventory@ item = cast<CItemInventory@>(inv.hItem.GetEntity());
+		if (item !is null and item.pev.colormap > 0)
+		{
+			Item@ wep = g_items[item.pev.colormap-1];
+			if (wep !is null)
+			{
+				if (stacks.exists(wep.type))
+				{
+					int oldCount = 0;
+					stacks.get(wep.type, oldCount);
+					stacks[wep.type] = oldCount + item.pev.button;
+				}
+				else
+					stacks[wep.type] = item.pev.button;				
+			}
+		}
+		@inv = inv.pNext;
+	}
+	
+	array<string>@ stackKeys = stacks.getKeys();
+	for (uint i = 0; i < stackKeys.size(); i++)
+	{
+		Item@ item = g_items[ atoi(stackKeys[i]) ];
+		int amt = 1;
+		stacks.get(stackKeys[i], amt);
+		all_items.insertLast(item);
+	}
+	
+	return all_items;
 }
 
 int getInventorySpace(CBasePlayer@ plr)
