@@ -33,13 +33,14 @@ class Item
 	string desc;
 	string classname;
 	string ammoName;
+	array<RawItem> costs;
 	
 	Item() {
 		type = -1;
 		stackSize = 1;
 	}
 	
-	Item(int t, int stackSz, bool wep, bool ammo, string cname, string ammoName, string tit, string description) {
+	Item(int t, int stackSz, bool wep, bool ammo, string cname, string ammoName, string tit, RawItem@ cost1, RawItem@ cost2, string description="") {
 		type = t;
 		stackSize = stackSz;
 		title = tit;
@@ -48,6 +49,92 @@ class Item
 		isAmmo = ammo;
 		classname = cname;
 		this.ammoName = ammoName;
+		
+		if (cost1 !is null)
+			costs.insertLast(cost1);
+		if (cost2 !is null)
+			costs.insertLast(cost2);
+	}
+	
+	string getCraftText()
+	{
+		if (g_free_build)
+			return title;
+			
+		string cost = getCostText();
+
+		// The menu font isn't monospace, so we can only try to get items aligned...
+		// It looks different on every resolution, but it's still better than using multiple lines imo
+		string tabs;
+		switch(type)
+		{
+			case I_WOOD_DOOR: tabs = "                   "; break;
+			case I_WOOD_SHUTTERS: tabs = "               "; break;
+			case I_WOOD_BARS: tabs = "         "; break;
+			case I_METAL_DOOR: tabs = "                    "; break;
+			case I_METAL_BARS: tabs = "         "; break;
+			case I_HIGH_WOOD_WALL: tabs = "  "; break;
+			case I_HIGH_STONE_WALL: tabs = "  "; break;
+			
+			case I_CODE_LOCK: tabs = "        "; break;
+			case I_SMALL_CHEST: tabs = "      "; break;
+			case I_LARGE_CHEST: tabs = "      "; break;
+			case I_FURNACE: tabs = "           "; break;
+			case I_LADDER: tabs = "            "; break;
+			case I_LADDER_HATCH: tabs = "    "; break;
+			case I_TOOL_CUPBOARD: tabs = "  "; break;
+			
+			case I_ROCK: tabs = "              "; break;
+			case I_BUILDING_PLAN: tabs = "    "; break;
+			case I_HAMMER: tabs = "          "; break;
+			case I_STONE_HATCHET: tabs = "  "; break;
+			case I_STONE_PICKAXE: tabs = "  "; break;
+			case I_METAL_HATCHET: tabs = "  "; break;
+			case I_METAL_PICKAXE: tabs = "  "; break;
+			
+			case I_SYRINGE: tabs = "        "; break;
+			case I_ARMOR: tabs = "  "; break;
+			
+			case I_CROWBAR: tabs = "        "; break;
+			case I_BOW: tabs = "  "; break;
+			case I_DEAGLE: tabs = "  "; break;
+			case I_SHOTGUN: tabs = "        "; break;
+			case I_SNIPER: tabs = "    "; break;
+			case I_UZI: tabs = "               "; break;
+			case I_SAW: tabs = "     "; break;
+		
+			case I_FLAMETHROWER: tabs = "   "; break;
+			case I_RPG: tabs = "                 "; break;
+			case I_GRENADE: tabs = "   "; break;
+			case I_SATCHEL: tabs = "  "; break;
+			case I_C4: tabs = "                   "; break;
+			
+			case I_ARROW: tabs = "  "; break;
+			case I_9MM: tabs = "      "; break;
+			case I_556: tabs = "       "; break;
+			case I_BUCKSHOT: tabs = "    "; break;
+			case I_ROCKET: tabs = "             "; break;
+			
+			default: tabs = "  "; break;
+		}
+		
+		return title + tabs + cost;
+	}
+	
+	string getCostText()
+	{
+		if (costs.size() == 0)
+			return "";
+		string ret = " (";
+		
+		for (uint i = 0; i < costs.size(); i++)
+		{
+			ret += "" + costs[i].amt + " " + g_items[costs[i].type].title;
+			if (i != costs.size()-1)
+				ret += " + "; 
+		}
+		ret += ")";
+		return ret;
 	}
 }
 
@@ -109,6 +196,7 @@ enum item_types
 	I_HQMETAL,
 	I_METAL_ORE,
 	I_HQMETAL_ORE,
+	I_SCRAP,
 	I_HAMMER,
 	I_BUILDING_PLAN,
 	I_ROCK,
@@ -190,55 +278,105 @@ array<BuildPartInfo> g_part_info = {
 };
 
 array<Item> g_items = {	
-	Item(I_WOOD_DOOR, 1, false, false, "", "", "Wood Door", "A hinged door which is made out of wood."),
-	Item(I_METAL_DOOR, 1, false, false, "", "", "Metal Door", "A hinged door which is made out of metal."),
-	Item(I_WOOD_BARS, 1, false, false, "", "", "Wood Window Bars", "b_wood_bars"),
-	Item(I_METAL_BARS, 1, false, false, "", "", "Metal Window Bars", "b_metal_bars"),
-	Item(I_WOOD_SHUTTERS, 1, false, false, "", "", "Wood Shutters", "b_wood_shutters"),
-	Item(I_CODE_LOCK, 1, false, false, "", "", "Code Lock", "An electronic lock. Locked and unlocked with four-digit code. Hold your USE key while looking at the lock to activate it."),
-	Item(I_TOOL_CUPBOARD, 1, false, false, "", "", "Tool Cupboard", "Only players authorized to this cupboard will be able to build near it.\nPress USE to authorize yourself and hold USE to clear previous authorizations."),
-	Item(I_HIGH_WOOD_WALL, 1, false, false, "", "", "High External Wood Wall", "b_wood_wall"),
-	Item(I_HIGH_STONE_WALL, 1, false, false, "", "", "High External Stone Wall", "b_stone_wall"),
-	Item(I_LADDER, 1, false, false, "", "", "Ladder", "b_ladder"),
-	Item(I_LADDER_HATCH, 1, false, false, "", "", "Ladder Hatch", "b_ladder_hatch"),
-	Item(I_SMALL_CHEST, 1, false, false, "", "", "Small Chest", "Keep your things in this storage box. Stores up to " + CHEST_ITEM_MAX_SMALL + " items."),
-	Item(I_LARGE_CHEST, 1, false, false, "", "", "Large Chest", "Keep your things in this storage box. Stores up to " + CHEST_ITEM_MAX_LARGE + " items."),
-	Item(I_FURNACE, 1, false, false, "", "", "Furnace", "Use this to smelt mined ore."),
+	Item(I_WOOD_DOOR, 1, false, false, "b_wood_door", "", "Wood Door", RawItem(I_WOOD, 300), null, 
+		"A hinged door which is made out of wood."),
+	Item(I_METAL_DOOR, 1, false, false, "b_metal_door", "", "Metal Door", RawItem(I_WOOD, 300), RawItem(I_METAL, 150), 
+		"A hinged door which is made out of metal."),
+	Item(I_WOOD_BARS, 1, false, false, "b_wood_bars", "", "Wood Window Bars", RawItem(I_WOOD, 50), null, 
+		"b_wood_bars"),
+	Item(I_METAL_BARS, 1, false, false, "b_metal_bars", "", "Metal Window Bars", RawItem(I_METAL, 25), null, 
+		"b_metal_bars"),
+	Item(I_WOOD_SHUTTERS, 1, false, false, "b_wood_shutters", "", "Wood Shutters", RawItem(I_WOOD, 200), null, 
+		"b_wood_shutters"),
+	Item(I_CODE_LOCK, 1, false, false, "b_code_lock", "", "Code Lock", RawItem(I_METAL, 100), null, 
+		"An electronic lock. Locked and unlocked with four-digit code. Hold your USE key while looking at the lock to activate it."),
+	Item(I_TOOL_CUPBOARD, 1, false, false, "b_tool_cupboard", "", "Tool Cupboard", RawItem(I_WOOD, 1000), null, 
+		"Only players authorized to this cupboard will be able to build near it.\nPress USE to authorize yourself and hold USE to clear previous authorizations."),
+	Item(I_HIGH_WOOD_WALL, 1, false, false, "b_high_wood_wall", "", "High External Wood Wall", RawItem(I_WOOD, 1500), null, 
+		"Used to keep people off your property."),
+	Item(I_HIGH_STONE_WALL, 1, false, false, "b_high_stone_wall", "", "High External Stone Wall", RawItem(I_STONE, 1500), null, 
+		"Used to keep people off your property."),
+	Item(I_LADDER, 1, false, false, "b_ladder", "", "Ladder", RawItem(I_WOOD, 300), RawItem(I_SCRAP, 3), 
+		"b_ladder"),
+	Item(I_LADDER_HATCH, 1, false, false, "b_ladder_hatch", "", "Ladder Hatch", RawItem(I_METAL, 300), RawItem(I_SCRAP, 5), 
+		"b_ladder_hatch"),
+	Item(I_SMALL_CHEST, 1, false, false, "b_small_chest", "", "Small Chest", RawItem(I_WOOD, 100), null, 
+		"Keep your things in this storage box. Stores up to " + CHEST_ITEM_MAX_SMALL + " items."),
+	Item(I_LARGE_CHEST, 1, false, false, "b_large_chest", "", "Large Chest", RawItem(I_WOOD, 250), RawItem(I_METAL, 50),
+		"Keep your things in this storage box. Stores up to " + CHEST_ITEM_MAX_LARGE + " items."),
+	Item(I_FURNACE, 1, false, false, "b_furnace", "", "Furnace", RawItem(I_STONE, 300), RawItem(I_FUEL, 50),
+		"Use this to smelt mined ore."),
 	
-	Item(I_WOOD, 200, false, false, "", "", "Wood", "Collected from trees and used to build bases and craft items."),
-	Item(I_STONE, 1000, false, false, "", "", "Stone", "Collected from rocks and used to reinforce bases and craft items."),
-	Item(I_METAL, 1000, false, false, "", "", "Metal", "Smelted from metal ore."),
-	Item(I_HQMETAL, 100, false, false, "", "", "HQ Metal", "High quality metal smelted from HQ Metal Ore."),
-	Item(I_METAL_ORE, 1000, false, false, "", "", "Metal Ore", "Collected from rocks. Smelt this in a furnace to produce Metal."),
-	Item(I_HQMETAL_ORE, 100, false, false, "", "", "HQ Metal Ore", "Collected from rocks. Smelt this in a furnace to produce HQ Metal."),
-	Item(I_HAMMER, 1, true, false, "weapon_hammer", "", "Hammer", "Used to upgrade, repair, and merge base parts."),
-	Item(I_BUILDING_PLAN, 1, true, false, "weapon_building_plan", "", "Building Plan", "Used to craft buildings."),
-	Item(I_ROCK, 1, true, false, "weapon_rock", "", "Rock", "The most basic melee weapon and gathering tool."),
-	Item(I_STONE_HATCHET, 1, true, false, "weapon_stone_hatchet", "", "Stone Hatchet", "Use this to chop trees"),
-	Item(I_STONE_PICKAXE, 1, true, false, "weapon_stone_pickaxe", "", "Stone Pickaxe", "Use this to mine rocks"),
-	Item(I_METAL_HATCHET, 1, true, false, "weapon_metal_hatchet", "", "Metal Hatchet", "Effective tree chopper and melee weapon"),
-	Item(I_METAL_PICKAXE, 1, true, false, "weapon_metal_pickaxe", "", "Metal Pickaxe", "Effective rock breaker and melee weapon"),
-	Item(I_CROWBAR, 1, true, false, "weapon_crowbar", "", "Crowbar", "TING TING TING"),
-	Item(I_BOW, 1, true, false, "weapon_bow", "", "Hunting Bow", "Hard to use with lag. Right-click to load and aim, left-click to fire."),
-	Item(I_SYRINGE, 100, true, false, "weapon_syringe", "health", "Syringe", "Right-click heals you, left-click heals a target."),
-	Item(I_ARMOR, 10, false, false, "item_battery", "", "Armor Piece", "Equip this to increase your current armor by " + ARMOR_VALUE + "."),
-	Item(I_FLAMETHROWER, 1, true, false, "weapon_flamethrower", "", "Flame Thrower", "Effective against wood and flesh. Does not damage stone or metal. Uses Fuel as ammo."),
-	Item(I_RPG, 1, true, false, "weapon_rpg", "", "RPG", "Rocket launcher. Effective against buildings. Uses rockets as ammo."),
-	Item(I_GRENADE, 10, true, false, "weapon_handgrenade", "hand grenade", "Hand Grenade", "Effective against people, but doesn't do much damage to buildings."),
-	Item(I_SATCHEL, 5, true, false, "weapon_satchel", "satchel charge", "Satchel Charge", "Effective against doors and buildings."),
-	Item(I_C4, 1, true, false, "weapon_c4", "", "C4", "Effective against doors and buildings."),
-	Item(I_DEAGLE, 1, true, false, "weapon_eagle", "", "Desert Eagle", "Powerful pistol with a laser sight. Uses 3.57 ammo."),
-	Item(I_SHOTGUN, 1, true, false, "weapon_shotgun", "", "Shotgun", "Most effective at close range. Uses buckshot ammo."),
-	Item(I_SNIPER, 1, true, false, "weapon_sniperrifle", "", "Sniper Rifle", "Camp in your base with this. Uses 7.26 ammo."),
-	Item(I_UZI, 1, true, false, "weapon_uzi", "", "Uzi", "Rapid-fire weapon. Uses 9MM ammo."),
-	Item(I_SAW, 1, true, false, "weapon_m249", "", "M249 SAW", "Powerful machine gun with a high firing rate and damage. Uses 5.56 ammo."),
+	Item(I_WOOD, 200, false, false, "", "", "Wood", null, null,
+		"Collected from trees and used to build bases and craft items."),
+	Item(I_STONE, 1000, false, false, "", "", "Stone", null, null,
+		"Collected from rocks and used to reinforce bases and craft items."),
+	Item(I_METAL, 1000, false, false, "", "", "Metal", null, null,
+		"Smelted from metal ore."),
+	Item(I_HQMETAL, 100, false, false, "", "", "HQ Metal", null, null,
+		"High quality metal smelted from HQ Metal Ore."),
+	Item(I_METAL_ORE, 1000, false, false, "", "", "Metal Ore", null, null,
+		"Collected from rocks. Smelt this in a furnace to produce Metal."),
+	Item(I_HQMETAL_ORE, 100, false, false, "", "", "HQ Metal Ore", null, null,
+		"Collected from rocks. Smelt this in a furnace to produce HQ Metal."),
+	Item(I_SCRAP, 100, false, false, "", "", "Scrap", null, null,
+		"Crafting material collected from barrels."),
+		
+	Item(I_HAMMER, 1, true, false, "weapon_hammer", "", "Hammer", RawItem(I_WOOD, 100), null,
+		"Used to upgrade, repair, and merge base parts."),
+	Item(I_BUILDING_PLAN, 1, true, false, "weapon_building_plan", "", "Building Plan",  RawItem(I_WOOD, 10), null,
+		"Used to craft buildings."),
+	Item(I_ROCK, 1, true, false, "weapon_rock", "", "Rock", RawItem(I_STONE, 10), null,
+		"The most basic melee weapon and gathering tool."),
+	Item(I_STONE_HATCHET, 1, true, false, "weapon_stone_hatchet", "", "Stone Hatchet", RawItem(I_WOOD, 200), RawItem(I_STONE, 100),
+		"Used to chop trees"),
+	Item(I_STONE_PICKAXE, 1, true, false, "weapon_stone_pickaxe", "", "Stone Pickaxe", RawItem(I_WOOD, 200), RawItem(I_STONE, 100),
+		"Used to mine rocks"),
+	Item(I_METAL_HATCHET, 1, true, false, "weapon_metal_hatchet", "", "Metal Hatchet", RawItem(I_WOOD, 100), RawItem(I_METAL, 75),
+		"Effective tree chopper and melee weapon"),
+	Item(I_METAL_PICKAXE, 1, true, false, "weapon_metal_pickaxe", "", "Metal Pickaxe", RawItem(I_WOOD, 100), RawItem(I_METAL, 125),
+		"Effective rock miner melee weapon"),
+	Item(I_CROWBAR, 1, true, false, "weapon_crowbar", "", "Crowbar", RawItem(I_METAL, 50), null,
+		"TING TING TING"),
+	Item(I_BOW, 1, true, false, "weapon_bow", "", "Hunting Bow", RawItem(I_WOOD, 300), null,
+		"Hard to use with lag. Right-click to load and aim, left-click to fire."),
+	Item(I_SYRINGE, 100, true, false, "weapon_syringe", "health", "Syringe", RawItem(I_FUEL, 10), RawItem(I_SCRAP, 1),
+		"Right-click heals you, left-click heals a target."),
+	Item(I_ARMOR, 10, false, false, "item_battery", "", "Armor Piece", RawItem(I_HQMETAL, 10), RawItem(I_SCRAP, 2),
+		"Equip this to increase your current armor by " + ARMOR_VALUE + "."),
+	Item(I_FLAMETHROWER, 1, true, false, "weapon_flamethrower", "", "Flame Thrower", RawItem(I_HQMETAL, 20), RawItem(I_SCRAP, 8),
+		"Effective against wood and flesh. Does not damage stone or metal. Uses Fuel as ammo."),
+	Item(I_RPG, 1, true, false, "weapon_rpg", "", "RPG", RawItem(I_HQMETAL, 100), RawItem(I_SCRAP, 10),
+		"Rocket launcher. Effective against buildings. Uses rockets as ammo."),
+	Item(I_GRENADE, 10, true, false, "weapon_handgrenade", "hand grenade", "Hand Grenade", RawItem(I_METAL, 25), RawItem(I_SCRAP, 1),
+		"Effective against people, but doesn't do much damage to buildings."),
+	Item(I_SATCHEL, 5, true, false, "weapon_satchel", "satchel charge", "Satchel Charge", RawItem(I_METAL, 50), RawItem(I_SCRAP, 2),
+		"Effective against doors and buildings."),
+	Item(I_C4, 1, true, false, "weapon_c4", "", "C4", RawItem(I_METAL, 200), RawItem(I_SCRAP, 20),
+		"Effective against doors and buildings."),
+	Item(I_DEAGLE, 1, true, false, "weapon_eagle", "", "Desert Eagle", RawItem(I_HQMETAL, 10), RawItem(I_SCRAP, 3),
+		"Powerful pistol with a laser sight. Uses 3.57 ammo."),
+	Item(I_SHOTGUN, 1, true, false, "weapon_shotgun", "", "Shotgun", RawItem(I_HQMETAL, 15), RawItem(I_SCRAP, 4),
+		"Most effective at close range. Uses buckshot ammo."),
+	Item(I_SNIPER, 1, true, false, "weapon_sniperrifle", "", "Sniper Rifle", RawItem(I_HQMETAL, 30), RawItem(I_SCRAP, 8),
+		"Camp in your base with this. Uses 7.26 ammo."),
+	Item(I_UZI, 1, true, false, "weapon_uzi", "", "Uzi", RawItem(I_HQMETAL, 40), RawItem(I_SCRAP, 3),
+		"Rapid-fire weapon. Uses 9MM ammo."),
+	Item(I_SAW, 1, true, false, "weapon_m249", "", "M249 SAW", RawItem(I_HQMETAL, 50), RawItem(I_SCRAP, 15),
+		"Powerful machine gun with a high firing rate and damage. Uses 5.56 ammo."),
 	
-	Item(I_ARROW, 64, false, true, "arrows", "", "Wooden Arrow", "Used with the hunting bow and crossbow."),
-	Item(I_FUEL, 500, false, true, "fuel", "", "Fuel", "Used with the flame thrower."),
-	Item(I_556, 100, false, true, "556", "", "5.56 Ammo", "Used with the saw and sniper rifle."),
-	Item(I_9MM, 100, false, true, "9mm", "", "9mm Ammo", "Used with the uzi."),
-	Item(I_BUCKSHOT, 50, false, true, "buckshot", "", "Shotgun Shell", "Used with the shotgun."),
-	Item(I_ROCKET, 5, false, true, "rockets", "", "Rocket", "Used with the RPG."),
+	Item(I_ARROW, 64, false, true, "arrows", "", "Wooden Arrow", RawItem(I_WOOD, 20), RawItem(I_STONE, 10),
+		"Used with the hunting bow and crossbow."),
+	Item(I_FUEL, 500, false, true, "fuel", "", "Fuel", null, null,
+		"Crafting material and ammo for the flame thrower. Collected from monsters."),
+	Item(I_556, 100, false, true, "556", "", "5.56 Ammo", RawItem(I_METAL, 10), RawItem(I_HQMETAL, 5),
+		"Used with the saw and sniper rifle."),
+	Item(I_9MM, 100, false, true, "9mm", "", "9mm Ammo", RawItem(I_METAL, 10), RawItem(I_HQMETAL, 5), 
+		"Used with the uzi."),
+	Item(I_BUCKSHOT, 50, false, true, "buckshot", "", "Shotgun Shell", RawItem(I_METAL, 20), RawItem(I_HQMETAL, 10),
+		"Used with the shotgun."),
+	Item(I_ROCKET, 5, false, true, "rockets", "", "Rocket", RawItem(I_HQMETAL, 50), RawItem(I_SCRAP, 5),
+		"Used with the RPG."),
 };
 
 
@@ -357,6 +495,8 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 		//g_EntityFuncs.FireTargets("push", null, null, USE_TOGGLE);
 		
 		string cost = "\n\n(" + g_part_info[buildType].cost + " " + g_items[BUILD_MATERIAL].title + ")";
+		if (buildType >= B_WOOD_DOOR)
+			cost = "";
 		
 		g_PlayerFuncs.PrintKeyBindingString(getPlayer(), g_part_info[buildType].title + cost);
 	}
@@ -389,7 +529,15 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 		if (buildEnt is null)
 			return;
 		
-		TraceResult tr = TraceLook(getPlayer(), 160);
+		float buildDist = 160.0f;
+		if (buildType >= B_WOOD_DOOR and buildType != B_HIGH_STONE_WALL and buildType != B_HIGH_WOOD_WALL
+			and buildType != B_LADDER_HATCH)
+			buildDist = 96.0f;
+		if (isFloorItem(buildEnt))
+			buildDist = 128.0f;
+		float maxSnapDist = buildDist + 32.0f;
+		TraceResult tr = TraceLook(plr, buildDist);
+		
 		Vector newOri = tr.vecEndPos;
 		float newYaw = plr.pev.angles.y;
 		float newPitch = buildEnt.pev.angles.x;
@@ -525,7 +673,6 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 				Vector attachOri = tr.vecEndPos;
 				float attachYaw = part.pev.angles.y;
 				float minDist = 0;
-				bool validSnap = true;
 				
 				if (isFloorPiece(part) and partSocket != SOCKET_MIDDLE and 
 					!((buildType == B_FLOOR or buildType == B_LADDER_HATCH or buildType == B_FLOOR_TRI) and 
@@ -844,8 +991,10 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 					}
 				}
 				
-				bestDist = minDist;
+				if ((plr.pev.origin - attachOri).Length() > maxSnapDist)
+					continue;
 					
+				bestDist = minDist;
 				newOri = attachOri;
 				attaching = true;
 				validBuild = true;
@@ -1134,21 +1283,21 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 		return cast<CBasePlayer@>(e_plr);
 	}
 	
-	void Build()
+	bool Build()
 	{
 		CBasePlayer@ plr = getPlayer();
 		PlayerState@ state = getPlayerState(plr);
 		if (buildEnt !is null and forbidden)
 		{
 			g_PlayerFuncs.PrintKeyBindingString(plr, "Building blocked by tool cupboard");
-			return;
+			return false;
 		}
 		if (!g_build_anywhere)
 		{
 			if (zoneid == -1)
 			{
 				g_PlayerFuncs.PrintKeyBindingString(plr, "Building not allowed in outskirts");
-				return;
+				return false;
 			}
 			if (state.home_zone == -1)
 			{
@@ -1180,7 +1329,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 			if (state.getNumParts(zoneid) >= state.maxPoints(zoneid))
 			{
 				g_PlayerFuncs.PrintKeyBindingString(plr, "You're out of build points!\n\nFuse your parts (Wrench) for more points.");
-				return;
+				return false;
 			}
 			
 			if (zoneid != state.home_zone)
@@ -1189,28 +1338,40 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 		
 		if (!g_free_build)
 		{
-			if (getItemCount(plr, BUILD_MATERIAL) < g_part_info[buildType].cost)
+			string cost = "";
+			if (alternateBuild)
 			{
-				g_PlayerFuncs.PrintKeyBindingString(plr, "You don't have enough " + g_items[BUILD_MATERIAL].title);
-				return;
+				Item@ itemCost = getItemByClassname(g_part_info[buildType].copy_ent);
+				if (getItemCount(plr, itemCost.type, false, true) > 0)
+				{
+					giveItem(plr, itemCost.type, -1);
+					cost = "-1 " + itemCost.title;
+				}
 			}
 			else
 			{
-				HUDTextParams params;
-				params.x = -1;
-				params.y = -1;
-				params.effect = 0;
-				params.r1 = 255;
-				params.g1 = 255;
-				params.b1 = 255;
-				params.fadeinTime = 0;
-				params.fadeoutTime = 0.5f;
-				params.holdTime = 0.0f;
-				params.channel = 2;
-			
-				g_PlayerFuncs.HudMessage(plr, params, "-" + g_part_info[buildType].cost + " " + g_items[BUILD_MATERIAL].title);
-				giveItem(plr, BUILD_MATERIAL, -g_part_info[buildType].cost, false);
+				if (getItemCount(plr, BUILD_MATERIAL, false, true) < g_part_info[buildType].cost)
+				{
+					g_PlayerFuncs.PrintKeyBindingString(plr, "You need more " + g_items[BUILD_MATERIAL].title);
+					return false;
+				}
+				cost = "-" + g_part_info[buildType].cost + " " + g_items[BUILD_MATERIAL].title;
 			}
+			
+			HUDTextParams params;
+			params.x = -1;
+			params.y = -1;
+			params.effect = 0;
+			params.r1 = 255;
+			params.g1 = 255;
+			params.b1 = 255;
+			params.fadeinTime = 0;
+			params.fadeoutTime = 0.5f;
+			params.holdTime = 0.5f;
+			params.channel = 2;
+		
+			g_PlayerFuncs.HudMessage(plr, params, cost);
+			giveItem(plr, BUILD_MATERIAL, -g_part_info[buildType].cost, false);
 		}
 		
 		if (buildEnt !is null && validBuild) 
@@ -1260,7 +1421,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 				attachEnt.pev.body = 0;
 				
 				g_SoundSystem.PlaySound(attachEnt.edict(), CHAN_STATIC, soundFile, 1.0f, 1.0f, 0, 90 + Math.RandomLong(0, 20));
-				return;
+				return true;
 			}
 		
 			Vector origin = buildEnt.pev.origin;				
@@ -1439,25 +1600,61 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 					}
 				}
 			}
+			return true;
 		}
+		return false;
 	}
 	
-	void Cycle(int direction)
+	bool HasAnyItems()
 	{
-		buildType += direction;
-		if (alternateBuild) 
+		if (g_free_build)
+			return true;
+		CBasePlayer@ plr = getPlayer();
+		for (int i = B_TYPES; i < B_ITEM_TYPES; i++)
 		{
-			if (buildType >= B_ITEM_TYPES) {
-				buildType = B_TYPES;
+			Item@ item = getItemByClassname(g_part_info[i].copy_ent);
+			if (getItemCount(plr, item.type, false, true) > 0)
+				return true;
+		}
+		return false;
+	}
+	
+	bool Cycle(int direction)
+	{
+		CBasePlayer@ plr = getPlayer();
+		
+		if (alternateBuild)
+		{
+			bool hasAnyItems = false;
+			for (int i = 0; i < B_ITEM_TYPES-B_TYPES; i++)
+			{
+				buildType += direction;		
+			
+				if (buildType < B_TYPES) {
+					buildType = B_ITEM_TYPES - 1;
+				}
+				else if (buildType >= B_ITEM_TYPES) {
+					buildType = B_TYPES;
+				}
+				
+				if (g_free_build)
+					break;
+
+				Item@ item = getItemByClassname(g_part_info[buildType].copy_ent);
+				if (getItemCount(plr, item.type, false, true) > 0)
+				{
+					hasAnyItems = true;
+					break;
+				}
 			}
-			if (buildType < B_TYPES) {
-				buildType = B_ITEM_TYPES - 1;
-			}
+			if (!hasAnyItems and !g_free_build)
+				return false;
 		}
 		else
 		{
+			buildType += direction;
 			if (buildType >= B_TYPES) {
-			buildType = 0;
+				buildType = 0;
 			}
 			if (buildType < 0) {
 				buildType = B_TYPES - 1;
@@ -1465,12 +1662,17 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 		}
 		
 		createBuildEnts();
+		return true;
 	}
 	
 	void PrimaryAttack()  
 	{
-		if (canShootAgain) {
-			Build();
+		if (canShootAgain) 
+		{
+			if (Build() and !g_free_build and alternateBuild)
+			{
+				CheckItemMode(0);
+			}
 			canShootAgain = false;
 		}
 	}
@@ -1493,7 +1695,28 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 		}
 	}
 	
-	void Reload()
+	bool CheckItemMode(int oldBuildType)
+	{
+		if (g_free_build)
+			return true;
+		CBasePlayer@ plr = getPlayer();
+		if (!HasAnyItems()) // make sure we have any items
+		{
+			nextAlternate = 0;
+			SwitchMode(oldBuildType);
+			g_PlayerFuncs.PrintKeyBindingString(plr, "No items to place");
+			return false;
+		}
+		else
+		{
+			Item@ item = getItemByClassname(g_part_info[buildType].copy_ent);
+			if (getItemCount(plr, item.type, false, true) == 0)
+				Cycle(1);
+		}
+		return true;
+	}
+	
+	void SwitchMode(int initialType=0)
 	{
 		if (nextAlternate < g_Engine.time)
 		{
@@ -1502,17 +1725,25 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 
 			if (alternateBuild)
 			{
+				int oldBuildType = buildType;
 				buildType = B_TYPES;
+				if (!CheckItemMode(oldBuildType))
+					return;
 				createBuildEnts();
 				g_PlayerFuncs.PrintKeyBindingString(getPlayer(), "Item Placement Mode");
 			}
 			else
 			{
-				buildType = 0;
+				buildType = initialType;
 				createBuildEnts();
 				g_PlayerFuncs.PrintKeyBindingString(getPlayer(), "Construction Mode");
 			}
 		}
+	}
+	
+	void Reload()
+	{
+		SwitchMode();
 	}
 
 	void WeaponIdle()

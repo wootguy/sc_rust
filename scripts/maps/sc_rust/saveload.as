@@ -101,6 +101,7 @@ void loadMapPartial(ByteBuffer@ buf)
 		Vector vuser1(v1x, v1y, v1z);
 		Vector vuser2(v2x, v2y, v2z);
 		float health = buf.ReadFloat();
+		float max_health = buf.ReadFloat();
 		string classname = buf.ReadString();
 		string model = buf.ReadString();
 		int groupinfo = buf.ReadInt16();
@@ -120,11 +121,11 @@ void loadMapPartial(ByteBuffer@ buf)
 		keys["origin"] = origin.ToString();
 		keys["angles"] = angles.ToString();
 		keys["model"] = model;
-		keys["health"] = "health";
 		keys["material"] = "1";
 		keys["target"] = "break_part_script";
 		keys["fireonbreak"] = "break_part_script";
-		keys["health"] = "100";
+		keys["health"] = "" + health;
+		keys["max_health"] = "" + max_health;
 		keys["rendermode"] = "4";
 		keys["renderamt"] = "255";
 		keys["id"] = "" + id;

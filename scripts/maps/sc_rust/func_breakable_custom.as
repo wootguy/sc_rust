@@ -95,6 +95,7 @@ class func_breakable_custom : ScriptBaseEntity
 		buf.Write(pev.vuser2.y);
 		buf.Write(pev.vuser2.z);
 		buf.Write(float(pev.health));
+		buf.Write(float(pev.max_health));
 		buf.Write(string(pev.classname));
 		buf.Write(string(pev.model));
 		buf.Write(int16(pev.groupinfo));

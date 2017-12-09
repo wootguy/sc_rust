@@ -570,6 +570,7 @@ void MapInit()
 	PrecacheSound("ambience/burning3.wav"); // furnace
 	PrecacheSound("items/ammopickup1.wav"); // armor
 	PrecacheSound("items/ammopickup2.wav"); // armor
+	PrecacheSound("player/pl_jump2.wav"); // armor
 	g_Game.PrecacheModel( "models/woodgibs.mdl" );
 	g_Game.PrecacheModel( "models/sc_rust/pine_tree.mdl" );
 	g_Game.PrecacheModel( "models/sc_rust/rock.mdl" );

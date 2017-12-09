@@ -193,14 +193,16 @@ string getModelFromName(string partName)
 Item@ getItemByClassname(string cname)
 {
 	for (uint i = 0; i < g_items.size(); i++)
+	{
 		if (cname == g_items[i].classname or cname == g_items[i].ammoName)
 			return @g_items[i];
+	}
 	return null;
 }
 
 int getItemCount(CBasePlayer@ plr, int itemType, bool includeEquipment = true, bool includeInventory = true)
 {
-	if (itemType <= 0 or itemType >= int(g_items.size()))
+	if (itemType < 0 or itemType >= int(g_items.size()))
 		return 0;
 		
 	Item@ checkItem = g_items[itemType];
@@ -212,7 +214,7 @@ int getItemCount(CBasePlayer@ plr, int itemType, bool includeEquipment = true, b
 		while (inv !is null)
 		{
 			CItemInventory@ item = cast<CItemInventory@>(inv.hItem.GetEntity());
-			if (item.pev.colormap-1 == itemType)
+			if (item.pev.colormap-1 == itemType and item.pev.renderfx != -9999)
 				count += checkItem.stackSize > 1 ? item.pev.button : 1;
 			@inv = inv.pNext;
 		}
@@ -322,14 +324,19 @@ array<RawItem> getAllItemsRaw(CBasePlayer@ plr)
 			Item@ wep = g_items[item.pev.colormap-1];
 			if (wep !is null)
 			{
-				if (stacks.exists(wep.type))
+				if (wep.stackSize > 1)
 				{
-					int oldCount = 0;
-					stacks.get(wep.type, oldCount);
-					stacks[wep.type] = oldCount + item.pev.button;
+					if (stacks.exists(wep.type))
+					{
+						int oldCount = 0;
+						stacks.get(wep.type, oldCount);
+						stacks[wep.type] = oldCount + item.pev.button;
+					}
+					else
+						stacks[wep.type] = item.pev.button;	
 				}
 				else
-					stacks[wep.type] = item.pev.button;				
+					all_items.insertLast(RawItem(wep.type, 1));
 			}
 		}
 		@inv = inv.pNext;
@@ -369,7 +376,7 @@ int getInventorySpace(CBasePlayer@ plr)
 	{
 		CItemInventory@ item = cast<CItemInventory@>(inv.hItem.GetEntity());
 		@inv = inv.pNext;
-		if (item !is null)
+		if (item !is null and item.pev.renderfx != -9999)
 			slotsUsed++;
 	}
 	return g_inventory_size - slotsUsed;
