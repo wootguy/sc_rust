@@ -243,6 +243,28 @@ array<Item@> getAllItems(CBasePlayer@ plr)
 {
 	array<Item@> all_items;
 	
+	array<RawItem> raw_items = getAllItemsRaw(plr);
+	for (uint i = 0; i < raw_items.size(); i++)
+		all_items.insertLast(g_items[raw_items[i].type]);
+	
+	// remove duplicates
+	array<Item@> ret_items;
+	dictionary unique_items;
+	for (uint i = 0; i < all_items.size(); i++)
+	{
+		if (unique_items.exists(all_items[i].type))
+			continue;
+		unique_items[all_items[i].type] = true;
+		ret_items.insertLast(all_items[i]);
+	}
+	
+	return ret_items;
+}
+
+array<RawItem> getAllItemsRaw(CBasePlayer@ plr)
+{
+	array<RawItem> all_items;
+	
 	// held weapons/items
 	for (uint i = 0; i < MAX_ITEM_TYPES; i++)
 	{
@@ -251,7 +273,12 @@ array<Item@> getAllItems(CBasePlayer@ plr)
 		{
 			Item@ invItem = getItemByClassname(item.pev.classname);
 			if (invItem !is null)
-				all_items.insertLast(invItem);
+			{
+				int amt = 1;
+				if (invItem.isWeapon)
+					amt = cast<CBasePlayerWeapon@>(item).m_iClip;
+				all_items.insertLast(RawItem(invItem.type, amt));
+			}
 			@item = cast<CBasePlayerItem@>(item.m_hNextItem.GetEntity());		
 		}
 	}
@@ -314,21 +341,10 @@ array<Item@> getAllItems(CBasePlayer@ plr)
 		Item@ item = g_items[ atoi(stackKeys[i]) ];
 		int amt = 1;
 		stacks.get(stackKeys[i], amt);
-		all_items.insertLast(item);
+		all_items.insertLast(RawItem(item.type, amt));
 	}
 	
-	// remove duplicates
-	array<Item@> ret_items;
-	dictionary unique_items;
-	for (uint i = 0; i < all_items.size(); i++)
-	{
-		if (unique_items.exists(all_items[i].type))
-			continue;
-		unique_items[all_items[i].type] = true;
-		ret_items.insertLast(all_items[i]);
-	}
-	
-	return ret_items;
+	return all_items;
 }
 
 // get the first item of this type
@@ -666,6 +682,11 @@ void PrintKeyBindingStringLong(CBasePlayer@ plr, string text)
 {
 	g_PlayerFuncs.PrintKeyBindingString(plr, text);
 	g_Scheduler.SetTimeout("PrintKeyBindingString", 1, @plr, text);
+}
+
+void sayPlayer(CBasePlayer@ plr, string text)
+{
+	g_PlayerFuncs.SayText(plr, text);
 }
 
 // actual center of the part, not the origin

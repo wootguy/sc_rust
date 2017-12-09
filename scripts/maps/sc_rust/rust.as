@@ -28,6 +28,7 @@ int g_inventory_size = 20;
 int g_max_item_drops = 2; // maximum item drops per player (more drops = less build points)
 float g_tool_cupboard_radius = 512;
 float g_corpse_time = 60.0f; // time before corpses despawn
+int g_max_corpses = 2; // max corpses per player (should be at least 2 to prevent despawning valuable loot)
 float g_item_time = 60.0f; // time before items despawn
 float g_revive_time = 5.0f;
 
@@ -154,6 +155,21 @@ class Team
 	}
 }
 
+// the basic info needed to create an item
+class RawItem
+{
+	int type = -1;
+	int amt = 0;
+	
+	RawItem() {}
+	
+	RawItem(int type, int amt)
+	{
+		this.type = type;
+		this.amt = amt;
+	}
+}
+
 class PlayerState
 {
 	EHandle plr;
@@ -172,11 +188,70 @@ class PlayerState
 	float reviveStart = 0; // time this player started reviving someone
 	float lastBreakAll = 0; // last time the player used the breakall command
 	dictionary teamRequests; // outgoing requests for team members
+	bool inGame = true;
+	
+	// vars for resuming after disconnected
+	array<RawItem> allItems; // need to maintain this list in case player leaves (so we can spawn a corpse)
+	int oldWeaponClip = 0; // for tracking clip usage
+	int activeWepIdx = 0;
+	string oldWeaponClass;
+	Vector oldAngles;
+	float oldHealth = 100;
+	float oldArmor = 0;
+	int oldDead = DEAD_NO;
+	EHandle lastCorpse = null;
+	bool resumeOnJoin = false;
 	
 	void initMenu(CBasePlayer@ plr, TextMenuPlayerSlotCallback@ callback)
 	{
 		CTextMenu temp(@callback);
 		@menu = @temp;
+	}
+	
+	void updateItemList()
+	{
+		if (!plr or !inGame)
+			return;
+		allItems = getAllItemsRaw(cast<CBasePlayer@>(plr.GetEntity()));
+		
+		updateActiveItem();
+	}
+	
+	void updateActiveItem()
+	{
+		CBasePlayer@ p_plr = cast<CBasePlayer@>(plr.GetEntity());
+		CBasePlayerWeapon@ activeWep = cast<CBasePlayerWeapon@>(p_plr.m_hActiveItem.GetEntity());
+		if (activeWep !is null)
+		{
+			Item@ activeItem = getItemByClassname(activeWep.pev.classname);
+			oldWeaponClass = activeWep.pev.classname;
+			for (uint i = 0; i < allItems.size(); i++)
+			{
+				if (allItems[i].type == activeItem.type and allItems[i].amt == activeWep.m_iClip)
+				{
+					activeWepIdx = i;
+					oldWeaponClip = activeWep.m_iClip;
+					return;
+				}
+			}
+		}
+	}
+	
+	void updateItemListQuick(int type, int newAmt)
+	{
+		if (newAmt == oldWeaponClip)
+			return;
+		if (newAmt < oldWeaponClip)
+		{
+			if (activeWepIdx < int(allItems.size()) and allItems[activeWepIdx].type == type 
+				and allItems[activeWepIdx].amt == oldWeaponClip)
+			{
+				allItems[activeWepIdx].amt = newAmt;
+				oldWeaponClip = newAmt;
+				return;
+			}
+		}
+		updateItemList();
 	}
 	
 	void openMenu(CBasePlayer@ plr, int time=60) 
@@ -451,6 +526,8 @@ void MapInit()
 	
 	g_Hooks.RegisterHook( Hooks::Player::PlayerUse, @PlayerUse );
 	g_Hooks.RegisterHook( Hooks::Player::ClientSay, @ClientSay );
+	g_Hooks.RegisterHook( Hooks::Player::ClientDisconnect, @ClientLeave );
+	g_Hooks.RegisterHook( Hooks::Player::ClientPutInServer, @ClientJoin );
 	
 	g_Scheduler.SetInterval("stabilityCheck", 0.0);
 	g_Scheduler.SetInterval("inventoryCheck", 0.05);
@@ -670,17 +747,54 @@ void MapActivate()
 	WeaponCustomMapActivate();
 }
 
-void player_respawn(CBaseEntity@ pActivator, CBaseEntity@ pCaller, USE_TYPE useType, float flValue)
+void activateCorpses(CBaseEntity@ plr)
 {
+	array<player_corpse@> corpses = getCorpses(plr);
+	for (uint i = 0; i < corpses.size(); i++)
+		corpses[i].Activate();
+}
+
+array<player_corpse@> getCorpses(CBaseEntity@ plr)
+{
+	array<player_corpse@> corpses;
 	for (uint i = 0; i < g_corpses.size(); i++)
 	{
 		if (!g_corpses[i])
 			continue;
 			
-		player_corpse@ corpse = cast<player_corpse@>(CastToScriptClass(g_corpses[i]));
-		if (corpse.owner.IsValid() and corpse.owner.GetEntity().entindex() == pCaller.entindex())
-			corpse.Activate();
+		string steamid = g_corpses[i].GetEntity().pev.noise1;
+		string netname = g_corpses[i].GetEntity().pev.noise2;
+		PlayerState@ state = getPlayerStateBySteamID(steamid, netname);
+		if (state.plr.GetEntity().entindex() == plr.entindex())
+			corpses.insertLast(cast<player_corpse@>(CastToScriptClass(g_corpses[i])));
 	}
+	return corpses;
+}
+
+void player_respawn(CBaseEntity@ pActivator, CBaseEntity@ pCaller, USE_TYPE useType, float flValue)
+{
+	activateCorpses(pCaller);
+	getPlayerState(cast<CBasePlayer@>(pCaller)).updateItemList();
+}
+
+EHandle createCorpse(CBasePlayer@ plr)
+{
+	dictionary keys;
+	keys["model"] = "models/skeleton.mdl";
+	keys["origin"] = (plr.pev.origin + Vector(0,0,-36)).ToString();
+	keys["angles"] = Vector(0, plr.pev.angles.y, 0).ToString();
+	keys["netname"] = string(plr.pev.netname);
+	keys["noise1"] = g_EngineFuncs.GetPlayerAuthId( plr.edict() );
+	keys["noise2"] = string(plr.pev.netname);
+	CBaseEntity@ ent = g_EntityFuncs.CreateEntity("player_corpse", keys, true);
+	
+	player_corpse@ corpse = cast<player_corpse@>(CastToScriptClass(ent));
+	corpse.owner = plr;
+	corpse.Update();
+	
+	g_corpses.insertLast(EHandle(ent));
+	
+	return EHandle(ent);
 }
 
 void player_killed(CBaseEntity@ pActivator, CBaseEntity@ pCaller, USE_TYPE useType, float flValue)
@@ -690,19 +804,7 @@ void player_killed(CBaseEntity@ pActivator, CBaseEntity@ pCaller, USE_TYPE useTy
 	CBasePlayer@ plr = cast<CBasePlayer@>(pCaller);
 
 	// always die on back (because I can't make player-model-based corpse work properly)
-
-	dictionary keys;
-	keys["model"] = "models/skeleton.mdl";
-	keys["origin"] = (plr.pev.origin + Vector(0,0,-36)).ToString();
-	keys["angles"] = Vector(0, plr.pev.angles.y, 0).ToString();
-	keys["netname"] = string(plr.pev.netname);
-	CBaseEntity@ ent = g_EntityFuncs.CreateEntity("player_corpse", keys, true);
-	
-	player_corpse@ corpse = cast<player_corpse@>(CastToScriptClass(ent));
-	corpse.owner = plr;
-	corpse.Update();
-	
-	g_corpses.insertLast(EHandle(ent));
+	createCorpse(plr);	
 }
 
 void revive_finish(EHandle h_plr)
@@ -1098,6 +1200,75 @@ bool doRustCommand(CBasePlayer@ plr, const CCommand@ args)
 		}
 	}
 	return false;
+}
+
+HookReturnCode ClientLeave(CBasePlayer@ plr)
+{
+	PlayerState@ state = getPlayerState(plr);
+	state.inGame = false;
+	state.resumeOnJoin = true;
+	println("" + plr.pev.netname + " left the paws");
+	
+	// spawn corpse for leaver
+	if (plr.pev.deadflag == DEAD_NO)
+	{
+		plr.pev.deadflag = DEAD_DEAD;
+		plr.pev.effects |= EF_NODRAW;
+		state.lastCorpse = createCorpse(plr);
+	}
+	else
+	{
+		activateCorpses(plr);
+	}
+	
+	return HOOK_CONTINUE;
+}
+
+HookReturnCode ClientJoin(CBasePlayer@ plr)
+{
+	if (plr is null)
+		return HOOK_CONTINUE;
+	PlayerState@ state = getPlayerState(plr);
+	
+	if (state.resumeOnJoin and state.lastCorpse.IsValid())
+	{
+		player_corpse@ corpse = cast<player_corpse@>(CastToScriptClass(state.lastCorpse.GetEntity()));
+		if (corpse !is null)
+		{
+			plr.pev.origin = corpse.pev.origin + Vector(0,0,36);
+			plr.pev.angles = state.oldAngles;
+			plr.pev.fixangle = FAM_FORCEVIEWANGLES;
+			plr.pev.armorvalue = state.oldArmor;
+			
+			string oldWep = state.oldWeaponClass;
+			
+			plr.RemoveAllItems(false);
+			for (uint i = 0; i < corpse.items.size(); i++)
+				pickupItem(plr, corpse.items[i]);
+			corpse.Destroy();
+			
+			CBasePlayerItem@ oldItem = @plr.HasNamedPlayerItem(oldWep);
+			if (oldItem !is null)
+			{
+				plr.SwitchWeapon(oldItem);
+			}
+			
+			if (state.oldDead != DEAD_NO)
+				plr.Killed(plr.pev, 0);
+			else
+				plr.pev.health = state.oldHealth;
+			
+			g_Scheduler.SetTimeout("sayPlayer", 1, @plr, "Welcome back. Your inventory and position have been restored.");
+		}
+		else
+			g_Scheduler.SetTimeout("sayPlayer", 1, @plr, "You lost your items because your corpse was looted or despawned.");
+	}
+	
+	state.inGame = true;
+	
+	println("" + plr.pev.netname + " joined the paws");
+
+	return HOOK_CONTINUE;
 }
 
 HookReturnCode ClientSay( SayParameters@ pParams )

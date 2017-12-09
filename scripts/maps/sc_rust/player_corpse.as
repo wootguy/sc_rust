@@ -55,71 +55,17 @@ class player_corpse : ScriptBaseMonsterEntity
 		
 		RemoveItems();
 		
-		CBasePlayer@ plr = cast<CBasePlayer@>(owner.GetEntity());
-		InventoryList@ inv = plr.get_m_pInventory();
-		while (inv !is null)
+		array<RawItem> raw_items = getPlayerState(cast<CBasePlayer@>(owner.GetEntity())).allItems;
+		for (uint i = 0; i < raw_items.size(); i++)
 		{
-			CItemInventory@ item = cast<CItemInventory@>(inv.hItem.GetEntity());
-			@inv = inv.pNext;
-			if (item !is null)
+			CBaseEntity@ newItem = spawnItem(pev.origin, raw_items[i].type, raw_items[i].amt);
+			if (newItem is null)
 			{
-				int amt = item.pev.button > 0 ? item.pev.button : 1;
-				CBaseEntity@ newItem = spawnItem(pev.origin, item.pev.colormap-1, amt);
-				newItem.pev.effects = EF_NODRAW;
-				items.insertLast(EHandle(newItem));
-				item.pev.renderfx = -9999;
-				g_Scheduler.SetTimeout("delay_remove", 0, EHandle(item));
-			}
-		}
-		
-		// add weapons
-		for (uint i = 0; i < MAX_ITEM_TYPES; i++)
-		{
-			CBasePlayerItem@ wep = plr.m_rgpPlayerItems(i);
-			while (wep !is null)
-			{
-				Item@ wepItem = getItemByClassname(wep.pev.classname);
-				
-				if (wepItem !is null)
-				{
-					int amt = wep.pev.button > 0 ? wep.pev.button : 1;
-					CBaseEntity@ newItem = spawnItem(pev.origin, wepItem.type, amt);
-					newItem.pev.effects = EF_NODRAW;
-					items.insertLast(EHandle(newItem));
-				}
-				
-				
-				@wep = cast<CBasePlayerItem@>(wep.m_hNextItem.GetEntity());				
-			}
-		}
-		
-		// add ammo
-		for (uint i = 0; i < g_ammo_types.size(); i++)
-		{
-			int ammo = plr.m_rgAmmo(g_PlayerFuncs.GetAmmoIndex(g_ammo_types[i]));
-			if (ammo > 0)
-			{
-				Item@ item = getItemByClassname(g_ammo_types[i]);
-				
-				CBaseEntity@ newItem = spawnItem(pev.origin, item.type, ammo);
-				newItem.pev.effects = EF_NODRAW;
-				items.insertLast(EHandle(newItem));
-			}
-		}
-		
-		// remove other corpses (prevent corpse spam)
-		for (uint i = 0; i < g_corpses.size(); i++)
-		{
-			if (!g_corpses[i])
+				println("Failed to create item type " + raw_items[i].type + " x" + raw_items[i].amt);
 				continue;
-				
-			player_corpse@ corpse = cast<player_corpse@>(CastToScriptClass(g_corpses[i]));
-			if (corpse.owner.IsValid() and corpse.owner.GetEntity().entindex() == plr.entindex() 
-				and corpse.entindex() != self.entindex())
-			{
-				println("Removed an older corpse");
-				corpse.Destroy();
 			}
+			newItem.pev.effects = EF_NODRAW;
+			items.insertLast(EHandle(newItem));
 		}
 	}
 	
@@ -128,9 +74,41 @@ class player_corpse : ScriptBaseMonsterEntity
 		if (active)
 			return;
 			
+		removeCounter = 0;
 		active = true;
 		expireTime = g_Engine.time + g_corpse_time;
 		pev.effects = 0;
+		
+		// remove unvaluable corpses to:
+		// 1) prevent corpse spam
+		// 2) prevent despawning valuable items (despawning the corpse before killer/you can loot the corpse)
+		player_corpse@ best_corpse = null;
+		float worst_value = 9e99;
+		int corpseCount = 0;
+		for (uint i = 0; i < g_corpses.size(); i++)
+		{
+			if (!g_corpses[i])
+				continue;
+				
+			string steamid = g_corpses[i].GetEntity().pev.noise1;
+			string netname = g_corpses[i].GetEntity().pev.noise2;
+			PlayerState@ state = getPlayerStateBySteamID(steamid, netname);
+			if (state.plr.GetEntity().entindex() == owner.GetEntity().entindex() and 
+				g_corpses[i].GetEntity().entindex() != self.entindex())
+			{
+				player_corpse@ corpse = cast<player_corpse@>(CastToScriptClass(g_corpses[i]));
+				corpseCount++;
+				if (int(corpse.items.size()) < worst_value)
+				{
+					worst_value = corpse.items.size();
+					@best_corpse = @corpse;
+				}
+			}
+		}
+		if (corpseCount >= g_max_corpses and best_corpse !is null)
+			best_corpse.Destroy();
+			
+		self.pev.movetype = MOVETYPE_TOSS;
 		
 		println("Corpse activated");
 	}
@@ -155,8 +133,11 @@ class player_corpse : ScriptBaseMonsterEntity
 		if (!active and owner.IsValid())
 		{
 			CBaseEntity@ plr = owner;
-			self.pev.origin = plr.pev.origin + Vector(0,0,-36);
-			self.pev.angles = plr.pev.angles;
+			if (!plr.IsAlive())
+			{
+				self.pev.origin = plr.pev.origin + Vector(0,0,-36);
+				self.pev.angles = plr.pev.angles;
+			}
 			
 			if (plr.pev.effects & EF_NODRAW != 0)
 			{

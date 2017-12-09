@@ -82,10 +82,14 @@ void inventoryCheck()
 		{
 			CBasePlayer@ plr = cast<CBasePlayer@>(e_plr);
 			PlayerState@ state = getPlayerState(plr);
+			if (!state.inGame)
+				continue;
 			state.updateDroppedWeapons();
 			
-			// TODO: prevent nearby players from getting the same class
+			// TODO: prevent nearby players from getting the same class (or just use custom weapons)
 			//plr.SetClassification(Math.RandomLong(-1, 13));
+			
+			state.oldDead = plr.pev.deadflag;
 			
 			if (plr.pev.deadflag > 0)
 				continue;
@@ -103,6 +107,16 @@ void inventoryCheck()
 				g_EntityFuncs.FireTargets("push", e_plr, e_plr, USE_TOGGLE);
 				//println("RETOUCH");
 			}
+			
+			// keep item list up-to-date (will be stale after firing weapon/reloading/etc.
+			// TODO: This isn't perfect. "+attack;wait;-attack;retry" will give you free ammo sometimes
+			// but increasing poll rate might be too cpu intensive...
+			CBasePlayerWeapon@ activeWep = cast<CBasePlayerWeapon@>(plr.m_hActiveItem.GetEntity());
+			if (activeWep !is null)
+				state.updateItemListQuick(getItemByClassname(activeWep.pev.classname).type, activeWep.m_iClip);
+			state.oldAngles = plr.pev.v_angle;
+			state.oldHealth = plr.pev.health;
+			state.oldArmor = plr.pev.armorvalue;
 			
 			if (state.currentChest)
 			{
@@ -205,6 +219,7 @@ void item_dropped(CBaseEntity@ pActivator, CBaseEntity@ pCaller, USE_TYPE useTyp
 		g_Scheduler.SetTimeout("undo_drop", 0.0f, EHandle(item), EHandle(plr)); 
 		return;
 	}
+	state.updateItemList();
 	
 	item.pev.teleport_time = g_Engine.time + g_item_time;
 	
@@ -545,6 +560,7 @@ int equipItem(CBasePlayer@ plr, int type, int amt)
 		//	g_PlayerFuncs.PrintKeyBindingString(plr, "Maximum armor equipped");
 	}
 	
+	getPlayerState(plr).updateItemList();
 	return barf;
 }
 
@@ -619,6 +635,7 @@ int giveItem(CBasePlayer@ plr, int type, int amt, bool drop=false, bool combineS
 				if (spaceLeft-- <= 0 and !drop)
 				{
 					g_PlayerFuncs.PrintKeyBindingString(plr, "Your inventory is full");
+					getPlayerState(plr).updateItemList();
 					return amt - i;
 				}
 				CBaseEntity@ ent = g_EntityFuncs.CreateEntity("item_inventory", keys, true);
@@ -638,6 +655,7 @@ int giveItem(CBasePlayer@ plr, int type, int amt, bool drop=false, bool combineS
 			if (spaceLeft <= 0 and !drop)
 			{
 				g_PlayerFuncs.PrintKeyBindingString(plr, "Your inventory is full");
+				getPlayerState(plr).updateItemList();
 				return 1;
 			}
 			CBaseEntity@ ent = g_EntityFuncs.CreateEntity("item_inventory", keys, true);
@@ -667,8 +685,14 @@ int giveItem(CBasePlayer@ plr, int type, int amt, bool drop=false, bool combineS
 			ent.Use(@plr, @plr, USE_ON, 0.0F);
 		
 		if (combineStacks)
-			return combineItemStacks(plr, type);
+		{
+			int ret = combineItemStacks(plr, type);
+			getPlayerState(plr).updateItemList();
+			return ret;
+		}
 	}
+	
+	getPlayerState(plr).updateItemList();
 	return 0;
 }
 
