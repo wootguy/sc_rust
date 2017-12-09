@@ -220,7 +220,9 @@ int getItemCount(CBasePlayer@ plr, int itemType, bool includeEquipment = true, b
 	
 	if (includeEquipment)
 	{
-		if (checkItem.isAmmo or checkItem.stackSize > 1)
+		if (checkItem.type == I_ARMOR)
+			count += int(plr.pev.armorvalue / ARMOR_VALUE);
+		else if (checkItem.isAmmo or checkItem.stackSize > 1)
 		{
 			string ammoName = checkItem.classname;
 			if (checkItem.stackSize > 1 and !checkItem.isAmmo)
@@ -316,6 +318,20 @@ array<Item@> getAllItems(CBasePlayer@ plr)
 	}
 	
 	return all_items;
+}
+
+// get the first item of this type
+CItemInventory@ getInventoryItem(CBasePlayer@ plr, int type)
+{
+	InventoryList@ inv = plr.get_m_pInventory();
+	while (inv !is null)
+	{
+		CItemInventory@ wep = cast<CItemInventory@>(inv.hItem.GetEntity());
+		@inv = inv.pNext;
+		if (wep.pev.colormap-1 == type)
+			return @wep;
+	}
+	return null;
 }
 
 int getInventorySpace(CBasePlayer@ plr)
@@ -627,6 +643,18 @@ int giveAmmo(CBasePlayer@ plr, int amt, string type)
 	int beforeAmmo = plr.m_rgAmmo(ammoIdx);
 	plr.GiveAmmo(amt, type, 9999); // TODO: set proper max?
 	return plr.m_rgAmmo(ammoIdx) - beforeAmmo;
+}
+
+void PrintKeyBindingString(CBasePlayer@ plr, string text)
+{
+	g_PlayerFuncs.PrintKeyBindingString(plr, text);
+}
+
+// display the text for a second longer
+void PrintKeyBindingStringLong(CBasePlayer@ plr, string text)
+{
+	g_PlayerFuncs.PrintKeyBindingString(plr, text);
+	g_Scheduler.SetTimeout("PrintKeyBindingString", 1, @plr, text);
 }
 
 // actual center of the part, not the origin

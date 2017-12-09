@@ -45,20 +45,15 @@ class player_corpse : ScriptBaseMonsterEntity
 		println("USED BY " + pCaller.pev.classname);
 	}
 	
-	void Activate()
+	void Update()
 	{
-		if (active)
-			return;
-			
-		active = true;
-		expireTime = g_Engine.time + g_corpse_time;
-		pev.effects = 0;
-		
 		if (!owner)
 		{
 			println("corpse has no owner!");
 			return;
 		}
+		
+		RemoveItems();
 		
 		CBasePlayer@ plr = cast<CBasePlayer@>(owner.GetEntity());
 		InventoryList@ inv = plr.get_m_pInventory();
@@ -126,6 +121,16 @@ class player_corpse : ScriptBaseMonsterEntity
 				corpse.Destroy();
 			}
 		}
+	}
+	
+	void Activate()
+	{
+		if (active)
+			return;
+			
+		active = true;
+		expireTime = g_Engine.time + g_corpse_time;
+		pev.effects = 0;
 		
 		println("Corpse activated");
 	}
@@ -200,5 +205,6 @@ class player_corpse : ScriptBaseMonsterEntity
 				g_EntityFuncs.Remove(items[i]);
 			}
 		}
+		items.resize(0);
 	}
 };
