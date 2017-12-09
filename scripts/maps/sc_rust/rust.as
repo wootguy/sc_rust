@@ -788,9 +788,7 @@ void player_respawn(CBaseEntity@ pActivator, CBaseEntity@ pCaller, USE_TYPE useT
 			
 		player_corpse@ corpse = cast<player_corpse@>(CastToScriptClass(g_corpses[i]));
 		if (corpse.owner.IsValid() and corpse.owner.GetEntity().entindex() == pCaller.entindex())
-		{
 			corpse.Activate();
-		}
 	}
 }
 
@@ -811,6 +809,7 @@ void player_killed(CBaseEntity@ pActivator, CBaseEntity@ pCaller, USE_TYPE useTy
 	
 	player_corpse@ corpse = cast<player_corpse@>(CastToScriptClass(ent));
 	corpse.owner = plr;
+	corpse.Update();
 	
 	g_corpses.insertLast(EHandle(ent));
 }
@@ -1137,8 +1136,84 @@ CBaseEntity@ spawnItem(Vector origin, int type, int amt)
 	}
 }
 
+// try to equip a weapon/item/ammo. Returns amount that couldn't be equipped
+int equipItem(CBasePlayer@ plr, int type, int amt, int clip)
+{
+	if (type < 0 or type > ITEM_TYPES)
+	{
+		println("equipItem: bad type");
+		return amt;
+	}
+	Item@ item = g_items[type];
+	
+	int barf = amt;
+	if (item.isWeapon and item.stackSize > 1)
+	{
+		if (@plr.HasNamedPlayerItem(item.classname) == null)
+		{
+			plr.SetItemPickupTimes(0);
+			plr.GiveNamedItem(item.classname);
+		}
+	
+		println("SHOULD GIB " + item.ammoName);
+		int amtGiven = giveAmmo(plr, amt, item.ammoName);
+		barf = amt - amtGiven;
+		
+		if (amtGiven > 0)
+			g_SoundSystem.PlaySound(plr.edict(), CHAN_ITEM, "items/9mmclip1.wav", 1.0f, 1.0f, 0, 100);
+	}
+	else if (item.isWeapon and @plr.HasNamedPlayerItem(item.classname) == null)
+	{
+		plr.SetItemPickupTimes(0);
+		plr.GiveNamedItem(item.classname);
+		CBasePlayerWeapon@ wep = cast<CBasePlayerWeapon@>(@plr.HasNamedPlayerItem(item.classname));
+		if (clip != -1)
+			wep.m_iClip = clip;
+		barf = 0;
+	}
+	else if (item.isAmmo)
+	{
+		int amtGiven = giveAmmo(plr, amt, item.classname);
+		barf = amt - amtGiven;
+		
+		if (amtGiven > 0)
+			g_SoundSystem.PlaySound(plr.edict(), CHAN_ITEM, "items/9mmclip1.wav", 1.0f, 1.0f, 0, 100);
+	}
+	else if (item.type == I_ARMOR)
+	{
+		if (plr.pev.armorvalue < 100)
+		{
+			plr.pev.armorvalue += ARMOR_VALUE;
+			if (plr.pev.armorvalue > 100)
+				plr.pev.armorvalue = 100;
+			g_SoundSystem.PlaySound(plr.edict(), CHAN_ITEM, "items/ammopickup2.wav", 1.0f, 1.0f, 0, 100);
+			amt -= 1;
+		}
+		barf = amt;
+		//else
+		//	g_PlayerFuncs.PrintKeyBindingString(plr, "Maximum armor equipped");
+	}
+	
+	return barf;
+}
+
+int pickupItem(CBasePlayer@ plr, CBaseEntity@ item)
+{
+	int type = item.pev.colormap-1;
+	if (type < 0 or type > ITEM_TYPES)
+	{
+		println("pickupItem: bad type");
+		return item.pev.button > 0 ? item.pev.button : 1;
+	}
+	Item@ itemDef = g_items[type];
+	int amt = itemDef.isAmmo ? item.pev.button : 1;
+	int clip = itemDef.isWeapon ? item.pev.button : 0;
+	
+	return giveItem(plr, type, amt, false, true, true, clip);
+}
+
 // returns # of items that couldn't be stored (e.g. could stack 100 more but was given 300: return 200)
-int giveItem(CBasePlayer@ plr, int type, int amt, bool drop=false, bool combineStacks=true)
+int giveItem(CBasePlayer@ plr, int type, int amt, bool drop=false, bool combineStacks=true, bool tryToEquip=false, int equipClip=-1)
 {
 	dictionary keys;
 	keys["origin"] = plr.pev.origin.ToString();
@@ -1162,6 +1237,15 @@ int giveItem(CBasePlayer@ plr, int type, int amt, bool drop=false, bool combineS
 		println("giveItem: bad type");
 		return amt;
 	}
+	Item@ item = g_items[type];
+	
+	if (tryToEquip)
+	{
+		int barf = equipItem(plr, type, amt, equipClip);
+		if (barf == 0)
+			return 0;
+		amt = barf;
+	}
 	
 	keys["button"] = "1"; // will be giving at least 1x of something
 	keys["netname"] = g_items[type].title; // because m_szItemName doesn't work...
@@ -1177,9 +1261,9 @@ int giveItem(CBasePlayer@ plr, int type, int amt, bool drop=false, bool combineS
 	int dropSpeed = Math.RandomLong(250, 400);
 	int spaceLeft = getInventorySpace(plr);
 	
-	if (g_items[type].stackSize == 1)
+	if (item.stackSize == 1)
 	{
-		if (!g_items[type].isWeapon)
+		if (!item.isWeapon)
 		{
 			for (int i = 0; i < amt; i++)
 			{
@@ -1221,7 +1305,7 @@ int giveItem(CBasePlayer@ plr, int type, int amt, bool drop=false, bool combineS
 	else
 	{
 		keys["button"] = "" + amt;
-		keys["display_name"] = g_items[type].title + "  (" + prettyNumber(amt) + ")";
+		keys["display_name"] = item.title + "  (" + prettyNumber(amt) + ")";
 		
 		CBaseEntity@ ent = g_EntityFuncs.CreateEntity("item_inventory", keys, true);
 		if (drop)
@@ -1256,6 +1340,8 @@ void craftMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextM
 		string name = action.SubString(8);
 		if (name == "health")
 			name = "weapon_syringe";
+		if (name == "item_battery")
+			name = "armor";
 		
 		CBasePlayerItem@ wep = plr.HasNamedPlayerItem(name);
 		if (wep !is null)
@@ -1314,92 +1400,20 @@ void craftMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextM
 		int itemId = atoi(action.SubString(6));
 		Item@ invItem = g_items[itemId];
 		
-		if (invItem !is null)
+		if (invItem.stackSize > 1)
 		{
-			if (invItem.isWeapon)
-			{
-				if (plr.HasNamedPlayerItem(invItem.classname) is null)
-				{
-					InventoryList@ inv = plr.get_m_pInventory();
-					int clip = 0;
-					while (inv !is null)
-					{
-						CItemInventory@ wep = cast<CItemInventory@>(inv.hItem.GetEntity());
-						@inv = inv.pNext;
-						if (wep.pev.colormap-1 == itemId)
-						{
-							clip = wep.pev.button;
-							wep.pev.renderfx = -9999;
-							g_Scheduler.SetTimeout("delay_remove", 0, EHandle(wep));
-							break;
-						}
-					}
-					
-					plr.SetItemPickupTimes(0);
-					plr.GiveNamedItem(invItem.classname, 0);
-					CBasePlayerItem@ givenItem = plr.HasNamedPlayerItem(invItem.classname);
-					if (givenItem !is null)
-					{
-						CBasePlayerWeapon@ givenWep = cast<CBasePlayerWeapon@>(givenItem);
-						if (invItem.stackSize > 1)
-							plr.GiveAmmo(clip, invItem.ammoName, 9999);
-						else
-							givenWep.m_iClip = clip;
-					}
-				}
-				else if (invItem.stackSize > 1)
-				{
-					InventoryList@ inv = plr.get_m_pInventory();
-					int clip = 0;
-					while (inv !is null)
-					{
-						CItemInventory@ wep = cast<CItemInventory@>(inv.hItem.GetEntity());
-						@inv = inv.pNext;
-						if (wep.pev.colormap-1 == itemId)
-						{
-							clip = wep.pev.button;
-							wep.pev.renderfx = -9999;
-							int amtGiven = giveAmmo(plr, clip, invItem.ammoName);
-							if (amtGiven >= clip)
-								g_Scheduler.SetTimeout("delay_remove", 0, EHandle(wep));
-							else
-								wep.pev.button = clip - amtGiven;
-							
-							break;
-						}
-					}
-				}
-				else
-					g_PlayerFuncs.PrintKeyBindingString(plr, "You already have one of these equipped");
-			}				
-			else if (invItem.isAmmo)
-			{
-				int invAmmo = getItemCount(plr, invItem.type);
-				int amtGiven = giveAmmo(plr, invAmmo, invItem.classname);
-				
-				giveItem(plr, invItem.type, -amtGiven);
-				
-				if (amtGiven > 0)
-					g_SoundSystem.PlaySound(plr.edict(), CHAN_ITEM, "items/9mmclip1.wav", 1.0f, 1.0f, 0, 100);
-				else
-					g_PlayerFuncs.PrintKeyBindingString(plr, "Already equipped with max ammo");
-			}
-			else if (invItem.type == I_ARMOR)
-			{
-				if (plr.pev.armorvalue < 100)
-				{
-					plr.pev.armorvalue += ARMOR_VALUE;
-					if (plr.pev.armorvalue > 100)
-						plr.pev.armorvalue = 100;
-					g_SoundSystem.PlaySound(plr.edict(), CHAN_ITEM, "items/ammopickup2.wav", 1.0f, 1.0f, 0, 100);
-					giveItem(plr, invItem.type, -1);
-				}
-				else
-					g_PlayerFuncs.PrintKeyBindingString(plr, "Maximum armor equipped");
-			}
+			int amt = getItemCount(plr, invItem.type, false, true);
+			int barf = equipItem(plr, invItem.type, amt, 0);
+			int given = amt-barf;
+			if (given > 0)
+				giveItem(plr, invItem.type, -given);
 		}
-		else
-			println("Invalid item ID to equip: " + itemId);
+		else if (invItem.isWeapon)
+		{
+			CItemInventory@ wep = getInventoryItem(plr, invItem.type);
+			if (equipItem(plr, invItem.type, 1, wep.pev.button) == 0)
+				g_Scheduler.SetTimeout("delay_remove", 0, EHandle(wep));
+		}
 		
 		g_Scheduler.SetTimeout("openPlayerMenu", 0.05, @plr, "equip-menu");
 	}
@@ -1460,32 +1474,7 @@ void craftMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextM
 		if (itemType >= 0 and itemType < int(g_items.size()))
 		{
 			Item@ craftItem = g_items[itemType];
-			// Try to equip immediately
-			if (craftItem.classname == "weapon_syringe")
-			{					
-				int ammoIdx = g_PlayerFuncs.GetAmmoIndex("health");
-				int oldAmmo = plr.m_rgAmmo(ammoIdx);
-				if (oldAmmo < 100)
-				{
-					plr.GiveAmmo(1, "health", 9999);
-					g_SoundSystem.PlaySound(plr.edict(), CHAN_ITEM, "items/9mmclip1.wav", 1.0f, 1.0f, 0, 100);
-				}
-				else
-					giveItem(@plr, itemType, 1);
-					
-				if (@plr.HasNamedPlayerItem(craftItem.classname) == null)
-				{
-					plr.SetItemPickupTimes(0);
-					plr.GiveNamedItem(craftItem.classname);
-				}
-			}
-			else if (craftItem.isWeapon and @plr.HasNamedPlayerItem(craftItem.classname) == null)
-			{
-				plr.SetItemPickupTimes(0);
-				plr.GiveNamedItem(craftItem.classname);
-			}
-			else
-				giveItem(@plr, itemType, 1);
+			giveItem(@plr, itemType, 1, false, true, true, -1);
 		}
 		
 		string submenu;
@@ -1673,6 +1662,8 @@ void openPlayerMenu(CBasePlayer@ plr, string subMenu)
 		for (uint i = 0; i < all_items.size(); i++)
 		{
 			Item@ item = all_items[i];
+			if (!item.isWeapon and !item.isAmmo and item.type != I_ARMOR)
+				continue;
 			int count = getItemCount(plr, item.type, false, true);
 			if (count <= 0)
 				continue;
@@ -2263,24 +2254,20 @@ void lootMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextMe
 			else if (c_chest.spaceLeft() > 0)
 			{
 				// currently held item/weapon/ammo
-				CBasePlayerItem@ wep = plr.HasNamedPlayerItem(itemName);
+				CBasePlayerItem@ wep = plr.HasNamedPlayerItem(depositItem.classname);
+				println("CAN GIB " + depositItem.classname);
 				if (wep !is null)
 				{
-					Item@ wepItem = getItemByClassname(itemName);
-					if (wepItem !is null)
-					{
-						int amt = wep.pev.button > 0 ? wep.pev.button : 1;
-						CBaseEntity@ newItem = spawnItem(chest.pev.origin, wepItem.type, amt);
-						newItem.pev.effects = EF_NODRAW;
-						c_chest.depositItem(EHandle(newItem));
-						
-						plr.RemovePlayerItem(wep);
-						g_PlayerFuncs.PrintKeyBindingString(plr, wepItem.title + " was put into the " + chestName + "\n\n" + 
-																chestName + " capacity: " + 
-																c_chest.items.size() + " / " + c_chest.capacity());
-					}
-					else
-						println("Unknown weapon: " + itemName);		
+					int amt = depositItem.stackSize > 1 ? wep.pev.button : 1;
+					CBaseEntity@ newItem = spawnItem(chest.pev.origin, depositItem.type, amt);
+					newItem.pev.button = cast<CBasePlayerWeapon@>(wep).m_iClip;
+					newItem.pev.effects = EF_NODRAW;
+					c_chest.depositItem(EHandle(newItem));
+					
+					plr.RemovePlayerItem(wep);
+					g_PlayerFuncs.PrintKeyBindingString(plr, depositItem.title + " was put into the " + chestName + "\n\n" + 
+															chestName + " capacity: " + 
+															c_chest.items.size() + " / " + c_chest.capacity());
 				}
 				else
 				{
@@ -2309,6 +2296,7 @@ void lootMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextMe
 	else if (action.Find("loot-") == 0)
 	{
 		string itemDesc = action.SubString(5);
+		
 		int sep = int(itemDesc.Find(","));
 		int type = atoi( itemDesc.SubString(0, sep) );
 		int amt = atoi( itemDesc.SubString(sep+1) );
@@ -2316,30 +2304,29 @@ void lootMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextMe
 		bool found = false;
 		if (chest.IsPlayer() and chest.pev.deadflag > 0)
 		{
+			Item@ gItem = getItemByClassname(itemDesc);
 			CBasePlayer@ corpse = cast<CBasePlayer@>(chest);
-			if (sep != -1)
+			
+			InventoryList@ inv = corpse.get_m_pInventory();
+			while (inv !is null)
 			{
-				InventoryList@ inv = corpse.get_m_pInventory();
-				while (inv !is null)
+				CItemInventory@ item = cast<CItemInventory@>(inv.hItem.GetEntity());
+				@inv = inv.pNext;
+				if (item !is null and item.pev.colormap == gItem.type)
 				{
-					CItemInventory@ item = cast<CItemInventory@>(inv.hItem.GetEntity());
-					@inv = inv.pNext;
-					if (item !is null and item.pev.colormap == type and item.pev.button == amt)
+					if (giveItem(plr, gItem.type, gItem.stackSize > 1 ? item.pev.button : 1) == 0)
 					{
-						if (giveItem(plr, type, amt > 0 ? amt : 1) == 0)
-						{
-							item.pev.renderfx = -9999;
-							g_Scheduler.SetTimeout("delay_remove", 0, EHandle(item));
-						}
-						
-						found = true;
-						break;
+						item.pev.renderfx = -9999;
+						g_Scheduler.SetTimeout("delay_remove", 0, EHandle(item));
 					}
+					
+					found = true;
+					break;
 				}
 			}
-			else
+			
+			if (!found)
 			{
-				Item@ gItem = getItemByClassname(itemDesc);
 				CBasePlayerItem@ hasItem = corpse.HasNamedPlayerItem(itemDesc);
 				if (hasItem !is null and gItem !is null)
 				{
@@ -2349,39 +2336,52 @@ void lootMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextMe
 						plr.GiveNamedItem(itemDesc);
 						corpse.RemovePlayerItem(hasItem);
 					}
-					else if (giveItem(plr, gItem.type, amt > 0 ? amt : 1) == 0)
+					else if (giveItem(plr, gItem.type, 1) == 0)
 						corpse.RemovePlayerItem(hasItem);
 						
 					found = true;
 				}
-				
-				if (!found)
+			}
+			
+			if (!found)
+			{
+				int ammoIdx = g_PlayerFuncs.GetAmmoIndex(itemDesc);
+				int ammo = corpse.m_rgAmmo(ammoIdx);
+				if (ammo > 0)
 				{
-					int ammoIdx = g_PlayerFuncs.GetAmmoIndex(itemDesc);
-					int ammo = corpse.m_rgAmmo(ammoIdx);
-					if (ammo > 0)
+					int amtGiven = giveAmmo(plr, ammo, itemDesc);
+					
+					int ammoLeft = ammo - amtGiven;
+					Item@ ammoItem = getItemByClassname(itemDesc);
+					
+					if (ammoItem !is null)
 					{
-						int amtGiven = giveAmmo(plr, ammo, itemDesc);
+						ammoLeft = giveItem(plr, ammoItem.type, ammoLeft);
 						
-						int ammoLeft = ammo - amtGiven;
-						Item@ ammoItem = getItemByClassname(itemDesc);
+						if (ammoLeft < ammo)
+							g_SoundSystem.PlaySound(plr.edict(), CHAN_ITEM, "items/9mmclip1.wav", 1.0f, 1.0f, 0, 100);
 						
-						if (ammoItem !is null)
-						{
-							ammoLeft = giveItem(plr, ammoItem.type, ammoLeft);
-							
-							if (ammoLeft < ammo)
-								g_SoundSystem.PlaySound(plr.edict(), CHAN_ITEM, "items/9mmclip1.wav", 1.0f, 1.0f, 0, 100);
-							
-							corpse.m_rgAmmo(ammoIdx, ammoLeft);
-						}
-						else
-							println("Unknown ammo: " + itemDesc);
-							
-						found = true;
+						corpse.m_rgAmmo(ammoIdx, ammoLeft);
 					}
+					else
+						println("Unknown ammo: " + itemDesc);
+						
+					found = true;
 				}
-				
+			}
+			
+			if (found)
+			{
+				// update items in corpse
+				for (uint i = 0; i < g_corpses.size(); i++)
+				{
+					if (!g_corpses[i])
+						continue;
+						
+					player_corpse@ skeleton = cast<player_corpse@>(CastToScriptClass(g_corpses[i]));
+					if (skeleton.owner.IsValid() and skeleton.owner.GetEntity().entindex() == corpse.entindex())
+						skeleton.Update();
+				}
 			}
 		}
 		else if (chest.pev.classname == "player_corpse" or chest.pev.classname == "func_breakable_custom")
@@ -2398,50 +2398,17 @@ void lootMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextMe
 				int takeType = item.pev.colormap-1;
 				if (takeType < 0 or takeType >= int(g_items.size()))
 					continue;
-				int oldAmt = getItemCount(plr, type-1);
+				int oldAmt = getItemCount(plr, type);
 				Item@ takeItem = g_items[takeType];
 
 				if (item.pev.colormap == type and item.pev.button == amt)
 				{
 					// try equipping immediately
-					if (takeItem.isAmmo)
-					{
-						int amtGiven = giveAmmo(plr, amt, takeItem.classname);
-						amt -= amtGiven;
-						if (amtGiven > 0)
-							g_SoundSystem.PlaySound(plr.edict(), CHAN_ITEM, "items/9mmclip1.wav", 1.0f, 1.0f, 0, 100);
-					}
-					
-					int amtLeft = amt;
-					if (takeItem.isWeapon and takeItem.stackSize > 1)
-					{
-						if (@plr.HasNamedPlayerItem(takeItem.classname) == null)
-						{
-							plr.SetItemPickupTimes(0);
-							plr.GiveNamedItem(takeItem.classname);
-						}
-						
-						int amtGiven = giveAmmo(plr, item.pev.button, takeItem.ammoName);
-						item.pev.button -= amtGiven;
-						amtLeft = giveItem(plr, item.pev.colormap-1, item.pev.button);
-						
-						if (amtGiven > 0)
-							g_SoundSystem.PlaySound(plr.edict(), CHAN_ITEM, "items/9mmclip1.wav", 1.0f, 1.0f, 0, 100);
-					}
-					else if (takeItem.isWeapon and @plr.HasNamedPlayerItem(takeItem.classname) == null)
-					{
-						plr.SetItemPickupTimes(0);
-						plr.GiveNamedItem(takeItem.classname);
-						amtLeft = amt = 0;
-						cast<CBasePlayerWeapon@>(plr.HasNamedPlayerItem(takeItem.classname)).m_iClip = item.pev.button;
-					}
-					else
-						amtLeft = giveItem(plr, type-1, amt);
+					int amtLeft = pickupItem(plr, item);
+					println("PICKUP ITEM: " + takeItem.title);
 						
 					if (amtLeft > 0)
-					{
 						item.pev.button = amtLeft;
-					}
 					else
 					{
 						g_EntityFuncs.Remove(item);
@@ -2478,39 +2445,20 @@ void openLootMenu(CBasePlayer@ plr, CBaseEntity@ corpse, string submenu="")
 	{
 		CBasePlayer@ pcorpse = cast<CBasePlayer@>(corpse);
 		
-		for (uint i = 0; i < MAX_ITEM_TYPES; i++)
-		{
-			CBasePlayerItem@ wep = pcorpse.m_rgpPlayerItems(i);
-			while (wep !is null)
-			{
-				state.menu.AddItem(getItemDisplayName(wep), any("loot-" + wep.pev.classname));
-				numItems++;
-				@wep = cast<CBasePlayerItem@>(wep.m_hNextItem.GetEntity());				
-			}
-		}
+		array<Item@> all_items = getAllItems(pcorpse);
 		
-		for (uint i = 0; i < g_ammo_types.size(); i++)
+		for (uint i = 0; i < all_items.size(); i++)
 		{
-			int ammo = pcorpse.m_rgAmmo(g_PlayerFuncs.GetAmmoIndex(g_ammo_types[i]));
-			if (ammo > 0)
-			{
-				Item@ item = getItemByClassname(g_ammo_types[i]);
-				string name = item !is null ? item.title : g_ammo_types[i];
-				state.menu.AddItem(name + " (" + ammo + ")", any("loot-" + g_ammo_types[i]));
-				numItems++;
-			}
-		}
-		
-		InventoryList@ inv = pcorpse.get_m_pInventory();
-		while (inv !is null)
-		{
-			CItemInventory@ item = cast<CItemInventory@>(inv.hItem.GetEntity());
-			@inv = inv.pNext;
-			if (item !is null)
-			{
-				state.menu.AddItem(getItemDisplayName(item), any("loot-" + item.pev.colormap + "," + item.pev.button));
-				numItems++;
-			}
+			Item@ item = all_items[i];
+			int count = getItemCount(pcorpse, item.type, true, true);
+			if (count <= 0)
+				continue;
+				
+			numItems++;
+			string displayName = item.title;
+			if (item.stackSize > 1)
+				displayName += " (" + count + ")";
+			state.menu.AddItem(displayName, any("loot-" + item.classname));
 		}
 	}
 	else if (corpse.pev.classname == "player_corpse")
@@ -2547,83 +2495,30 @@ void openLootMenu(CBasePlayer@ plr, CBaseEntity@ corpse, string submenu="")
 		{			
 			title += " -> Give";
 			bool isFurnace = corpse.pev.colormap == B_FURNACE;
-			int count = 0;
+		
+			array<Item@> all_items = getAllItems(plr);
+			int options = 0;
 			
-			for (uint i = 0; i < MAX_ITEM_TYPES and !isFurnace; i++)
+			for (uint i = 0; i < all_items.size(); i++)
 			{
-				CBasePlayerItem@ item = plr.m_rgpPlayerItems(i);
-				while (item !is null)
+				Item@ item = all_items[i];
+				if (isFurnace)
 				{
-					Item@ invItem = getItemByClassname(item.pev.classname);
-					string displayName = invItem !is null ? invItem.title : string(item.pev.classname);
-					if (invItem.stackSize > 1)
-						displayName += " (" + prettyNumber(plr.m_rgAmmo(g_PlayerFuncs.GetAmmoIndex(invItem.ammoName))) + ")";
-					state.menu.AddItem(displayName, any("give-" + invItem.type));
-					count++;
-					@item = cast<CBasePlayerItem@>(item.m_hNextItem.GetEntity());		
+					if (item.type != I_WOOD or item.type != I_METAL_ORE or item.type != I_HQMETAL_ORE)
+						continue;
 				}
-			}
-			
-			dictionary stacks;
-			for (uint i = 0; i < g_ammo_types.size() and !isFurnace; i++)
-			{
-				bool dont_show = false;
-				for (uint k = 0; k < g_items.size(); k++) // unequip as a weapon only, not as ammo
-				{
-					if (g_items[k].ammoName == g_ammo_types[i])
-					{
-						dont_show = true;
-						break;
-					}
-				}
-				if (dont_show)
+				int count = getItemCount(plr, item.type, true, true);
+				if (count <= 0)
 					continue;
-				
-				int ammo = plr.m_rgAmmo(g_PlayerFuncs.GetAmmoIndex(g_ammo_types[i]));
-				if (ammo > 0)
-				{
-					Item@ item = getItemByClassname(g_ammo_types[i]);
-					if (item !is null)
-						stacks[item.type] = ammo;
-				}
+					
+				options++;
+				string displayName = item.title;
+				if (item.stackSize > 1)
+					displayName += " (" + count + ")";
+				state.menu.AddItem(displayName, any("give-" + item.type));
 			}
 			
-			InventoryList@ inv = plr.get_m_pInventory();
-			while(inv !is null)
-			{
-				CItemInventory@ item = cast<CItemInventory@>(inv.hItem.GetEntity());
-				if (item !is null and item.pev.colormap > 0)
-				{
-					Item@ wep = g_items[item.pev.colormap-1];
-					if (wep !is null)
-					{
-						if (!isFurnace or (wep.type == I_WOOD or wep.type == I_METAL_ORE or wep.type == I_HQMETAL_ORE))
-						{
-							if (stacks.exists(wep.type))
-							{
-								int oldCount = 0;
-								stacks.get(wep.type, oldCount);
-								stacks[wep.type] = oldCount + item.pev.button;
-							}
-							else
-								stacks[wep.type] = item.pev.button;
-						}
-						
-					}
-				}
-				@inv = inv.pNext;
-			}
-			
-			array<string>@ stackKeys = stacks.getKeys();
-			for (uint i = 0; i < stackKeys.size(); i++)
-			{
-				Item@ item = g_items[ atoi(stackKeys[i]) ];
-				int amt = 1;
-				stacks.get(stackKeys[i], amt);
-				state.menu.AddItem(item.title + (item.stackSize > 1 ? " (" + amt + ")" : ""), any("give-" + item.type));
-				count++;
-			}
-			if (count == 0)
+			if (options == 0)
 				state.menu.AddItem("(no items to gives)", any(""));
 		}
 		else if (submenu.Find("givestack-") == 0)
@@ -2846,60 +2741,18 @@ HookReturnCode PlayerUse( CBasePlayer@ plr, uint& out )
 				if (lookItem.pev.classname == "item_inventory")
 				{
 					// I do my own pickup logic to bypass the 3 second drop wait in SC
-					
-					int lookType = lookItem.pev.colormap-1;
-					if (lookType >= 0 and lookType < int(g_items.size()))
-					{
-						// try to equip immediately
-						Item@ item = g_items[lookType];
-						int barf = 1;
-						if (item.isWeapon and item.stackSize > 1)
-						{
-							if (@plr.HasNamedPlayerItem(item.classname) == null)
-							{
-								plr.SetItemPickupTimes(0);
-								plr.GiveNamedItem(item.classname);
-							}
-							
-							int amtGiven = giveAmmo(plr, lookItem.pev.button, item.ammoName);
-							lookItem.pev.button -= amtGiven;
-							barf = giveItem(plr, lookItem.pev.colormap-1, lookItem.pev.button);
-							
-							if (amtGiven > 0)
-								g_SoundSystem.PlaySound(plr.edict(), CHAN_ITEM, "items/9mmclip1.wav", 1.0f, 1.0f, 0, 100);
-						}
-						else if (item.isWeapon and @plr.HasNamedPlayerItem(item.classname) == null)
-						{
-							plr.SetItemPickupTimes(0);
-							plr.GiveNamedItem(item.classname);
-							barf = 0;
-							cast<CBasePlayerWeapon@>(plr.HasNamedPlayerItem(item.classname)).m_iClip = lookItem.pev.button;
-						}
-						else if (item.isAmmo)
-						{
-							int amtGiven = giveAmmo(plr, lookItem.pev.button, item.classname);
-							lookItem.pev.button -= amtGiven;
-							barf = giveItem(plr, lookItem.pev.colormap-1, lookItem.pev.button);
-							
-							if (amtGiven > 0)
-								g_SoundSystem.PlaySound(plr.edict(), CHAN_ITEM, "items/9mmclip1.wav", 1.0f, 1.0f, 0, 100);
-						}
-						else
-						{
-							barf = giveItem(plr, lookItem.pev.colormap-1, lookItem.pev.button);
-						}
+					int barf = pickupItem(plr, lookItem);
 
-						if (barf > 0)
-						{
-							lookItem.pev.button = barf;
-							println("Couldn't hold " + barf + " of that");
-						}
-						else
-						{
-							item_collected(plr, lookItem, USE_TOGGLE, 0);
-							lookItem.pev.renderfx = -9999;
-							g_Scheduler.SetTimeout("delay_remove", 0, EHandle(lookItem));
-						}
+					if (barf > 0)
+					{
+						lookItem.pev.button = barf;
+						println("Couldn't hold " + barf + " of that");
+					}
+					else
+					{
+						item_collected(plr, lookItem, USE_TOGGLE, 0);
+						lookItem.pev.renderfx = -9999;
+						g_Scheduler.SetTimeout("delay_remove", 0, EHandle(lookItem));
 					}
 				}
 				if (lookItem.pev.classname == "player_corpse" or lookItem.IsPlayer())
