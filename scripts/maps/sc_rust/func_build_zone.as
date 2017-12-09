@@ -1,4 +1,5 @@
 int MAX_VISIBLE_ENTS = 500;
+uint NODES_PER_ZONE = 32;
 
 class BuildZone
 {
@@ -94,7 +95,7 @@ class func_build_zone : ScriptBaseEntity
 	
 	void ZoneThink()
 	{
-		if (!g_disable_ents and nodes.size() < 32)
+		if (!g_disable_ents and nodes.size() < NODES_PER_ZONE)
 		{
 			string brushModel;
 			string itemModel;

@@ -525,6 +525,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 				Vector attachOri = tr.vecEndPos;
 				float attachYaw = part.pev.angles.y;
 				float minDist = 0;
+				bool validSnap = true;
 				
 				if (isFloorPiece(part) and partSocket != SOCKET_MIDDLE and 
 					!((buildType == B_FLOOR or buildType == B_LADDER_HATCH or buildType == B_FLOOR_TRI) and 
@@ -628,6 +629,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 							attachYaw = Math.VecToAngles(part.pev.origin - back).y;
 							minDist = db;
 						}
+							
 						if (isTriangular(buildEnt)) {
 							attachYaw += 180;
 						}
@@ -912,7 +914,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 			int attachType = phit.pev.colormap;
 			int attachSocket = socketType(attachType);
 			
-			if (isFloorPiece(phit))
+			if (isFloorPiece(phit) and isFloorItem(buildEnt))
 			{
 				validBuild = true;
 				attaching = true;

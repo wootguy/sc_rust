@@ -317,7 +317,18 @@ array<Item@> getAllItems(CBasePlayer@ plr)
 		all_items.insertLast(item);
 	}
 	
-	return all_items;
+	// remove duplicates
+	array<Item@> ret_items;
+	dictionary unique_items;
+	for (uint i = 0; i < all_items.size(); i++)
+	{
+		if (unique_items.exists(all_items[i].type))
+			continue;
+		unique_items[all_items[i].type] = true;
+		ret_items.insertLast(all_items[i]);
+	}
+	
+	return ret_items;
 }
 
 // get the first item of this type

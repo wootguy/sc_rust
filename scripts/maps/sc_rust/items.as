@@ -447,22 +447,30 @@ CBaseEntity@ spawnItem(Vector origin, int type, int amt)
 	keys["target_on_drop"] = "item_dropped";
 	keys["target_on_collect"] = "item_collected";
 	keys["target_cant_collect"] = "item_cant_collect";
+	keys["button"] = "" + 1;
 	
 	if (type < 0 or type > ITEM_TYPES)
 	{
 		println("spawnItem: bad type " + type);
 		return null;
 	}
+	Item@ item = g_items[type];
 	
-	keys["netname"] = g_items[type].title; // because m_szItemName doesn't work...
+	keys["netname"] = item.title; // because m_szItemName doesn't work...
 	keys["colormap"] = "" + (type+1); // +1 so that normal items don't appear as my custom ones
 	keys["team"] = "0"; // so we ignore this in the item_collected callback
 	
-	keys["display_name"] = g_items[type].title;
-	keys["description"] =  g_items[type].desc;
+	keys["display_name"] = item.title;
+	keys["description"] =  item.desc;
 	
-	if (g_items[type].stackSize == 1)
+	if (item.stackSize == 1)
 	{
+		if (item.isWeapon)
+		{
+			if (amt >= 1)
+				keys["button"] = "" + amt;
+			amt = 1;
+		}
 		CBaseEntity@ lastSpawn = null;
 		for (int i = 0; i < amt; i++)
 		{
@@ -481,7 +489,7 @@ CBaseEntity@ spawnItem(Vector origin, int type, int amt)
 }
 
 // try to equip a weapon/item/ammo. Returns amount that couldn't be equipped
-int equipItem(CBasePlayer@ plr, int type, int amt, int clip)
+int equipItem(CBasePlayer@ plr, int type, int amt)
 {
 	if (type < 0 or type > ITEM_TYPES)
 	{
@@ -499,7 +507,6 @@ int equipItem(CBasePlayer@ plr, int type, int amt, int clip)
 			plr.GiveNamedItem(item.classname);
 		}
 	
-		println("SHOULD GIB " + item.ammoName);
 		int amtGiven = giveAmmo(plr, amt, item.ammoName);
 		barf = amt - amtGiven;
 		
@@ -511,8 +518,8 @@ int equipItem(CBasePlayer@ plr, int type, int amt, int clip)
 		plr.SetItemPickupTimes(0);
 		plr.GiveNamedItem(item.classname);
 		CBasePlayerWeapon@ wep = cast<CBasePlayerWeapon@>(@plr.HasNamedPlayerItem(item.classname));
-		if (clip != -1)
-			wep.m_iClip = clip;
+		if (amt != -1)
+			wep.m_iClip = amt;
 		barf = 0;
 	}
 	else if (item.isAmmo)
@@ -550,14 +557,12 @@ int pickupItem(CBasePlayer@ plr, CBaseEntity@ item)
 		return item.pev.button > 0 ? item.pev.button : 1;
 	}
 	Item@ itemDef = g_items[type];
-	int amt = itemDef.isAmmo ? item.pev.button : 1;
-	int clip = itemDef.isWeapon ? item.pev.button : 0;
 	
-	return giveItem(plr, type, amt, false, true, true, clip);
+	return giveItem(plr, type, item.pev.button, false, true, true);
 }
 
 // returns # of items that couldn't be stored (e.g. could stack 100 more but was given 300: return 200)
-int giveItem(CBasePlayer@ plr, int type, int amt, bool drop=false, bool combineStacks=true, bool tryToEquip=false, int equipClip=-1)
+int giveItem(CBasePlayer@ plr, int type, int amt, bool drop=false, bool combineStacks=true, bool tryToEquip=false)
 {
 	dictionary keys;
 	keys["origin"] = plr.pev.origin.ToString();
@@ -585,7 +590,7 @@ int giveItem(CBasePlayer@ plr, int type, int amt, bool drop=false, bool combineS
 	
 	if (tryToEquip)
 	{
-		int barf = equipItem(plr, type, amt, equipClip);
+		int barf = equipItem(plr, type, amt);
 		if (barf == 0)
 			return 0;
 		amt = barf;
@@ -790,7 +795,7 @@ void playerMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CText
 		if (invItem.stackSize > 1)
 		{
 			int amt = getItemCount(plr, invItem.type, false, true);
-			int barf = equipItem(plr, invItem.type, amt, 0);
+			int barf = equipItem(plr, invItem.type, amt);
 			int given = amt-barf;
 			if (given > 0)
 				giveItem(plr, invItem.type, -given);
@@ -798,7 +803,7 @@ void playerMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CText
 		else if (invItem.isWeapon)
 		{
 			CItemInventory@ wep = getInventoryItem(plr, invItem.type);
-			if (equipItem(plr, invItem.type, 1, wep.pev.button) == 0)
+			if (equipItem(plr, invItem.type, wep.pev.button) == 0)
 				g_Scheduler.SetTimeout("delay_remove", 0, EHandle(wep));
 		}
 		
@@ -861,7 +866,7 @@ void playerMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CText
 		if (itemType >= 0 and itemType < int(g_items.size()))
 		{
 			Item@ craftItem = g_items[itemType];
-			giveItem(@plr, itemType, 1, false, true, true, -1);
+			giveItem(@plr, itemType, -1, false, true, true);
 		}
 		
 		string submenu;
@@ -1218,7 +1223,6 @@ void lootMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextMe
 			{
 				// currently held item/weapon/ammo
 				CBasePlayerItem@ wep = plr.HasNamedPlayerItem(depositItem.classname);
-				println("CAN GIB " + depositItem.classname);
 				if (wep !is null)
 				{
 					int amt = depositItem.stackSize > 1 ? wep.pev.button : 1;
@@ -1368,7 +1372,6 @@ void lootMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextMe
 				{
 					// try equipping immediately
 					int amtLeft = pickupItem(plr, item);
-					println("PICKUP ITEM: " + takeItem.title);
 						
 					if (amtLeft > 0)
 						item.pev.button = amtLeft;

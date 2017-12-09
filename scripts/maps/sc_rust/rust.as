@@ -35,7 +35,6 @@ float g_revive_time = 5.0f;
 // End game settings
 //
 
-
 void dummyCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextMenuItem@ item) {}
 
 class ZoneInfo

@@ -73,14 +73,55 @@ class func_breakable_custom : ScriptBaseEntity
 	array<EHandle> items; // chests only
 	int maxItems;
 	
-	string serialize()
+	ByteBuffer serialize()
 	{
-		return pev.origin.ToString() + '"' + pev.angles.ToString() + '"' + pev.colormap + '"' +
-			   id + '"' + parent  + '"' + pev.button + '"' + pev.body + '"' + pev.vuser1.ToString() + '"' + 
-			   pev.vuser2.ToString() + '"' + pev.health + '"' + pev.classname + '"' + pev.model + '"' +
-			   pev.groupinfo + '"' + pev.noise1 + '"' + pev.noise2 + '"' + pev.noise3 + '"' + pev.effects;
+		ByteBuffer buf;
+		
+		buf.Write(pev.origin.x);
+		buf.Write(pev.origin.y);
+		buf.Write(pev.origin.z);
+		buf.Write(pev.angles.x);
+		buf.Write(pev.angles.y);
+		buf.Write(pev.angles.z);
+		buf.Write(int16(pev.colormap));
+		buf.Write(int16(id));
+		buf.Write(int16(parent));
+		buf.Write(int16(pev.button));
+		buf.Write(int16(pev.body));
+		buf.Write(pev.vuser1.x);
+		buf.Write(pev.vuser1.y);
+		buf.Write(pev.vuser1.z);
+		buf.Write(pev.vuser2.x);
+		buf.Write(pev.vuser2.y);
+		buf.Write(pev.vuser2.z);
+		buf.Write(float(pev.health));
+		buf.Write(string(pev.classname));
+		buf.Write(string(pev.model));
+		buf.Write(int16(pev.groupinfo));
+		buf.Write(string(pev.noise1));
+		buf.Write(string(pev.noise2));
+		buf.Write(string(pev.noise3));
+		buf.Write(int16(pev.effects));
+		
+		// write chest items
+		buf.Write(uint8(items.size()));
+		for (uint i = 0; i < items.size(); i++)
+		{
+			if (items[i])
+			{
+				buf.Write(int16(items[i].GetEntity().pev.colormap-1));
+				buf.Write(int16(items[i].GetEntity().pev.button));
+			}
+			else
+			{
+				buf.Write(0);
+				buf.Write(0);
+			}
+		}
+		
+		return buf;
 	}
-
+	
 	bool KeyValue( const string& in szKey, const string& in szValue )
 	{
 		if (szKey == "id") id = atoi(szValue);
@@ -300,6 +341,18 @@ class func_breakable_custom : ScriptBaseEntity
 			case B_FURNACE: return CHEST_ITEM_MAX_FURNACE;
 		}
 		return 0;
+	}
+	
+	int depositItem(int type, int amt)
+	{
+		CBaseEntity@ newItem = spawnItem(pev.origin, type, amt);
+		if (newItem is null)
+		{
+			println("Failed to create item type " + type + " x" + amt);
+			return 0;
+		}
+		newItem.pev.effects = EF_NODRAW;
+		return depositItem(EHandle(newItem));
 	}
 	
 	int depositItem(EHandle item)
