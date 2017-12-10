@@ -338,7 +338,7 @@ class func_breakable_custom : ScriptBaseEntity
 		switch(pev.colormap)
 		{
 			case B_LARGE_CHEST: return CHEST_ITEM_MAX_LARGE;
-			case B_SMALL_CHEST: return CHEST_ITEM_MAX_LARGE;
+			case B_SMALL_CHEST: return CHEST_ITEM_MAX_SMALL;
 			case B_FURNACE: return CHEST_ITEM_MAX_FURNACE;
 		}
 		return 0;

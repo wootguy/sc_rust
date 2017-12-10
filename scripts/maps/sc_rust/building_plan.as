@@ -1292,90 +1292,90 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 			g_PlayerFuncs.PrintKeyBindingString(plr, "Building blocked by tool cupboard");
 			return false;
 		}
-		if (!g_build_anywhere)
-		{
-			if (zoneid == -1)
-			{
-				g_PlayerFuncs.PrintKeyBindingString(plr, "Building not allowed in outskirts");
-				return false;
-			}
-			if (state.home_zone == -1)
-			{
-				BuildZone@ zone = getBuildZone(zoneid);
-				int needSpace = state.team !is null ? state.team.members.size() : 1;
-				if (zone.maxSettlers - zone.numSettlers >= needSpace)
-				{
-					zone.numSettlers += needSpace;
-					state.home_zone = zoneid;
-					
-					string msg = "Zone " + zoneid + " is now your home. You can build a permanent base here.\n";
-					if (state.team !is null)
-					{
-						state.team.sendMessage(msg);
-						state.team.setHomeZone(zoneid);
-					}
-					else
-						g_PlayerFuncs.SayText(plr, msg);
-					
-					int previousRaiderParts = state.getNumParts(zoneid);
-					zone.numRaiderParts -= previousRaiderParts; // parts built by this player no longer count as raider parts
-				}
-				else
-				{
-					println("Too many settlers in zone");
-					//g_PlayerFuncs.SayText(plr, "This zone has too many settlers.");
-				}
-			}
-			if (state.getNumParts(zoneid) >= state.maxPoints(zoneid))
-			{
-				g_PlayerFuncs.PrintKeyBindingString(plr, "You're out of build points!\n\nFuse your parts (Wrench) for more points.");
-				return false;
-			}
-			
-			if (zoneid != state.home_zone)
-				getBuildZone(zoneid).numRaiderParts++;
-		}
-		
-		if (!g_free_build)
-		{
-			string cost = "";
-			if (alternateBuild)
-			{
-				Item@ itemCost = getItemByClassname(g_part_info[buildType].copy_ent);
-				if (getItemCount(plr, itemCost.type, false, true) > 0)
-				{
-					giveItem(plr, itemCost.type, -1);
-					cost = "-1 " + itemCost.title;
-				}
-			}
-			else
-			{
-				if (getItemCount(plr, BUILD_MATERIAL, false, true) < g_part_info[buildType].cost)
-				{
-					g_PlayerFuncs.PrintKeyBindingString(plr, "You need more " + g_items[BUILD_MATERIAL].title);
-					return false;
-				}
-				cost = "-" + g_part_info[buildType].cost + " " + g_items[BUILD_MATERIAL].title;
-			}
-			
-			HUDTextParams params;
-			params.x = -1;
-			params.y = -1;
-			params.effect = 0;
-			params.r1 = 255;
-			params.g1 = 255;
-			params.b1 = 255;
-			params.fadeinTime = 0;
-			params.fadeoutTime = 0.5f;
-			params.holdTime = 0.5f;
-			params.channel = 2;
-		
-			g_PlayerFuncs.HudMessage(plr, params, cost);
-			giveItem(plr, BUILD_MATERIAL, -g_part_info[buildType].cost, false);
-		}
 		
 		if (buildEnt !is null && validBuild) 
 		{
+			if (!g_free_build)
+			{
+				string cost = "";
+				if (alternateBuild)
+				{
+					Item@ itemCost = getItemByClassname(g_part_info[buildType].copy_ent);
+					if (getItemCount(plr, itemCost.type, false, true) > 0)
+					{
+						giveItem(plr, itemCost.type, -1);
+						cost = "-1 " + itemCost.title;
+					}
+				}
+				else
+				{
+					if (getItemCount(plr, BUILD_MATERIAL, false, true) < g_part_info[buildType].cost)
+					{
+						g_PlayerFuncs.PrintKeyBindingString(plr, "You need more " + g_items[BUILD_MATERIAL].title);
+						return false;
+					}
+					cost = "-" + g_part_info[buildType].cost + " " + g_items[BUILD_MATERIAL].title;
+				}
+				
+				HUDTextParams params;
+				params.x = -1;
+				params.y = -1;
+				params.effect = 0;
+				params.r1 = 255;
+				params.g1 = 255;
+				params.b1 = 255;
+				params.fadeinTime = 0;
+				params.fadeoutTime = 0.5f;
+				params.holdTime = 0.5f;
+				params.channel = 2;
+			
+				g_PlayerFuncs.HudMessage(plr, params, cost);
+				giveItem(plr, BUILD_MATERIAL, -g_part_info[buildType].cost, false);
+			}
+			if (!g_build_anywhere)
+			{
+				if (zoneid == -1)
+				{
+					g_PlayerFuncs.PrintKeyBindingString(plr, "Building not allowed in outskirts");
+					return false;
+				}
+				if (state.home_zone == -1)
+				{
+					BuildZone@ zone = getBuildZone(zoneid);
+					int needSpace = state.team !is null ? state.team.members.size() : 1;
+					if (zone.maxSettlers - zone.numSettlers >= needSpace)
+					{
+						zone.numSettlers += needSpace;
+						state.home_zone = zoneid;
+						
+						string msg = "Zone " + zoneid + " is now your home. You can build a permanent base here.\n";
+						if (state.team !is null)
+						{
+							state.team.sendMessage(msg);
+							state.team.setHomeZone(zoneid);
+						}
+						else
+							g_PlayerFuncs.SayText(plr, msg);
+						
+						int previousRaiderParts = state.getNumParts(zoneid);
+						zone.numRaiderParts -= previousRaiderParts; // parts built by this player no longer count as raider parts
+					}
+					else
+					{
+						println("Too many settlers in zone");
+						//g_PlayerFuncs.SayText(plr, "This zone has too many settlers.");
+					}
+				}
+				if (state.getNumParts(zoneid) >= state.maxPoints(zoneid))
+				{
+					g_PlayerFuncs.PrintKeyBindingString(plr, "You're out of build points!\n\nFuse your parts (Wrench) for more points.");
+					return false;
+				}
+				
+				if (zoneid != state.home_zone)
+					getBuildZone(zoneid).numRaiderParts++;
+			}
+		
 			plr.SetAnimation( PLAYER_ATTACK1 );
 			
 			string brushModel = buildEnt.pev.model;
@@ -1667,12 +1667,16 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 	
 	void PrimaryAttack()  
 	{
+		CBasePlayer@ plr = getPlayer();
 		if (canShootAgain) 
 		{
-			if (Build() and !g_free_build and alternateBuild)
+			bool buildSuccess = Build();
+			if (buildSuccess and !g_free_build and alternateBuild)
 			{
 				CheckItemMode(0);
 			}
+			if (!buildSuccess)
+				g_SoundSystem.PlaySound(plr.edict(), CHAN_ITEM, "items/medshotno1.wav", 1.0f, 1.0f, 0, 130);
 			canShootAgain = false;
 		}
 	}

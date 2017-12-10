@@ -22,10 +22,10 @@ int g_settler_reduction = 0; // reduces settlers per zone to increase build poin
 int g_raider_points = 40; // best if multiple of zone count
 bool g_build_point_rounding = true; // rounds build points to a multiple of 10 (may reduce build points)
 bool g_disable_ents = false;
-bool g_build_anywhere = true; // disables build zones
-bool g_free_build = true; // buildings don't cost any materials
+bool g_build_anywhere = false; // disables build zones
+bool g_free_build = false; // buildings don't cost any materials
 int g_inventory_size = 20;
-int g_max_item_drops = 2; // maximum item drops per player (more drops = less build points)
+int g_max_item_drops = 9; // maximum item drops per player (more drops = less build points)
 float g_tool_cupboard_radius = 512;
 float g_corpse_time = 60.0f; // time before corpses despawn
 int g_max_corpses = 2; // max corpses per player (should be at least 2 to prevent despawning valuable loot)
@@ -410,6 +410,63 @@ class PlayerState
 		zoneParts[zoneid] = count;
 	}
 	
+	void leaveTeam()
+	{
+		CBasePlayer@ p_plr = cast<CBasePlayer@>(plr.GetEntity());
+		Team@ team = getPlayerTeam(p_plr);
+		if (team !is null and team.members.size() > 1)
+		{
+			for (int i = 0; i < int(team.members.size()); i++)
+			{
+				CBasePlayer@ member = getPlayerByName(p_plr, team.members[i], true);
+				if (member.entindex() == p_plr.entindex())
+				{
+					team.members.removeAt(i);
+					i--;
+				}
+				else
+					g_PlayerFuncs.SayText(member, "" + p_plr.pev.netname + " left your team");
+			}
+			g_PlayerFuncs.SayText(p_plr, "You left your team");
+			@team = null;
+			
+			int overflow = getNumParts(home_zone) - maxPoints(home_zone);
+			if (overflow > 0)
+			{
+				g_PlayerFuncs.SayText(p_plr, "You have too many parts! Your most recently built parts will be broken.");
+				breakParts(overflow); // break most recent parts until we're within our new build point limit
+			}
+			team.breakOverflowParts();
+			BuildZone@ zone = getBuildZone(team.home_zone);
+			
+			for (uint i = 0; i < g_teams.size(); i++)
+			{
+				if (g_teams[i].members.size() <= 1)
+				{
+					for (int k = 0; k < int(g_teams[i].members.size()); k++)
+					{
+						CBasePlayer@ member = getPlayerByName(p_plr, g_teams[i].members[k], true);
+						if (member !is null)
+						{
+							PlayerState@ memberState = getPlayerState(member);
+							@memberState.team = null;
+							memberState.checkHomeless();
+							//println("IS HOMELESS? " + member.pev.netname);
+						}
+					}
+				
+					println("Deleted team " + i);
+					g_teams.removeAt(i);
+					i--;
+				}
+			}
+		}
+		else
+		{
+			g_PlayerFuncs.SayText(p_plr, "You're already solo.\n");
+		}
+	}
+	
 	int getNumParts(int zoneid)
 	{
 		if (zoneid == -1337)
@@ -570,7 +627,7 @@ void MapInit()
 	PrecacheSound("ambience/burning3.wav"); // furnace
 	PrecacheSound("items/ammopickup1.wav"); // armor
 	PrecacheSound("items/ammopickup2.wav"); // armor
-	PrecacheSound("player/pl_jump2.wav"); // armor
+	PrecacheSound("player/pl_jump2.wav"); // item give/loot
 	g_Game.PrecacheModel( "models/woodgibs.mdl" );
 	g_Game.PrecacheModel( "models/sc_rust/pine_tree.mdl" );
 	g_Game.PrecacheModel( "models/sc_rust/rock.mdl" );
@@ -1062,59 +1119,7 @@ bool doRustCommand(CBasePlayer@ plr, const CCommand@ args)
 		}
 		if (args[0] == ".solo")
 		{
-			Team@ team = getPlayerTeam(plr);
-			if (team !is null and team.members.size() > 1)
-			{
-				for (int i = 0; i < int(team.members.size()); i++)
-				{
-					CBasePlayer@ member = getPlayerByName(plr, team.members[i], true);
-					if (member.entindex() == plr.entindex())
-					{
-						team.members.removeAt(i);
-						i--;
-					}
-					else
-						g_PlayerFuncs.SayText(member, "" + plr.pev.netname + " left your team");
-				}
-				g_PlayerFuncs.SayText(plr, "You left your team");
-				@state.team = null;
-				
-				int overflow = state.getNumParts(state.home_zone) - state.maxPoints(state.home_zone);
-				if (overflow > 0)
-				{
-					g_PlayerFuncs.SayText(plr, "You have too many parts! Your most recently built parts will be broken.");
-					state.breakParts(overflow); // break most recent parts until we're within our new build point limit
-				}
-				team.breakOverflowParts();
-				BuildZone@ zone = getBuildZone(team.home_zone);
-				
-				for (uint i = 0; i < g_teams.size(); i++)
-				{
-					if (g_teams[i].members.size() <= 1)
-					{
-						for (int k = 0; k < int(g_teams[i].members.size()); k++)
-						{
-							CBasePlayer@ member = getPlayerByName(plr, g_teams[i].members[k], true);
-							if (member !is null)
-							{
-								PlayerState@ memberState = getPlayerState(member);
-								@memberState.team = null;
-								memberState.checkHomeless();
-								println("IS HOMELESS? " + member.pev.netname);
-							}
-						}
-					
-						println("Deleted team " + i);
-						g_teams.removeAt(i);
-						i--;
-					}
-				}
-				return true;
-			}
-			else
-			{
-				g_PlayerFuncs.SayText(plr, "You're already solo.n");
-			}
+			state.leaveTeam();
 			return true;
 		}
 		if (args[0] == ".teams")
@@ -1208,6 +1213,7 @@ HookReturnCode ClientLeave(CBasePlayer@ plr)
 	PlayerState@ state = getPlayerState(plr);
 	state.inGame = false;
 	state.resumeOnJoin = true;
+	state.leaveTeam();
 	println("" + plr.pev.netname + " left the paws");
 	
 	// spawn corpse for leaver

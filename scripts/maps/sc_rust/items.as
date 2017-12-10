@@ -1235,7 +1235,7 @@ void lootMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextMe
 				giveItem(plr, depositItem.type, -giveInvAmt);
 			}
 			
-			if (overflow == 0 and depositItem.isAmmo or depositItem.stackSize > 1)
+			if (overflow == 0 and depositItem.isAmmo or (depositItem.isWeapon and depositItem.stackSize > 1))
 			{
 				amt -= giveInvAmt; // now give from equipped ammo if not enough was in inventory
 				

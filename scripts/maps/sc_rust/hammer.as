@@ -65,6 +65,8 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 	string repairSound = "";
 	string swingSound = "sc_rust/hammer_swing.ogg";
 	string worldHitSound = "sc_rust/stone_tree.ogg";
+	string fuseSound = "common/launch_glow1.wav";
+	string separateSound = "common/launch_deny2.wav";
 	array<string> repairWoodSounds = {"sc_rust/repair_wood.ogg"};
 	array<string> repairStoneSounds = {"sc_rust/repair_stone.ogg", "sc_rust/repair_stone2.ogg"};
 	array<string> repairMetalSounds = {"sc_rust/repair_metal.ogg", "sc_rust/repair_metal2.ogg"};
@@ -100,6 +102,8 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 		PrecacheSound(repairSound);
 		PrecacheSound(swingSound);
 		PrecacheSound(worldHitSound);
+		PrecacheSound(fuseSound);
+		PrecacheSound(separateSound);
 		
 		for (uint i = 0; i < repairWoodSounds.length(); i++)
 			PrecacheSound(repairWoodSounds[i]);
@@ -316,8 +320,16 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 				params.r1 = 255;
 				params.g1 = 255;
 				params.b1 = 255;
-				g_PlayerFuncs.HudMessage(plr, params, 
-					"Build Points:\n" + (state.maxPoints(zoneid)-state.getNumParts(zoneid)) + " / " + state.maxPoints(zoneid));
+				if (!g_build_anywhere)
+				{
+					g_PlayerFuncs.HudMessage(plr, params, 
+						"Build Points:\n" + (state.maxPoints(zoneid)-state.getNumParts(zoneid)) + " / " + state.maxPoints(zoneid));
+				}
+				else
+				{
+					int total = state.getNumParts(-1337);
+					g_PlayerFuncs.HudMessage(plr, params, "Built Parts:\n" + total + " / 500");
+				}
 			}	
 		}
 		
@@ -727,7 +739,7 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 	
 		
 		PlayerState@ state = getPlayerStateBySteamID(ent.pev.noise1, ent.pev.noise2);
-		if (state.getNumParts(fuseZone) + parts.length()-1 > state.maxPoints(fuseZone))
+		if (!g_build_anywhere and state.getNumParts(fuseZone) + parts.length()-1 > state.maxPoints(fuseZone))
 		{
 			cancelFuse("Not enough build points to separate!");
 			return;
@@ -760,6 +772,8 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 			func_breakable_custom@ bpart = cast<func_breakable_custom@>(CastToScriptClass(parts[i]));
 			bpart.parent = -1;
 		}
+		
+		g_SoundSystem.PlaySound(getPlayer().edict(), lastChannel, separateSound, 1.0f, 1.0f, 0, Math.RandomLong(90, 110));
 
 		cancelFuse("Fused parts were separated");
 	}
@@ -1286,6 +1300,9 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 					}
 				}
 			}
+			
+			g_SoundSystem.PlaySound(getPlayer().edict(), lastChannel, fuseSound, 1.0f, 1.0f, 0, Math.RandomLong(90, 110));
+			
 			cancelFuse();
 			return;
 		}

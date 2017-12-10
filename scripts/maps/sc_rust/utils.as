@@ -220,7 +220,7 @@ int getItemCount(CBasePlayer@ plr, int itemType, bool includeEquipment = true, b
 		}
 	}
 	
-	if (includeEquipment)
+	if (includeEquipment and (checkItem.isWeapon or checkItem.isAmmo or checkItem.type == I_ARMOR))
 	{
 		if (checkItem.type == I_ARMOR)
 			count += int(plr.pev.armorvalue / ARMOR_VALUE);
@@ -301,7 +301,10 @@ array<RawItem> getAllItemsRaw(CBasePlayer@ plr)
 		if (dont_show)
 			continue;
 		
-		int ammo = plr.m_rgAmmo(g_PlayerFuncs.GetAmmoIndex(g_ammo_types[i]));
+		int ammoIdx = g_PlayerFuncs.GetAmmoIndex(g_ammo_types[i]);
+		if (ammoIdx == -1)
+			continue;
+		int ammo = plr.m_rgAmmo(ammoIdx);
 		if (ammo > 0)
 		{
 			Item@ item = getItemByClassname(g_ammo_types[i]);
