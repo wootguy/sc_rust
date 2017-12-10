@@ -13,6 +13,7 @@
 // destroy items?
 // combine dropped stackables
 // refactor drop/equip/chest logic (LOTS of duplicate and confusing code)
+// Fix: Full inventory of wood + hit flesh = 21 items
 
 //
 // Game settings
@@ -624,6 +625,9 @@ void MapInit()
 	PrecacheSound("debris/wood1.wav");
 	PrecacheSound("debris/wood2.wav");
 	PrecacheSound("debris/wood3.wav");
+	PrecacheSound("sc_rust/flesh1.ogg");
+	PrecacheSound("sc_rust/flesh2.ogg");
+	PrecacheSound("sc_rust/flesh3.ogg");
 	PrecacheSound("ambience/burning3.wav"); // furnace
 	PrecacheSound("items/ammopickup1.wav"); // armor
 	PrecacheSound("items/ammopickup2.wav"); // armor
@@ -631,6 +635,7 @@ void MapInit()
 	g_Game.PrecacheModel( "models/woodgibs.mdl" );
 	g_Game.PrecacheModel( "models/sc_rust/pine_tree.mdl" );
 	g_Game.PrecacheModel( "models/sc_rust/rock.mdl" );
+	g_Game.PrecacheModel( "models/sc_rust/tr_barrel_blu1.mdl" );
 	g_Game.PrecacheModel( "models/skeleton.mdl" );
 	
 	for (uint i = 0; i < g_material_damage_sounds.length(); i++)
@@ -734,7 +739,8 @@ void MapActivate()
 		"b_ladder_hatch_door_lock",
 		
 		"e_tree",
-		"e_rock"
+		"e_rock",
+		"e_barrel"
 	};
 	
 	for (uint i = 0; i < part_names.length(); i++)
@@ -827,6 +833,65 @@ array<player_corpse@> getCorpses(CBaseEntity@ plr)
 			corpses.insertLast(cast<player_corpse@>(CastToScriptClass(g_corpses[i])));
 	}
 	return corpses;
+}
+
+void monster_spawned(CBaseEntity@ pActivator, CBaseEntity@ pCaller, USE_TYPE useType, float flValue)
+{
+	int zoneId = atoi( string(pCaller.pev.netname).SubString(string("xen_node_zone_").Length()+1) );
+	
+	CBaseEntity@ monster = g_EntityFuncs.FindEntityByTargetname(null, pCaller.pev.netname);
+	if (monster is null)
+	{
+		println("Monster not found: " + pCaller.pev.netname);
+		return;
+	}
+	
+	for (uint i = 0; i < g_build_zone_ents.size(); i++)
+	{
+		func_build_zone@ zone = cast<func_build_zone@>(CastToScriptClass(g_build_zone_ents[i]));
+		if (zone.id == zoneId)
+		{
+			println("ASSIGNED MONSTER TO ZONE " + zoneId);
+			zone.nodes.insertLast(EHandle(monster));
+			return;
+		}
+	}
+	
+	println("COULD NOT FIND ZONE FOR MONSTER " + zoneId);
+}
+
+void monster_node(EHandle h_mon)
+{
+	if (!h_mon.IsValid())
+		return;
+		
+	CBaseEntity@ mon = h_mon;
+	if (mon.pev.deadflag == DEAD_DEAD)
+	{
+		dictionary keys; 
+		keys["origin"] = mon.pev.origin.ToString();
+		keys["model"] = string(mon.pev.model);
+		keys["min"] = mon.pev.mins.ToString();
+		keys["max"] = mon.pev.maxs.ToString();
+		keys["material"] = "1";
+		keys["health"] = "" + mon.pev.max_health;
+		keys["colormap"] = "-1";
+		keys["message"] = "node";
+		keys["nodetype"] = "" + NODE_XEN;
+		
+		CBaseEntity@ ent = g_EntityFuncs.CreateEntity("func_breakable_custom", keys, false);
+		func_breakable_custom@ cent = cast<func_breakable_custom@>(CastToScriptClass(ent));
+		cent.monster = mon;
+		g_EntityFuncs.DispatchSpawn(ent.edict());
+		mon.pev.solid = SOLID_NOT;
+		return;
+	}
+	g_Scheduler.SetTimeout("monster_node", 0, h_mon);
+}
+
+void monster_killed(CBaseEntity@ pActivator, CBaseEntity@ pCaller, USE_TYPE useType, float flValue)
+{	
+	monster_node(EHandle(pCaller));
 }
 
 void player_respawn(CBaseEntity@ pActivator, CBaseEntity@ pCaller, USE_TYPE useType, float flValue)

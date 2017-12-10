@@ -143,7 +143,7 @@ class player_corpse : ScriptBaseMonsterEntity
 			{
 				// player was gibbed
 				Activate();
-				g_PlayerFuncs.ScreenFade(plr, Vector(0,0,0), 1.0f, 2.0f, 255, FFADE_OUT);
+				g_PlayerFuncs.ScreenFade(plr, Vector(0,0,0), 1.0f, 1.0f, 255, FFADE_OUT);
 				g_Scheduler.SetTimeout("teleport_dead", 1.5f, EHandle(plr));
 			}
 		}

@@ -16,6 +16,40 @@ void te_projectile(Vector pos, Vector velocity, CBaseEntity@ owner=null,
 	m.WriteByte(ownerId);
 	m.End();
 }
+void te_model(Vector pos, Vector velocity, float yaw=0, 
+	string model="models/agibs.mdl", uint8 bounceSound=2, uint8 life=32,
+	NetworkMessageDest msgType=MSG_BROADCAST, edict_t@ dest=null)
+{
+
+	NetworkMessage m(msgType, NetworkMessages::SVC_TEMPENTITY, dest);
+	m.WriteByte(TE_MODEL);
+	m.WriteCoord(pos.x);
+	m.WriteCoord(pos.y);
+	m.WriteCoord(pos.z);
+	m.WriteCoord(velocity.x);
+	m.WriteCoord(velocity.y);
+	m.WriteCoord(velocity.z);
+	m.WriteAngle(yaw);
+	m.WriteShort(g_EngineFuncs.ModelIndex(model));
+	m.WriteByte(bounceSound);
+	m.WriteByte(life);
+	m.End();
+}
+void te_blood(Vector pos, Vector dir, uint8 color=70, uint8 speed=16,
+	NetworkMessageDest msgType=MSG_BROADCAST, edict_t@ dest=null)
+{
+	NetworkMessage m(msgType, NetworkMessages::SVC_TEMPENTITY, dest);
+	m.WriteByte(TE_BLOOD);
+	m.WriteCoord(pos.x);
+	m.WriteCoord(pos.y);
+	m.WriteCoord(pos.z);
+	m.WriteCoord(dir.x);
+	m.WriteCoord(dir.y);
+	m.WriteCoord(dir.z);
+	m.WriteByte(color);
+	m.WriteByte(speed);
+	m.End();
+}
 
 Vector2D getPerp(Vector2D v) {
 	return Vector2D(-v.y, v.x);

@@ -39,13 +39,25 @@ array<BMaterial> g_materials = {
 	BMaterial(g_material_damage_sounds[2], g_material_break_sounds[2])
 };
 
+array<string> fleshSounds = {"sc_rust/flesh1.ogg", "sc_rust/flesh2.ogg", "sc_rust/flesh3.ogg"};
+
 // The think function won't let me set nextthink (it's always ~5 seconds or so) for this entity
 void weird_think_bug_workaround(EHandle h_ent)
 {
 	if (!h_ent.IsValid())
 		return;
 	func_breakable_custom@ ent = cast<func_breakable_custom@>(CastToScriptClass(h_ent.GetEntity()));
-	ent.FurnaceThink();
+	if (ent.dead)
+		return;
+	
+	if (ent.isFurnace)
+	{
+		ent.FurnaceThink();
+	}
+	else if (ent.nodeType == NODE_XEN)
+	{
+		ent.MonsterThink();
+	}
 }
 
 class func_breakable_custom : ScriptBaseEntity
@@ -65,9 +77,13 @@ class func_breakable_custom : ScriptBaseEntity
 	float lastWoodBurn = 0;
 	float lastThink = 0;
 	string killtarget;
+	Vector mins;
+	Vector maxs;
 	
 	int nodeType = -1;
 	
+	EHandle monster; // points to the monster that spawned this object (if we are a NODE_XEN)
+	float monsterDespawnTime = 0;
 	array<EHandle> children;
 	array<EHandle> connections; // all parts that are supported by or support this part
 	array<EHandle> items; // chests only
@@ -130,6 +146,8 @@ class func_breakable_custom : ScriptBaseEntity
 		else if (szKey == "zoneid") zoneid = atoi(szValue);
 		else if (szKey == "killtarget") killtarget = szValue;
 		else if (szKey == "nodetype") nodeType = atoi(szValue);
+		else if (szKey == "min") mins = parseVector(szValue);
+		else if (szKey == "max") maxs = parseVector(szValue);
 		else return BaseClass.KeyValue( szKey, szValue );
 		
 		return true;
@@ -150,6 +168,7 @@ class func_breakable_custom : ScriptBaseEntity
 		isFurnace = self.pev.colormap == B_FURNACE;
 		//println("CREATE PART " + id + " WITH PARENT " + parent);
 		
+		
 		if (isNode)
 		{
 			self.pev.effects = EF_NODRAW;
@@ -158,6 +177,14 @@ class func_breakable_custom : ScriptBaseEntity
 		g_EntityFuncs.SetModel(self, self.pev.model);
 		//g_EntityFuncs.SetSize(self.pev, self.pev.mins, self.pev.maxs);
 		g_EntityFuncs.SetOrigin(self, self.pev.origin);
+		
+		if (nodeType == NODE_XEN)
+		{
+			self.pev.solid = SOLID_BBOX;
+			
+			monsterDespawnTime = g_Engine.time + (g_corpse_time - 1); // -1 for fadeout delay
+			g_EntityFuncs.SetSize(self.pev, mins, maxs);
+		}
 		
 		material = g_materials[0];
 
@@ -173,6 +200,36 @@ class func_breakable_custom : ScriptBaseEntity
 		{
 			FurnaceThink();
 		}
+		else if (nodeType == NODE_XEN)
+		{
+			MonsterThink();
+		}
+	}
+	
+	void MonsterThink()
+	{
+		if (!monster.IsValid())
+		{
+			println("The monster died! *kms*");
+			g_EntityFuncs.Remove(self);
+			return;
+		}
+		
+		CBaseMonster@ mon = cast<CBaseMonster@>(monster.GetEntity());
+		
+		if (g_Engine.time > monsterDespawnTime)
+		{
+			mon.m_fCanFadeStart = true;
+			if (g_Engine.time > monsterDespawnTime + 1.0f)
+			{
+				// wait for the fade effect
+				g_EntityFuncs.Remove(self);
+				return;
+			}
+		}
+		else
+			mon.BeginRevive(1.0f); // prevent corpse fadeout
+		g_Scheduler.SetTimeout("weird_think_bug_workaround", 0.1, EHandle(self));
 	}
 	
 	void FurnaceThink()
@@ -304,8 +361,7 @@ class func_breakable_custom : ScriptBaseEntity
 			smelting = false;
 		}
 			
-		if (!dead)
-			g_Scheduler.SetTimeout("weird_think_bug_workaround", 0, EHandle(self));
+		g_Scheduler.SetTimeout("weird_think_bug_workaround", 0, EHandle(self));
 	}
 	
 	void DoorThink()
@@ -564,7 +620,6 @@ class func_breakable_custom : ScriptBaseEntity
 		
 		if (pevAttacker.classname != "func_breakable_custom" and !isDoor and !isLadder and parent != -1)
 		{
-			println("APPLY DAMAGE TO PARENT INSTEAD");
 			func_breakable_custom@ ent = getBuildPartByID(parent);
 			if (ent is null)
 				println("parent not found!");
@@ -603,8 +658,6 @@ class func_breakable_custom : ScriptBaseEntity
 				if (weaponName == "weapon_stone_pickaxe") giveAmount = 10;
 				if (weaponName == "weapon_metal_pickaxe") giveAmount = 15;
 				
-				if (hasSpace)
-					g_PlayerFuncs.HudMessage(plr, params, "+" + int(giveAmount) + " Wood");
 				giveType = I_WOOD;
 			}
 			if (nodeType == NODE_ROCK)
@@ -631,14 +684,29 @@ class func_breakable_custom : ScriptBaseEntity
 					}
 					
 				}
-				
-				if (hasSpace)
-					g_PlayerFuncs.HudMessage(plr, params, "+" + int(giveAmount) + " " + g_items[giveType].title);
-			}			
+			}
+			if (nodeType == NODE_BARREL)
+			{
+				if (pev.health - flDamage < 0)
+					giveAmount = Math.RandomLong(1,2);
+				else
+					giveAmount = 0;
+				giveType = I_SCRAP;
+			}
+			if (nodeType == NODE_XEN)
+			{
+				giveAmount = Math.RandomLong(1,2);
+				giveType = I_FUEL;
+			}
+			
+			
+			if (hasSpace and giveAmount > 0)
+				g_PlayerFuncs.HudMessage(plr, params, "+" + int(giveAmount) + " " + g_items[giveType].title);
 			
 			giveItem(plr, giveType, giveAmount, false, true);
 			
-			flDamage = giveAmount > 0 ? 10 : 0;
+			if (nodeType != NODE_BARREL)
+				flDamage = giveAmount > 0 ? 10 : 0;
 		}
 		
 		pev.health -= flDamage;
@@ -662,11 +730,19 @@ class func_breakable_custom : ScriptBaseEntity
 				}
 				te_breakmodel(center, self.pev.maxs - mins, Vector(0,0,0), 4, "models/woodgibs.mdl", 8, 0, 8);
 			}
+			else if (monster)
+			{
+				if (monster)
+				{
+					CBaseMonster@ mon = cast<CBaseMonster@>(monster.GetEntity());
+					mon.GibMonster();
+				}
+			}
 			else
 			{
 				g_SoundSystem.PlaySound(self.edict(), CHAN_STATIC, "sc_rust/stone_tree.ogg", 1.0f, 1.0f, 0, 90 + Math.RandomLong(0, 20));
 			}
-			
+
 			g_EntityFuncs.Remove(self);
 			
 			if (killtarget.Length() > 0)
@@ -678,8 +754,21 @@ class func_breakable_custom : ScriptBaseEntity
 		}
 		else
 		{
-			string sound = material.hitSounds[ Math.RandomLong(0, material.hitSounds.length()-1) ];
-			g_SoundSystem.PlaySound(self.edict(), CHAN_STATIC, sound, 1.0f, 1.0f, 0, 90 + Math.RandomLong(0, 20));
+			if (monster)
+			{
+				CBaseEntity@ mon = monster;
+				Vector vel = Vector(Math.RandomFloat(-64, 64), Math.RandomFloat(-64, 64), 160);
+				te_model(mon.pev.origin + Vector(0,0,0), vel, Math.RandomFloat(-180, 180), "models/agibs.mdl", 0, 10);
+				te_bloodsprite(mon.pev.origin + Vector(0,0,16), "sprites/bloodspray.spr", "sprites/blood.spr", BLOOD_COLOR_YELLOW);
+				
+				string sound = fleshSounds[ Math.RandomLong(0, fleshSounds.length()-1) ];
+				g_SoundSystem.PlaySound(self.edict(), CHAN_STATIC, sound, 0.8f, 1.0f, 0, Math.RandomLong(90, 110));
+			}
+			else
+			{
+				string sound = material.hitSounds[ Math.RandomLong(0, material.hitSounds.length()-1) ];
+				g_SoundSystem.PlaySound(self.edict(), CHAN_STATIC, sound, 1.0f, 1.0f, 0, 90 + Math.RandomLong(0, 20));
+			}
 		}
 		return 0;
 	}
