@@ -11,9 +11,14 @@
 // TODO:
 // corpse collision without stucking players
 // destroy items?
+// weapon durability?
 // combine dropped stackables
-// refactor drop/equip/chest logic (LOTS of duplicate and confusing code)
-// Fix: Full inventory of wood + hit flesh = 21 items
+// hammer repairs should be faster and cost materials
+// HUDs for custom weapons
+// textures are too bright
+// Balance weapons
+// resources should have ratios, not random chance
+// ladder box not found??
 
 //
 // Game settings
@@ -24,7 +29,7 @@ int g_raider_points = 40; // best if multiple of zone count
 bool g_build_point_rounding = true; // rounds build points to a multiple of 10 (may reduce build points)
 bool g_disable_ents = false;
 bool g_build_anywhere = false; // disables build zones
-bool g_free_build = false; // buildings don't cost any materials
+bool g_free_build = true; // buildings/items don't cost any materials
 int g_inventory_size = 20;
 int g_max_item_drops = 9; // maximum item drops per player (more drops = less build points)
 float g_tool_cupboard_radius = 512;
@@ -32,6 +37,7 @@ float g_corpse_time = 60.0f; // time before corpses despawn
 int g_max_corpses = 2; // max corpses per player (should be at least 2 to prevent despawning valuable loot)
 float g_item_time = 60.0f; // time before items despawn
 float g_revive_time = 5.0f;
+int g_max_zone_monsters = 0;
 
 //
 // End game settings
@@ -646,6 +652,10 @@ void MapInit()
 			PrecacheSound(g_material_break_sounds[i][k]);
 			
 	WeaponCustomMapInit();
+	
+	// add custom weapon ammos (defined in weapon_custom scripts)
+	g_ammo_types.insertLast("arrows");
+	g_ammo_types.insertLast("fuel");
 }
 
 void MapActivate()
@@ -835,31 +845,6 @@ array<player_corpse@> getCorpses(CBaseEntity@ plr)
 	return corpses;
 }
 
-void monster_spawned(CBaseEntity@ pActivator, CBaseEntity@ pCaller, USE_TYPE useType, float flValue)
-{
-	int zoneId = atoi( string(pCaller.pev.netname).SubString(string("xen_node_zone_").Length()+1) );
-	
-	CBaseEntity@ monster = g_EntityFuncs.FindEntityByTargetname(null, pCaller.pev.netname);
-	if (monster is null)
-	{
-		println("Monster not found: " + pCaller.pev.netname);
-		return;
-	}
-	
-	for (uint i = 0; i < g_build_zone_ents.size(); i++)
-	{
-		func_build_zone@ zone = cast<func_build_zone@>(CastToScriptClass(g_build_zone_ents[i]));
-		if (zone.id == zoneId)
-		{
-			println("ASSIGNED MONSTER TO ZONE " + zoneId);
-			zone.nodes.insertLast(EHandle(monster));
-			return;
-		}
-	}
-	
-	println("COULD NOT FIND ZONE FOR MONSTER " + zoneId);
-}
-
 void monster_node(EHandle h_mon)
 {
 	if (!h_mon.IsValid())
@@ -896,8 +881,12 @@ void monster_killed(CBaseEntity@ pActivator, CBaseEntity@ pCaller, USE_TYPE useT
 
 void player_respawn(CBaseEntity@ pActivator, CBaseEntity@ pCaller, USE_TYPE useType, float flValue)
 {
-	activateCorpses(pCaller);
-	getPlayerState(cast<CBasePlayer@>(pCaller)).updateItemList();
+	if (!pCaller.IsPlayer())
+		return;
+	CBasePlayer@ plr = cast<CBasePlayer@>(pCaller);
+	activateCorpses(plr);
+	clearInventory(plr);
+	getPlayerState(plr).updateItemList();
 }
 
 EHandle createCorpse(CBasePlayer@ plr)
@@ -947,6 +936,41 @@ void revive_finish(EHandle h_plr)
 	g_Scheduler.SetTimeout("revive_finish", 0.05f, h_plr);
 }
 
+void cleanup_map()
+{
+	CBaseEntity@ ent = null;
+	do {
+		@ent = g_EntityFuncs.FindEntityByClassname(ent, "item_inventory");
+		if (ent !is null) {
+			CBaseEntity@ owner = g_EntityFuncs.Instance( ent.pev.owner );
+			if (owner is null and ent.pev.renderfx != EF_NODRAW)
+			{
+				bool orphan = true;
+				for (uint i = 0; i < g_item_drops.size(); i++)
+				{
+					if (!g_item_drops[i].IsValid())
+						continue;
+					if (g_item_drops[i].GetEntity().entindex() == ent.entindex())
+					{
+						orphan = false;
+						break;
+					}
+				}
+				if (orphan)
+				{
+					int type = ent.pev.colormap-1;
+					string details = "";
+					if (type >= 0 and type < int(g_items.size()))
+					{
+						details += " " + g_items[type].title + " x" + ent.pev.button;
+					}
+					println("Found orphaned item at " + ent.pev.origin.ToString() + " " + details);
+				}
+			}
+		}
+	} while (ent !is null);
+}
+
 bool doRustCommand(CBasePlayer@ plr, const CCommand@ args)
 {
 	PlayerState@ state = getPlayerState(plr);
@@ -961,6 +985,38 @@ bool doRustCommand(CBasePlayer@ plr, const CCommand@ args)
 		if (args[0] == ".load")
 		{
 			loadMapData();
+			return true;
+		}
+		if (args[0] == ".item")
+		{
+			if (args.ArgC() > 2)
+			{
+				string name = args[1];
+				int amt = atoi(args[2]);
+				Item@ item = null;
+				for (uint i = 0; i < g_items.size(); i++)
+				{
+					string title = g_items[i].title;
+					if (g_items[i].classname == name or title == name)
+					{
+						@item = @g_items[i];
+						break;
+					}
+					if (int(g_items[i].classname.Find(name)) != -1 or int(title.Find(name)) != -1)
+						@item = @g_items[i];
+				}
+				if (item !is null)
+				{
+					giveItem(plr, item.type, amt);
+					g_PlayerFuncs.SayText(plr, "Given " + amt + " " + item.title);
+				}
+			}
+			return true;
+		}
+		if (args[0] == ".clean")
+		{
+			println("Cleanup started");
+			cleanup_map();
 			return true;
 		}
 		if (args[0] == ".zones")

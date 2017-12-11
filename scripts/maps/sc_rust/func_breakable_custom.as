@@ -210,7 +210,7 @@ class func_breakable_custom : ScriptBaseEntity
 	{
 		if (!monster.IsValid())
 		{
-			println("The monster died! *kms*");
+			//println("The monster died! *kms*");
 			g_EntityFuncs.Remove(self);
 			return;
 		}
@@ -618,7 +618,7 @@ class func_breakable_custom : ScriptBaseEntity
 		if (dead)
 			return 0;
 		
-		if (pevAttacker.classname != "func_breakable_custom" and !isDoor and !isLadder and parent != -1)
+		if (pevInflictor.classname != "func_breakable_custom" and !isDoor and !isLadder and parent != -1)
 		{
 			func_breakable_custom@ ent = getBuildPartByID(parent);
 			if (ent is null)
@@ -628,88 +628,106 @@ class func_breakable_custom : ScriptBaseEntity
 			return 0;
 		}		
 		
-		if (isNode and pevAttacker.classname == "player")
+		if (isNode and pevInflictor.classname == "player")
 		{
 			// harvest resources
-			CBasePlayer@ plr = cast<CBasePlayer@>( g_EntityFuncs.Instance(pevAttacker.get_pContainingEntity()) );
+			CBasePlayer@ plr = cast<CBasePlayer@>( g_EntityFuncs.Instance(pevInflictor.get_pContainingEntity()) );
 			CBaseEntity@ weapon = plr.m_hActiveItem;
 			string weaponName = weapon.pev.classname;
 			
-			HUDTextParams params;
-			params.x = -1;
-			params.y = -1;
-			params.effect = 0;
-			params.r1 = 255;
-			params.g1 = 255;
-			params.b1 = 255;
-			params.fadeinTime = 0;
-			params.fadeoutTime = 0.5f;
-			params.holdTime = 0.0f;
-			params.channel = 2;
-			
-			bool hasSpace = getInventorySpace(plr) > 0;
-			int giveAmount = 100;
-			int giveType = I_WOOD;
-			if (nodeType == NODE_TREE)
+			if (isMeleeWeapon(weapon.pev.classname))
 			{
-				if (weaponName == "weapon_rock") giveAmount = 10;
-				if (weaponName == "weapon_stone_hatchet") giveAmount = 20;
-				if (weaponName == "weapon_metal_hatchet") giveAmount = 30;
-				if (weaponName == "weapon_stone_pickaxe") giveAmount = 10;
-				if (weaponName == "weapon_metal_pickaxe") giveAmount = 15;
+				HUDTextParams params;
+				params.x = -1;
+				params.y = -1;
+				params.effect = 0;
+				params.r1 = 255;
+				params.g1 = 255;
+				params.b1 = 255;
+				params.fadeinTime = 0;
+				params.fadeoutTime = 0.5f;
+				params.holdTime = 0.0f;
+				params.channel = 2;
 				
-				giveType = I_WOOD;
-			}
-			if (nodeType == NODE_ROCK)
-			{
-				giveAmount = 5;
-				if (weaponName == "weapon_rock") giveAmount = 5;
-				if (weaponName == "weapon_stone_hatchet") giveAmount = 10;
-				if (weaponName == "weapon_metal_hatchet") giveAmount = 20;
-				if (weaponName == "weapon_stone_pickaxe") giveAmount = 20;
-				if (weaponName == "weapon_metal_pickaxe") giveAmount = 40;
-				
-				giveType = I_STONE;
-				if (Math.RandomLong(0,5) <= 1)
+				bool hasSpace = getInventorySpace(plr) > 0;
+				int giveAmount = 0;
+				int giveType = I_WOOD;
+				if (nodeType == NODE_TREE)
 				{
-					if (Math.RandomLong(0, 3) == 0)
-					{
-						giveType = I_HQMETAL_ORE;
-						giveAmount /= 5;
-					}
-					else
-					{
-						giveType = I_METAL_ORE;
-						giveAmount /= 2;
-					}
+					if (weaponName == "weapon_rock") giveAmount = 10;
+					if (weaponName == "weapon_stone_hatchet") giveAmount = 20;
+					if (weaponName == "weapon_metal_hatchet") giveAmount = 30;
+					if (weaponName == "weapon_stone_pickaxe") giveAmount = 10;
+					if (weaponName == "weapon_metal_pickaxe") giveAmount = 15;
 					
+					giveType = I_WOOD;
 				}
-			}
-			if (nodeType == NODE_BARREL)
-			{
-				if (pev.health - flDamage < 0)
+				if (nodeType == NODE_ROCK)
+				{
+					if (weaponName == "weapon_rock") giveAmount = 5;
+					if (weaponName == "weapon_stone_hatchet") giveAmount = 10;
+					if (weaponName == "weapon_metal_hatchet") giveAmount = 15;
+					if (weaponName == "weapon_stone_pickaxe") giveAmount = 20;
+					if (weaponName == "weapon_metal_pickaxe") giveAmount = 40;
+					
+					giveType = I_STONE;
+					if (Math.RandomLong(0,5) <= 1)
+					{
+						if (Math.RandomLong(0, 3) == 0)
+						{
+							giveType = I_HQMETAL_ORE;
+							giveAmount /= 5;
+						}
+						else
+						{
+							giveType = I_METAL_ORE;
+							giveAmount /= 2;
+						}
+						
+					}
+				}
+				
+				// TODO: Only give if using a melee weapon
+				if (nodeType == NODE_BARREL)
+				{
+					if (pev.health - flDamage <= 0)
+						giveAmount = Math.RandomLong(1,2);
+					else
+						giveAmount = 0;
+					giveType = I_SCRAP;
+				}
+				if (nodeType == NODE_XEN)
+				{
 					giveAmount = Math.RandomLong(1,2);
-				else
-					giveAmount = 0;
-				giveType = I_SCRAP;
+					giveType = I_FUEL;
+				}
+				
+				
+				if (hasSpace and giveAmount > 0)
+					g_PlayerFuncs.HudMessage(plr, params, "+" + int(giveAmount) + " " + g_items[giveType].title);
+				
+				giveItem(plr, giveType, giveAmount, false, true);
+				
+				if (nodeType != NODE_BARREL)
+					flDamage = giveAmount > 0 ? 10 : 0;
 			}
-			if (nodeType == NODE_XEN)
-			{
-				giveAmount = Math.RandomLong(1,2);
-				giveType = I_FUEL;
-			}
-			
-			
-			if (hasSpace and giveAmount > 0)
-				g_PlayerFuncs.HudMessage(plr, params, "+" + int(giveAmount) + " " + g_items[giveType].title);
-			
-			giveItem(plr, giveType, giveAmount, false, true);
-			
-			if (nodeType != NODE_BARREL)
-				flDamage = giveAmount > 0 ? 10 : 0;
+		}
+		
+		if (isNode and nodeType == NODE_ROCK)
+			flDamage /= 10;
+		
+		
+		if (!isNode and bitsDamageType & DMG_BURN != 0)
+		{
+			string mat = getMaterialType(self);
+			if (mat == "_twig" or mat == "_wood")
+				flDamage *= 2;
+			else
+				flDamage /= 10;
 		}
 		
 		pev.health -= flDamage;
+		
 		
 		if (pev.health <= 0)
 		{

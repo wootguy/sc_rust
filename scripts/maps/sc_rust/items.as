@@ -908,7 +908,7 @@ void playerMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CText
 				for (uint i = 0; i < craftItem.costs.size(); i++)
 				{
 					int costType = craftItem.costs[i].type;
-					if (getItemCount(plr, costType, false, true) < craftItem.costs[i].amt)
+					if (getItemCount(plr, costType, true, true) < craftItem.costs[i].amt)
 					{
 						needMore = needMore.Length() > 0 ? needMore + " and " + g_items[costType].title : g_items[costType].title;
 						canCraft = false;
@@ -917,7 +917,10 @@ void playerMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CText
 			}
 			if (canCraft)
 			{
-				int amt = craftItem.isWeapon ? 0 : 1;
+				int amt = craftItem.isWeapon and craftItem.stackSize == 1 ? 0 : 1;
+				if (craftItem.type == I_9MM) amt = 5;
+				if (craftItem.type == I_556) amt = 5;
+				if (craftItem.type == I_ARROW) amt = 2;
 				if (!g_free_build)
 				{
 					for (uint i = 0; i < craftItem.costs.size(); i++)
@@ -1543,7 +1546,7 @@ void openLootMenu(CBasePlayer@ plr, CBaseEntity@ corpse, string submenu="")
 				Item@ item = all_items[i];
 				if (isFurnace)
 				{
-					if (item.type != I_WOOD or item.type != I_METAL_ORE or item.type != I_HQMETAL_ORE)
+					if (item.type != I_WOOD and item.type != I_METAL_ORE and item.type != I_HQMETAL_ORE)
 						continue;
 				}
 				int count = getItemCount(plr, item.type, true, true);

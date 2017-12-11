@@ -307,7 +307,7 @@ array<Item> g_items = {
 	Item(I_FURNACE, 1, false, false, "b_furnace", "", "Furnace", RawItem(I_STONE, 300), RawItem(I_FUEL, 50),
 		"Use this to smelt mined ore."),
 	
-	Item(I_WOOD, 200, false, false, "", "", "Wood", null, null,
+	Item(I_WOOD, 1000, false, false, "", "", "Wood", null, null,
 		"Collected from trees and used to build bases and craft items."),
 	Item(I_STONE, 1000, false, false, "", "", "Stone", null, null,
 		"Collected from rocks and used to reinforce bases and craft items."),
@@ -365,7 +365,7 @@ array<Item> g_items = {
 	Item(I_SAW, 1, true, false, "weapon_m249", "", "M249 SAW", RawItem(I_HQMETAL, 50), RawItem(I_SCRAP, 50),
 		"Powerful machine gun with a high firing rate and damage. Uses 5.56 ammo."),
 	
-	Item(I_ARROW, 64, false, true, "arrows", "", "Wooden Arrow", RawItem(I_WOOD, 20), RawItem(I_STONE, 10),
+	Item(I_ARROW, 50, false, true, "arrows", "", "Wooden Arrow", RawItem(I_WOOD, 20), RawItem(I_STONE, 10),
 		"Used with the hunting bow and crossbow."),
 	Item(I_FUEL, 500, false, true, "fuel", "", "Fuel", null, null,
 		"Crafting material and ammo for the flame thrower. Collected from monsters."),
@@ -1424,6 +1424,21 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 				return true;
 			}
 		
+			float health = 100;			
+			switch(buildType)
+			{
+				case B_WOOD_DOOR: health = 2000; break;
+				case B_METAL_DOOR: health = 4000; break;
+				case B_WOOD_BARS: health = 2000; break;
+				case B_METAL_BARS: health = 4000; break;
+				case B_HIGH_WOOD_WALL: health = 5000; break;
+				case B_HIGH_STONE_WALL: health = 10000; break;
+				case B_LADDER_HATCH: health = 4000; break;
+				default: health = 1000;
+			}
+			if (buildType <= B_FOUNDATION_STEPS)
+				health = 100; // twig materials
+		
 			Vector origin = buildEnt.pev.origin;				
 			dictionary keys;
 			keys["origin"] = origin.ToString();
@@ -1434,8 +1449,8 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 			keys["target"] = "break_part_script";
 			keys["fireonbreak"] = "break_part_script";
 			keys["zoneid"] = "" + zoneid;
-			keys["health"] = "100";
-			keys["max_health"] = "100";
+			keys["health"] = "" + health;
+			keys["max_health"] = "" + health;
 			keys["rendermode"] = "4";
 			keys["renderamt"] = "255";
 			keys["id"] = "" + g_part_id;

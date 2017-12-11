@@ -1,5 +1,7 @@
 int MAX_VISIBLE_ENTS = 500;
 uint NODES_PER_ZONE = 32;
+float g_node_spawn_time = 60.0f;
+float xen_agro_dist = 400.0f;
 
 class BuildZone
 {
@@ -32,10 +34,16 @@ class func_build_zone : ScriptBaseEntity
 {
 	BMaterial material;
 	int id;
+	float spawnDelay = 0.05f; // fill up quickly when map loads, then slowly replace stuff
+	float nextSpawn = 0;
 	int nextNodeSpawn = NODE_TREE;
 	
 	array<EHandle> nodes; // trees & rocks
 	array<EHandle> animals;
+	
+	array<string> monster_spawners = {"houndeye_spawner", "gonome_spawner", "bat_spawner", "bullsquid_spawner",
+									  "slave_spawner", "agrunt_spawner", "babygarg_spawner", "babyvolt_spawner",
+									  "pitdrone_spawner", "headcrab_spawner"};
 	
 	bool KeyValue( const string& in szKey, const string& in szValue )
 	{		
@@ -58,9 +66,8 @@ class func_build_zone : ScriptBaseEntity
 		g_EntityFuncs.SetModel(self, self.pev.model);
 		g_EntityFuncs.SetOrigin(self, self.pev.origin);
 		
-		
 		SetThink( ThinkFunction( ZoneThink ) );
-		pev.nextthink = g_Engine.time;
+		pev.nextthink = g_Engine.time + id*0.1f;
 	}
 	
 	void Use(CBaseEntity@ pActivator, CBaseEntity@ pCaller, USE_TYPE useType, float flValue = 0.0f)
@@ -97,13 +104,45 @@ class func_build_zone : ScriptBaseEntity
 	
 	void ZoneThink()
 	{
+		int activeMonsters = 0;
 		for (uint i = 0; i < nodes.size(); i++)
 		{
 			if (!nodes[i].IsValid())
 			{
 				nodes.removeAt(i);
 				i--;
-				println("Node destroyed!");
+			}
+			CBaseEntity@ node = nodes[i];
+			if (node.IsMonster())
+			{
+				activeMonsters++;
+				if (node.GetClassification(0) != CLASS_ALIEN_MONSTER)
+				{
+					CBaseMonster@ mon = cast<CBaseMonster@>(node);
+					if (mon.pev.armorvalue < g_Engine.time)
+					{
+						mon.pev.armorvalue = g_Engine.time + 1.0f;
+						CBaseEntity@ ent = null;
+						do {
+							@ent = g_EntityFuncs.FindEntityInSphere(ent, mon.pev.origin, xen_agro_dist, "player", "classname");
+							if (ent !is null)
+							{								
+								// check line-of-sight
+								TraceResult tr;
+								g_Utility.TraceLine( mon.EyePosition(), ent.pev.origin, dont_ignore_monsters, mon.edict(), tr );
+								CBaseEntity@ pHit = g_EntityFuncs.Instance( tr.pHit );
+								if (pHit !is null and pHit.entindex() == ent.entindex())
+								{
+									mon.SetClassification(CLASS_ALIEN_MONSTER);
+									mon.m_FormattedName = "" + mon.m_FormattedName + " (angry)";
+									//mon.MonsterUse(ent, ent, USE_TOGGLE, 0);
+									mon.PushEnemy(ent, ent.pev.origin);
+									//mon.m_flDistLook = 32;
+								}
+							}
+						} while (ent !is null);
+					}		
+				}
 			}
 		}
 		if (!g_disable_ents and nodes.size() < NODES_PER_ZONE)
@@ -126,7 +165,7 @@ class func_build_zone : ScriptBaseEntity
 				brushModel = getModelFromName("e_barrel");
 				itemModel = "models/sc_rust/tr_barrel_blu1.mdl";
 				radius = 18.0f;
-				health = 100;
+				health = 80;
 			}
 			else if (nextNodeSpawn == NODE_XEN)
 			{
@@ -157,14 +196,26 @@ class func_build_zone : ScriptBaseEntity
 				string name = "node" + g_node_id++;
 				
 				if (nextNodeSpawn == NODE_XEN)
-				{					
-					CBaseEntity@ spawner = g_EntityFuncs.FindEntityByTargetname(null, "houndeye_spawner");
+				{
+					string spawnerName = monster_spawners[Math.RandomLong(0, monster_spawners.length()-1)];
+					CBaseEntity@ spawner = g_EntityFuncs.FindEntityByTargetname(null, spawnerName);
 					if (spawner !is null)
 					{
 						spawner.pev.origin = ori;
 						spawner.pev.angles = Vector(0, Math.RandomLong(-180, 180), 0);
 						spawner.pev.netname = "xen_node_zone_" + id;
 						g_EntityFuncs.FireTargets(spawner.pev.targetname, null, null, USE_TOGGLE);
+						
+						CBaseEntity@ ent = null;
+						do {
+							@ent = g_EntityFuncs.FindEntityByTargetname(ent, spawner.pev.netname);
+							if (ent !is null)
+							{
+								ent.pev.netname = "node_xen";
+								nodes.insertLast(EHandle(ent));
+								activeMonsters++;
+							}
+						} while (ent !is null);
 					}
 				}
 				else
@@ -196,7 +247,7 @@ class func_build_zone : ScriptBaseEntity
 					nextNodeSpawn = NODE_TREE;
 				else if (rand >= 20)
 					nextNodeSpawn = NODE_BARREL;
-				else if (rand >= 10)
+				else if (rand >= 10 or activeMonsters >= g_max_zone_monsters)
 					nextNodeSpawn = NODE_ROCK;
 				else if (rand >= 0)
 					nextNodeSpawn = NODE_XEN;
@@ -205,8 +256,14 @@ class func_build_zone : ScriptBaseEntity
 			{
 				//println("HIT SOMETHING ELSE");
 			}
+			nextSpawn = g_Engine.time + spawnDelay;
 		}
-		
-		pev.nextthink = g_Engine.time + 1.0f;
+		else
+		{
+			spawnDelay = g_node_spawn_time;
+			nextSpawn = g_Engine.time + spawnDelay;
+		}
+
+		pev.nextthink = g_Engine.time + 0.05;
 	}
 };

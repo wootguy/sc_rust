@@ -224,6 +224,20 @@ string getModelFromName(string partName)
 	return model;
 }
 
+bool isMeleeWeapon(string wepName)
+{
+	if (wepName == "weapon_rock") return true;
+	if (wepName == "weapon_stone_hatchet") return true;
+	if (wepName == "weapon_metal_hatchet") return true;
+	if (wepName == "weapon_stone_pickaxe") return true;
+	if (wepName == "weapon_metal_pickaxe") return true;
+	if (wepName == "weapon_crowbar") return true;
+	if (wepName == "weapon_wrench") return true;
+	if (wepName == "weapon_grapple") return true;
+	
+	return false;
+}
+
 Item@ getItemByClassname(string cname)
 {
 	for (uint i = 0; i < g_items.size(); i++)
@@ -232,6 +246,23 @@ Item@ getItemByClassname(string cname)
 			return @g_items[i];
 	}
 	return null;
+}
+
+void clearInventory(CBasePlayer@ plr)
+{	
+	CBaseEntity@ ent = null;
+	do {
+		@ent = g_EntityFuncs.FindEntityByClassname(ent, "item_inventory");
+		if (ent !is null) {
+			CBaseEntity@ owner = g_EntityFuncs.Instance( ent.pev.owner );
+			if (owner !is null and owner.entindex() == plr.entindex())
+			{
+				println("OWNER IS " + owner.pev.netname);
+				ent.pev.renderfx = -9999;
+				g_Scheduler.SetTimeout("delay_remove", 0, EHandle(ent));
+			}			
+		}
+	} while (ent !is null);
 }
 
 int getItemCount(CBasePlayer@ plr, int itemType, bool includeEquipment = true, bool includeInventory = true)
