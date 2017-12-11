@@ -1,6 +1,6 @@
 int MAX_VISIBLE_ENTS = 500;
 uint NODES_PER_ZONE = 32;
-float g_node_spawn_time = 60.0f;
+float g_node_spawn_time = 20.0f;
 float xen_agro_dist = 400.0f;
 
 class BuildZone
@@ -36,14 +36,23 @@ class func_build_zone : ScriptBaseEntity
 	int id;
 	float spawnDelay = 0.05f; // fill up quickly when map loads, then slowly replace stuff
 	float nextSpawn = 0;
-	int nextNodeSpawn = NODE_TREE;
+	
+	float treeRatio = 0.68f;
+	float rockRatio = 0.12f;
+	float barrelRatio = 0.1f;
+	float monsterRatio = 0.1f;
+	
+	int maxTrees = 0;
+	int maxRocks = 0;
+	int maxBarrels = 0;
+	int maxMonsters = 0;
 	
 	array<EHandle> nodes; // trees & rocks
 	array<EHandle> animals;
 	
-	array<string> monster_spawners = {"houndeye_spawner", "gonome_spawner", "bat_spawner", "bullsquid_spawner",
+	array<string> monster_spawners = {"houndeye_spawner", "gonome_spawner", "bullsquid_spawner", "headcrab_spawner",
 									  "slave_spawner", "agrunt_spawner", "babygarg_spawner", "babyvolt_spawner",
-									  "pitdrone_spawner", "headcrab_spawner"};
+									  "pitdrone_spawner"};
 	
 	bool KeyValue( const string& in szKey, const string& in szValue )
 	{		
@@ -68,6 +77,36 @@ class func_build_zone : ScriptBaseEntity
 		
 		SetThink( ThinkFunction( ZoneThink ) );
 		pev.nextthink = g_Engine.time + id*0.1f;
+		
+		UpdateNodeRatios();
+	}
+	
+	void UpdateNodeRatios()
+	{
+		maxTrees = int(Math.Floor(NODES_PER_ZONE*treeRatio + 0.5f));
+		maxRocks = int(Math.Floor(NODES_PER_ZONE*rockRatio + 0.5f));
+		maxBarrels = int(Math.Floor(NODES_PER_ZONE*barrelRatio + 0.5f));
+		maxMonsters = int(Math.Floor(NODES_PER_ZONE*monsterRatio + 0.5f));
+		if (maxMonsters > g_max_zone_monsters)
+			maxMonsters = g_max_zone_monsters;
+		
+		int maxTotal = maxTrees + maxRocks + maxBarrels + maxMonsters;
+		int diff = int(NODES_PER_ZONE) - maxTotal;
+		if (diff != 0)
+		{
+			// adjust largest value, so this change is less noticeable
+			if (maxTrees > maxRocks and maxTrees > maxBarrels and maxTrees > maxMonsters)
+				maxTrees += diff;
+			if (maxRocks > maxTrees and maxRocks > maxBarrels and maxRocks > maxMonsters)
+				maxRocks += diff;
+			if (maxBarrels > maxRocks and maxBarrels > maxTrees and maxBarrels > maxMonsters)
+				maxBarrels += diff;
+			if (maxMonsters > maxRocks and maxMonsters > maxBarrels and maxMonsters > maxTrees)
+				maxMonsters += diff;
+		}
+		
+		println("Zone " + id + " maxs: " + maxTrees + " trees + " + maxRocks + " rocks + " + maxBarrels + " barrels + " + 
+				maxMonsters + " monsters");
 	}
 	
 	void Use(CBaseEntity@ pActivator, CBaseEntity@ pCaller, USE_TYPE useType, float flValue = 0.0f)
@@ -104,18 +143,23 @@ class func_build_zone : ScriptBaseEntity
 	
 	void ZoneThink()
 	{
-		int activeMonsters = 0;
+		int numTrees = 0;
+		int numRocks = 0;
+		int numBarrels = 0;
+		int numMonsters = 0;
+		
 		for (uint i = 0; i < nodes.size(); i++)
 		{
 			if (!nodes[i].IsValid())
 			{
 				nodes.removeAt(i);
 				i--;
+				continue;
 			}
 			CBaseEntity@ node = nodes[i];
 			if (node.IsMonster())
 			{
-				activeMonsters++;
+				numMonsters++;
 				if (node.GetClassification(0) != CLASS_ALIEN_MONSTER)
 				{
 					CBaseMonster@ mon = cast<CBaseMonster@>(node);
@@ -144,124 +188,139 @@ class func_build_zone : ScriptBaseEntity
 					}		
 				}
 			}
-		}
-		if (!g_disable_ents and nodes.size() < NODES_PER_ZONE)
-		{
-			string brushModel;
-			string itemModel;
-			float radius = 64;
-			int health = 400;
-			bool isTree = false;
-			
-			if (nextNodeSpawn == NODE_TREE)
+			else if (node.pev.classname == "func_breakable_custom")
 			{
-				brushModel = getModelFromName("e_tree");
-				itemModel = "models/sc_rust/pine_tree.mdl";
-				radius = 224.0f;
-				isTree = true;
-			}
-			else if (nextNodeSpawn == NODE_BARREL)
-			{
-				brushModel = getModelFromName("e_barrel");
-				itemModel = "models/sc_rust/tr_barrel_blu1.mdl";
-				radius = 18.0f;
-				health = 80;
-			}
-			else if (nextNodeSpawn == NODE_XEN)
-			{
-				brushModel = getModelFromName("e_barrel");
-				itemModel = "models/sc_rust/tr_barrel_blu1.mdl";
-				radius = 18.0f;
-			}
-			else if (nextNodeSpawn == NODE_ROCK)
-			{
-				brushModel = getModelFromName("e_rock");
-				itemModel = "models/sc_rust/rock.mdl";
-				radius = 60.0f;
-			}
-			else
-				println("Build Zone: bad node type: " + nextNodeSpawn);
-			
-			Vector ori = getCentroid(self);
-			Vector min = pev.absmin;
-			Vector max = pev.absmax;
-			Vector offset = Vector(((max.x - min.x) / 2) * Math.RandomFloat(-1, 1), 
-								   ((max.y - min.y) / 2 )* Math.RandomFloat(-1, 1), 0);
-			ori = ori + offset;
-			
-			Vector ground;
-			if (canSpawn(ori, radius, ground, isTree))
-			{								
-				ori = ground;
-				string name = "node" + g_node_id++;
-				
-				if (nextNodeSpawn == NODE_XEN)
+				func_breakable_custom@ bnode = cast<func_breakable_custom@>(CastToScriptClass(node));
+				switch(bnode.nodeType)
 				{
-					string spawnerName = monster_spawners[Math.RandomLong(0, monster_spawners.length()-1)];
-					CBaseEntity@ spawner = g_EntityFuncs.FindEntityByTargetname(null, spawnerName);
-					if (spawner !is null)
+					case NODE_TREE: numTrees++; break;
+					case NODE_ROCK: numRocks++; break;
+					case NODE_BARREL: numBarrels++; break;
+				}
+			}
+		}
+		if (g_Engine.time > nextSpawn)
+		{
+			array<int> choices;
+			if (numTrees < maxTrees) choices.insertLast(NODE_TREE);
+			if (numRocks < maxRocks) choices.insertLast(NODE_ROCK);
+			if (numBarrels < maxBarrels) choices.insertLast(NODE_BARREL);
+			if (numMonsters < maxMonsters) choices.insertLast(NODE_XEN);
+				
+				
+			if (!g_disable_ents and nodes.size() < NODES_PER_ZONE and choices.length() > 0)
+			{
+				string brushModel;
+				string itemModel;
+				float radius = 64;
+				int health = 400;
+				bool isTree = false;
+				
+				int nextNodeSpawn = choices[ Math.RandomLong(0,choices.length()-1) ];
+				
+				if (nextNodeSpawn == NODE_TREE)
+				{
+					brushModel = getModelFromName("e_tree");
+					itemModel = "models/sc_rust/pine_tree.mdl";
+					radius = 224.0f;
+					isTree = true;
+				}
+				else if (nextNodeSpawn == NODE_BARREL)
+				{
+					brushModel = getModelFromName("e_barrel");
+					itemModel = "models/sc_rust/tr_barrel_blu1.mdl";
+					radius = 18.0f;
+					health = 80;
+				}
+				else if (nextNodeSpawn == NODE_XEN)
+				{
+					brushModel = getModelFromName("e_barrel");
+					itemModel = "models/sc_rust/tr_barrel_blu1.mdl";
+					radius = 18.0f;
+				}
+				else if (nextNodeSpawn == NODE_ROCK)
+				{
+					brushModel = getModelFromName("e_rock");
+					itemModel = "models/sc_rust/rock.mdl";
+					radius = 60.0f;
+				}
+				else
+					println("Build Zone: bad node type: " + nextNodeSpawn);
+				
+				Vector ori = getCentroid(self);
+				Vector min = pev.absmin;
+				Vector max = pev.absmax;
+				Vector offset = Vector(((max.x - min.x) / 2) * Math.RandomFloat(-1, 1), 
+									   ((max.y - min.y) / 2 )* Math.RandomFloat(-1, 1), 0);
+				ori = ori + offset;
+				
+				Vector ground;
+				if (canSpawn(ori, radius, ground, isTree))
+				{								
+					ori = ground;
+					string name = "node" + g_node_id++;
+					
+					if (nextNodeSpawn == NODE_XEN)
 					{
-						spawner.pev.origin = ori;
-						spawner.pev.angles = Vector(0, Math.RandomLong(-180, 180), 0);
-						spawner.pev.netname = "xen_node_zone_" + id;
-						g_EntityFuncs.FireTargets(spawner.pev.targetname, null, null, USE_TOGGLE);
-						
-						CBaseEntity@ ent = null;
-						do {
-							@ent = g_EntityFuncs.FindEntityByTargetname(ent, spawner.pev.netname);
-							if (ent !is null)
-							{
-								ent.pev.netname = "node_xen";
-								nodes.insertLast(EHandle(ent));
-								activeMonsters++;
-							}
-						} while (ent !is null);
+						string spawnerName = monster_spawners[Math.RandomLong(0, monster_spawners.length()-1)];
+						CBaseEntity@ spawner = g_EntityFuncs.FindEntityByTargetname(null, spawnerName);
+						if (spawner !is null)
+						{
+							spawner.pev.origin = ori;
+							spawner.pev.angles = Vector(0, Math.RandomLong(-180, 180), 0);
+							spawner.pev.netname = "xen_node_zone_" + id;
+							g_EntityFuncs.FireTargets(spawner.pev.targetname, null, null, USE_TOGGLE);
+							
+							CBaseEntity@ ent = null;
+							do {
+								@ent = g_EntityFuncs.FindEntityByTargetname(ent, spawner.pev.netname);
+								if (ent !is null)
+								{
+									ent.pev.targetname = "node_xen";
+									nodes.insertLast(EHandle(ent));
+								}
+							} while (ent !is null);
+						}
 					}
+					else
+					{
+						dictionary keys;
+						keys["origin"] = ori.ToString();
+						keys["angles"] = Vector(0, Math.RandomLong(-180, 180), 0).ToString();
+						keys["model"] = brushModel;
+						keys["material"] = "1";
+						keys["killtarget"] = name;
+						keys["health"] = "" + health;
+						keys["colormap"] = "-1";
+						keys["message"] = "node";
+						keys["nodetype"] = "" + nextNodeSpawn;
+						
+						CBaseEntity@ ent = g_EntityFuncs.CreateEntity("func_breakable_custom", keys, true);
+						nodes.insertLast(EHandle(ent));
+						
+						keys["model"] = itemModel;
+						keys["movetype"] = "5";
+						keys["scale"] = "1";
+						keys["sequencename"] = "idle";
+						keys["targetname"] = name;
+						CBaseEntity@ ent2 = g_EntityFuncs.CreateEntity("item_generic", keys, true);
+					}
+					
+					nextSpawn = g_Engine.time + spawnDelay;
 				}
 				else
 				{
-					dictionary keys;
-					keys["origin"] = ori.ToString();
-					keys["angles"] = Vector(0, Math.RandomLong(-180, 180), 0).ToString();
-					keys["model"] = brushModel;
-					keys["material"] = "1";
-					keys["killtarget"] = name;
-					keys["health"] = "" + health;
-					keys["colormap"] = "-1";
-					keys["message"] = "node";
-					keys["nodetype"] = "" + nextNodeSpawn;
-					
-					CBaseEntity@ ent = g_EntityFuncs.CreateEntity("func_breakable_custom", keys, true);
-					nodes.insertLast(EHandle(ent));
-					
-					keys["model"] = itemModel;
-					keys["movetype"] = "5";
-					keys["scale"] = "1";
-					keys["sequencename"] = "idle";
-					keys["targetname"] = name;
-					CBaseEntity@ ent2 = g_EntityFuncs.CreateEntity("item_generic", keys, true);
+					//println("HIT SOMETHING ELSE");
 				}
-				
-				int rand = Math.RandomLong(0,100);
-				if (rand >= 30)
-					nextNodeSpawn = NODE_TREE;
-				else if (rand >= 20)
-					nextNodeSpawn = NODE_BARREL;
-				else if (rand >= 10 or activeMonsters >= g_max_zone_monsters)
-					nextNodeSpawn = NODE_ROCK;
-				else if (rand >= 0)
-					nextNodeSpawn = NODE_XEN;
 			}
-			else
-			{
-				//println("HIT SOMETHING ELSE");
-			}
-			nextSpawn = g_Engine.time + spawnDelay;
 		}
 		else
 		{
-			spawnDelay = g_node_spawn_time;
-			nextSpawn = g_Engine.time + spawnDelay;
+			if (spawnDelay != g_node_spawn_time and nodes.size() == NODES_PER_ZONE)
+			{
+				println("Zone " + id + " populated");
+				spawnDelay = g_node_spawn_time;
+			}
 		}
 
 		pev.nextthink = g_Engine.time + 0.05;

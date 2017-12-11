@@ -711,19 +711,25 @@ class func_breakable_custom : ScriptBaseEntity
 				if (nodeType != NODE_BARREL)
 					flDamage = giveAmount > 0 ? 10 : 0;
 			}
-		}
-		
-		if (isNode and nodeType == NODE_ROCK)
-			flDamage /= 10;
-		
-		
-		if (!isNode and bitsDamageType & DMG_BURN != 0)
-		{
-			string mat = getMaterialType(self);
-			if (mat == "_twig" or mat == "_wood")
-				flDamage *= 2;
 			else
-				flDamage /= 10;
+			{
+				if (isNode)
+				{
+					if (nodeType == NODE_ROCK)
+						flDamage /= 10;
+					if (nodeType == NODE_XEN)
+						flDamage = 10;
+				}
+				
+				if (!isNode and bitsDamageType & DMG_BURN != 0)
+				{
+					string mat = getMaterialType(self);
+					if (mat == "_twig" or mat == "_wood")
+						flDamage *= 2;
+					else
+						flDamage /= 10;
+				}
+			}
 		}
 		
 		pev.health -= flDamage;

@@ -37,7 +37,7 @@ float g_corpse_time = 60.0f; // time before corpses despawn
 int g_max_corpses = 2; // max corpses per player (should be at least 2 to prevent despawning valuable loot)
 float g_item_time = 60.0f; // time before items despawn
 float g_revive_time = 5.0f;
-int g_max_zone_monsters = 0;
+int g_max_zone_monsters = 5;
 
 //
 // End game settings
@@ -60,7 +60,7 @@ class ZoneInfo
 	void init()
 	{
 		// each player entity counts towards limit, x2 is so each player can drop an item or spawn an effect or something.
-		int maxNodes = 64;
+		int maxNodes = NODES_PER_ZONE;
 		// players + corpses + player item drops + trees/stones/animals
 		reservedParts = (g_Engine.maxClients*2) + (g_Engine.maxClients*g_max_item_drops) + maxNodes; // minimum reserved
 		
