@@ -59,6 +59,7 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 	int lastSequence = -1;
 	int zoneid = -1;
 	float attackDamage = 5.0f;
+	float upgradeDist = 175;
 	array<int> missAnims = {6,8,10};
 	array<int> hitAnims = {5,7,9};
 	SOUND_CHANNEL lastChannel = CHAN_WEAPON;
@@ -199,7 +200,8 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 		
 		
 		buildEnt.pev.effects |= EF_NODRAW;
-		if (phit is null or phit.pev.classname == "worldspawn" or !isUpgradable(phit))
+		if (phit is null or phit.pev.classname == "worldspawn" or !isUpgradable(phit) or 
+			(getCentroid(phit) - plr.pev.origin).Length() > upgradeDist)
 			return;
 			
 		buildEnt.pev.effects &= ~EF_NODRAW;
@@ -297,9 +299,9 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 			if (!upgrading)
 				updateBuildPlaceholder();
 				
-			if (upgrading and (getCentroid(lookEnt) - plr.pev.origin).Length() > 320)
+			if (upgrading and (getCentroid(lookEnt) - plr.pev.origin).Length() > upgradeDist)
 				cancelUpgrade("Part went out of range");
-			if (fusing and (getCentroid(buildEnt2) - plr.pev.origin).Length() > 320)
+			if (fusing and (getCentroid(buildEnt2) - plr.pev.origin).Length() > upgradeDist)
 				cancelFuse("Part went out of range");
 			
 			if (lastHudUpdate < g_Engine.time + 0.05f)
@@ -390,6 +392,37 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 		return tr;
 	}
 	
+	void Repair(CBaseEntity@ ent)
+	{
+		CBasePlayer@ plr = getPlayer();
+		if (ent.pev.health < ent.pev.max_health)
+		{
+			float healAmt = Math.min(ent.pev.max_health*0.2f, ent.pev.max_health - ent.pev.health);
+			float ratio = healAmt / ent.pev.max_health;
+			
+			int mat = getMaterialTypeInt(ent);
+			
+			RawItem cost = getUpgradeCost(mat, ent.pev.colormap);
+			cost.amt = Math.max(1, int(cost.amt*ratio + 0.5f));
+			
+			if (g_free_build or getItemCount(plr, cost.type, true, true) >= cost.amt)
+			{
+				if (!g_free_build)
+				{
+					giveItem(plr, cost.type, -cost.amt);
+					printItemCost(plr, cost.type, -cost.amt, 0);
+				}
+				ent.pev.health += healAmt;
+				g_SoundSystem.PlaySound(plr.edict(), CHAN_ITEM, getRandomSound(upgradeWoodSounds), 1.0f, 1.0f, 0, 90 + Math.RandomLong(0, 20));
+			}
+			else
+			{
+				g_PlayerFuncs.PrintKeyBindingString(plr, "You need more " + g_items[cost.type].title);
+			}
+		}
+		g_SoundSystem.PlaySound(plr.edict(), lastChannel, getRandomSound(repairWoodSounds), 1.0f, 1.0f, 0, 90 + Math.RandomLong(0, 20));
+	}
+	
 	void Melee()
 	{
 		CBasePlayer@ plr = getPlayer();
@@ -409,13 +442,7 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 				{
 					if (pHit.pev.classname == "func_breakable_custom" or pHit.pev.classname == "func_door_rotating")
 					{
-						if (pHit.pev.health < pHit.pev.max_health)
-						{
-							float healAmt = Math.min(10, pHit.pev.max_health - pHit.pev.health);
-							pHit.pev.health += healAmt;
-							
-						}
-						g_SoundSystem.PlaySound(plr.edict(), lastChannel, getRandomSound(repairWoodSounds), 1.0f, 1.0f, 0, 90 + Math.RandomLong(0, 20));
+						Repair(pHit);
 					}
 					else if ((pHit.IsPlayer() or pHit.IsMonster()) and !pHit.IsMachine())
 					{
@@ -452,81 +479,81 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 		return g_items[I_WOOD];
 	}
 	
-	int getUpgradeCost(int materialType, int partType)
+	RawItem getUpgradeCost(int materialType, int partType)
 	{
 		if (materialType == 0)
 		{	
 			switch(partType)
 			{
-				case B_FOUNDATION: 			return 200;
-				case B_FOUNDATION_TRI: 		return 100;
-				case B_FOUNDATION_STEPS: 	return 100;
-				case B_FLOOR: 				return 100;
-				case B_FLOOR_TRI: 			return 50;
-				case B_WALL: 				return 200;
-				case B_LOW_WALL: 			return 100;
-				case B_DOORWAY: 			return 140;
-				case B_WINDOW: 				return 140;
-				case B_STAIRS: 				return 200;
-				case B_STAIRS_L: 			return 200;
-				case B_ROOF: 				return 200;
+				case B_FOUNDATION: 			return RawItem(I_WOOD, 200);
+				case B_FOUNDATION_TRI: 		return RawItem(I_WOOD, 100);
+				case B_FOUNDATION_STEPS: 	return RawItem(I_WOOD, 100);
+				case B_FLOOR: 				return RawItem(I_WOOD, 100);
+				case B_FLOOR_TRI: 			return RawItem(I_WOOD, 50);
+				case B_WALL: 				return RawItem(I_WOOD, 200);
+				case B_LOW_WALL: 			return RawItem(I_WOOD, 100);
+				case B_DOORWAY: 			return RawItem(I_WOOD, 140);
+				case B_WINDOW: 				return RawItem(I_WOOD, 140);
+				case B_STAIRS: 				return RawItem(I_WOOD, 200);
+				case B_STAIRS_L: 			return RawItem(I_WOOD, 200);
+				case B_ROOF: 				return RawItem(I_WOOD, 200);
 			}
 		}
 		else if (materialType == 1)
 		{
 			switch(partType)
 			{
-				case B_FOUNDATION: 			return 300;
-				case B_FOUNDATION_TRI: 		return 150;
-				case B_FOUNDATION_STEPS: 	return 150;
-				case B_FLOOR: 				return 150;
-				case B_FLOOR_TRI: 			return 75;
-				case B_WALL: 				return 300;
-				case B_LOW_WALL: 			return 150;
-				case B_DOORWAY: 			return 210;
-				case B_WINDOW: 				return 210;
-				case B_STAIRS: 				return 300;
-				case B_STAIRS_L: 			return 300;
-				case B_ROOF: 				return 300;
+				case B_FOUNDATION: 			return RawItem(I_STONE, 300);
+				case B_FOUNDATION_TRI: 		return RawItem(I_STONE, 150);
+				case B_FOUNDATION_STEPS: 	return RawItem(I_STONE, 150);
+				case B_FLOOR: 				return RawItem(I_STONE, 150);
+				case B_FLOOR_TRI: 			return RawItem(I_STONE, 75);
+				case B_WALL: 				return RawItem(I_STONE, 300);
+				case B_LOW_WALL: 			return RawItem(I_STONE, 150);
+				case B_DOORWAY: 			return RawItem(I_STONE, 210);
+				case B_WINDOW: 				return RawItem(I_STONE, 210);
+				case B_STAIRS: 				return RawItem(I_STONE, 300);
+				case B_STAIRS_L: 			return RawItem(I_STONE, 300);
+				case B_ROOF: 				return RawItem(I_STONE, 300);
 			}
 		}
 		else if (materialType == 2)
 		{
 			switch(partType)
 			{
-				case B_FOUNDATION: 			return 150;
-				case B_FOUNDATION_TRI: 		return 75;
-				case B_FOUNDATION_STEPS: 	return 75;
-				case B_FLOOR: 				return 75;
-				case B_FLOOR_TRI: 			return 40;
-				case B_WALL: 				return 150;
-				case B_LOW_WALL: 			return 75;
-				case B_DOORWAY: 			return 100;
-				case B_WINDOW: 				return 100;
-				case B_STAIRS: 				return 150;
-				case B_STAIRS_L: 			return 150;
-				case B_ROOF: 				return 150;
+				case B_FOUNDATION: 			return RawItem(I_METAL, 150);
+				case B_FOUNDATION_TRI: 		return RawItem(I_METAL, 75);
+				case B_FOUNDATION_STEPS: 	return RawItem(I_METAL, 75);
+				case B_FLOOR: 				return RawItem(I_METAL, 75);
+				case B_FLOOR_TRI: 			return RawItem(I_METAL, 40);
+				case B_WALL: 				return RawItem(I_METAL, 150);
+				case B_LOW_WALL: 			return RawItem(I_METAL, 75);
+				case B_DOORWAY: 			return RawItem(I_METAL, 100);
+				case B_WINDOW: 				return RawItem(I_METAL, 100);
+				case B_STAIRS: 				return RawItem(I_METAL, 150);
+				case B_STAIRS_L: 			return RawItem(I_METAL, 150);
+				case B_ROOF: 				return RawItem(I_METAL, 150);
 			}
 		}
 		else if (materialType == 3)
 		{
 			switch(partType)
 			{
-				case B_FOUNDATION: 			return 100;
-				case B_FOUNDATION_TRI: 		return 50;
-				case B_FOUNDATION_STEPS: 	return 50;
-				case B_FLOOR: 				return 50;
-				case B_FLOOR_TRI: 			return 25;
-				case B_WALL: 				return 100;
-				case B_LOW_WALL: 			return 50;
-				case B_DOORWAY: 			return 75;
-				case B_WINDOW: 				return 75;
-				case B_STAIRS: 				return 100;
-				case B_STAIRS_L: 			return 100;
-				case B_ROOF: 				return 100;
+				case B_FOUNDATION: 			return RawItem(I_HQMETAL, 100);
+				case B_FOUNDATION_TRI: 		return RawItem(I_HQMETAL, 50);
+				case B_FOUNDATION_STEPS: 	return RawItem(I_HQMETAL, 50);
+				case B_FLOOR: 				return RawItem(I_HQMETAL, 50);
+				case B_FLOOR_TRI: 			return RawItem(I_HQMETAL, 25);
+				case B_WALL: 				return RawItem(I_HQMETAL, 100);
+				case B_LOW_WALL: 			return RawItem(I_HQMETAL, 50);
+				case B_DOORWAY: 			return RawItem(I_HQMETAL, 75);
+				case B_WINDOW: 				return RawItem(I_HQMETAL, 75);
+				case B_STAIRS: 				return RawItem(I_HQMETAL, 100);
+				case B_STAIRS_L: 			return RawItem(I_HQMETAL, 100);
+				case B_ROOF: 				return RawItem(I_HQMETAL, 100);
 			}
 		}
-		return 0;
+		return RawItem(0,0);
 	}
 	
 	void UpgradeMenu()
@@ -538,10 +565,14 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 		int partType = lookEnt.pev.colormap;
 
 		state.menu.SetTitle("Upgrade to:\n");
-		state.menu.AddItem("Wood (" + getUpgradeCost(0, partType) + " " + getUpgradeItem(0).title + ")", any("wood"));
-		state.menu.AddItem("Stone (" + getUpgradeCost(1, partType) + " " + getUpgradeItem(1).title + ")", any("stone"));
-		state.menu.AddItem("Metal (" + getUpgradeCost(2, partType) + " " + getUpgradeItem(2).title + ")", any("metal"));
-		state.menu.AddItem("Armor (" + getUpgradeCost(3, partType) + " " + getUpgradeItem(3).title + ")", any("armor"));
+		RawItem woodCost = getUpgradeCost(0, partType);
+		RawItem stoneCost = getUpgradeCost(1, partType);
+		RawItem metalCost = getUpgradeCost(2, partType);
+		RawItem armorCost = getUpgradeCost(3, partType);
+		state.menu.AddItem("Wood (" + woodCost.amt + " " + getUpgradeItem(0).title + ")", any("wood"));
+		state.menu.AddItem("Stone (" + stoneCost.amt + " " + getUpgradeItem(1).title + ")", any("stone"));
+		state.menu.AddItem("Metal (" + metalCost.amt + " " + getUpgradeItem(2).title + ")", any("metal"));
+		state.menu.AddItem("Armor (" + armorCost.amt + " " + getUpgradeItem(3).title + ")", any("armor"));
 		
 		state.openMenu(plr);
 	}
@@ -557,31 +588,30 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 			if (size == "_1x1")
 				size = "";
 			int partType = lookEnt.pev.colormap;
+			
+			int mat = getMaterialTypeInt(lookEnt);
+			if (mat == material)
+			{
+				array<string> material_names = {"Wood", "Stone", "Metal", "Armor"};
+				g_PlayerFuncs.PrintKeyBindingString(plr, "This part is already made of " + material_names[mat]);
+				upgrading = false;
+				return;
+			}
+			
 			if (!g_free_build)
 			{
 				Item@ materialItem = getUpgradeItem(material);
-				int cost = getUpgradeCost(material, partType);
-				if (getItemCount(plr, materialItem.type) < cost)
+				RawItem cost = getUpgradeCost(material, partType);
+				if (getItemCount(plr, cost.type) < cost.amt)
 				{
-					g_PlayerFuncs.PrintKeyBindingString(plr, "You don't have enough " + materialItem.title);
+					g_PlayerFuncs.PrintKeyBindingString(plr, "You need more " + materialItem.title);
+					upgrading = false;
 					return;
 				}
 				else
 				{
-					HUDTextParams params;
-					params.x = -1;
-					params.y = -1;
-					params.effect = 0;
-					params.r1 = 255;
-					params.g1 = 255;
-					params.b1 = 255;
-					params.fadeinTime = 0;
-					params.fadeoutTime = 0.5f;
-					params.holdTime = 0.0f;
-					params.channel = 2;
-				
-					g_PlayerFuncs.HudMessage(plr, params, "-" + cost + " " + materialItem.title);
-					giveItem(plr, materialItem.type, -cost, false);
+					printItemCost(plr, cost.type, cost.amt);
+					giveItem(plr, cost.type, -cost.amt, false);
 				}
 			}
 			

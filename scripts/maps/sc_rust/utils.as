@@ -248,6 +248,22 @@ Item@ getItemByClassname(string cname)
 	return null;
 }
 
+void printItemCost(CBasePlayer@ plr, int type, int amt, float duration=0.5f)
+{
+	HUDTextParams params;
+	params.x = -1;
+	params.y = -1;
+	params.effect = 0;
+	params.r1 = 255;
+	params.g1 = 255;
+	params.b1 = 255;
+	params.fadeinTime = 0;
+	params.fadeoutTime = 0.5f;
+	params.holdTime = duration;
+	params.channel = 2;
+	g_PlayerFuncs.HudMessage(plr, params, "" + amt + " " + g_items[type].title);
+}
+
 void clearInventory(CBasePlayer@ plr)
 {	
 	CBaseEntity@ ent = null;
@@ -518,6 +534,17 @@ string getMaterialType(CBaseEntity@ ent)
 		material = "_armor";
 		
 	return material;
+}
+
+int getMaterialTypeInt(CBaseEntity@ ent)
+{
+	string smat = getMaterialType(ent);
+	int mat = 0;
+	if (smat == "_wood") mat = 0;
+	if (smat == "_stone") mat = 1;
+	if (smat == "_metal") mat = 2;
+	if (smat == "_armor") mat = 3;
+	return mat;
 }
 
 int getModelSizei(CBaseEntity@ part)
