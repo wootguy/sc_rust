@@ -71,6 +71,7 @@ class func_breakable_custom : ScriptBaseEntity
 	bool isLadder = false;
 	bool isNode = false;
 	bool isFurnace = false;
+	bool isWindowBars = false;
 	bool supported = false; // is connected to a foundation somehow?
 	bool smelting = false; // true if this is a furnace with wood and ore inside
 	float lastSmelt = 0;
@@ -166,6 +167,7 @@ class func_breakable_custom : ScriptBaseEntity
 		isLadder = self.pev.colormap == B_LADDER;
 		isNode = self.pev.colormap == -1;
 		isFurnace = self.pev.colormap == B_FURNACE;
+		isWindowBars = self.pev.colormap == B_WOOD_BARS or self.pev.colormap == B_METAL_BARS;
 		//println("CREATE PART " + id + " WITH PARENT " + parent);
 		
 		
@@ -618,7 +620,7 @@ class func_breakable_custom : ScriptBaseEntity
 		if (dead)
 			return 0;
 		
-		if (pevInflictor.classname != "func_breakable_custom" and !isDoor and !isLadder and parent != -1)
+		if (pevInflictor.classname != "func_breakable_custom" and !isDoor and !isLadder and !isWindowBars and parent != -1)
 		{
 			func_breakable_custom@ ent = getBuildPartByID(parent);
 			if (ent is null)
@@ -713,27 +715,22 @@ class func_breakable_custom : ScriptBaseEntity
 			}
 			else
 			{
-				if (isNode)
-				{
-					if (nodeType == NODE_ROCK)
-						flDamage /= 10;
-					if (nodeType == NODE_XEN)
-						flDamage = 10;
-				}
-				
-				if (!isNode and bitsDamageType & DMG_BURN != 0)
-				{
-					string mat = getMaterialType(self);
-					if (mat == "_twig" or mat == "_wood")
-						flDamage *= 2;
-					else
-						flDamage /= 10;
-				}
+				if (nodeType == NODE_ROCK)
+					flDamage /= 10;
+				if (nodeType == NODE_XEN)
+					flDamage = 10;
 			}
+		}
+		if (!isNode and bitsDamageType & DMG_BURN != 0)
+		{
+			string mat = getMaterialType(self);
+			if (mat == "_twig" or mat == "_wood")
+				flDamage *= 2;
+			else
+				flDamage /= 10;
 		}
 		
 		pev.health -= flDamage;
-		
 		
 		if (pev.health <= 0)
 		{

@@ -107,7 +107,11 @@ void inventoryCheck()
 			// but increasing poll rate might be too cpu intensive...
 			CBasePlayerWeapon@ activeWep = cast<CBasePlayerWeapon@>(plr.m_hActiveItem.GetEntity());
 			if (activeWep !is null)
-				state.updateItemListQuick(getItemByClassname(activeWep.pev.classname).type, activeWep.m_iClip);
+			{
+				Item@ item = getItemByClassname(activeWep.pev.classname);
+				if (item !is null)
+					state.updateItemListQuick(item.type, activeWep.m_iClip);
+			}
 			state.oldAngles = plr.pev.v_angle;
 			state.oldHealth = plr.pev.health;
 			state.oldArmor = plr.pev.armorvalue;
@@ -1026,7 +1030,7 @@ void openPlayerMenu(CBasePlayer@ plr, string subMenu)
 		//state.menu.AddItem("Medkit", any("small-medkit"));
 		state.menu.AddItem(g_items[I_ARMOR].getCraftText(), any("craft-3-" + I_ARMOR));
 		//state.menu.AddItem("Large Medkit", any("large-medkit"));
-		//state.menu.AddItem("Acoustic Guitar", any("guitar"));
+		state.menu.AddItem("Guitar", any("craft-3-" + I_GUITAR));
 		
 	}
 	else if (subMenu == "weapon-menu")

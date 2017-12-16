@@ -49,6 +49,7 @@ class func_build_zone : ScriptBaseEntity
 	
 	array<EHandle> nodes; // trees & rocks
 	array<EHandle> animals;
+	array<EHandle> subZones;
 	
 	array<string> monster_spawners = {"houndeye_spawner", "gonome_spawner", "bullsquid_spawner", "headcrab_spawner",
 									  "slave_spawner", "agrunt_spawner", "babygarg_spawner", "babyvolt_spawner",
@@ -57,6 +58,10 @@ class func_build_zone : ScriptBaseEntity
 	bool KeyValue( const string& in szKey, const string& in szValue )
 	{		
 		if (szKey == "id") id = atoi(szValue);
+		else if (szKey == "tree_ratio") treeRatio = atof(szValue);
+		else if (szKey == "rock_ratio") rockRatio = atof(szValue);
+		else if (szKey == "barrel_ratio") barrelRatio = atof(szValue);
+		else if (szKey == "monster_ratio") monsterRatio = atof(szValue);
 		else return BaseClass.KeyValue( szKey, szValue );
 		
 		return true;
@@ -75,14 +80,21 @@ class func_build_zone : ScriptBaseEntity
 		g_EntityFuncs.SetModel(self, self.pev.model);
 		g_EntityFuncs.SetOrigin(self, self.pev.origin);
 		
-		SetThink( ThinkFunction( ZoneThink ) );
-		pev.nextthink = g_Engine.time + id*0.1f;
-		
 		UpdateNodeRatios();
+	}
+	
+	void Enable()
+	{
+		SetThink( ThinkFunction( ZoneThink ) );
+		pev.nextthink = g_Engine.time;
 	}
 	
 	void UpdateNodeRatios()
 	{
+		float total = treeRatio + rockRatio + barrelRatio + monsterRatio;
+		if (abs(total - 1) > 0.01f)
+			println("Ratios for zone " + id +  " (" + total + ") do not add up to 1.0! Nodes will not spawn as expected.");
+			
 		maxTrees = int(Math.Floor(NODES_PER_ZONE*treeRatio + 0.5f));
 		maxRocks = int(Math.Floor(NODES_PER_ZONE*rockRatio + 0.5f));
 		maxBarrels = int(Math.Floor(NODES_PER_ZONE*barrelRatio + 0.5f));
@@ -139,6 +151,64 @@ class func_build_zone : ScriptBaseEntity
 		}
 
 		return true;
+	}
+	
+	bool IntersectsZone(CBaseEntity@ ent)
+	{
+		if (self.Intersects(ent))
+			return true;
+			
+		for (uint i = 0; i < subZones.length(); i++)
+			if (subZones[i].IsValid() and subZones[i].GetEntity().Intersects(ent))
+				return true;
+				
+		return false;
+	}
+	
+	Vector getRandomPosition()
+	{
+		CBaseEntity@ brush = getRandomBrush();
+		Vector ori = getCentroid(brush);
+		Vector min = brush.pev.absmin;
+		Vector max = brush.pev.absmax;
+		Vector offset = Vector(((max.x - min.x) / 2) * Math.RandomFloat(-1, 1), 
+							   ((max.y - min.y) / 2 )* Math.RandomFloat(-1, 1), 0);
+		return ori + offset;
+	}
+	
+	// brushes with a greater size are more likley to be chosen
+	CBaseEntity@ getRandomBrush()
+	{
+		array<CBaseEntity@> brushes;
+		array<float> areas;
+		array<float> ratios;
+		
+		brushes.insertLast(self);
+		for (uint i = 0; i < subZones.length(); i++)
+			if (subZones[i])
+				brushes.insertLast(subZones[i].GetEntity());
+		
+		float total = 0;
+		for (uint i = 0; i < brushes.length(); i++)
+		{
+			CBaseEntity@ e = brushes[i];
+			float width = e.pev.absmax.x - e.pev.absmin.x;
+			float length = e.pev.absmax.y - e.pev.absmin.y;
+			float area = width*length;
+			total += area;
+			areas.insertLast(width*length);
+		}
+		
+		
+		float r = Math.RandomFloat(0, total);
+		float a = 0;
+		for (uint i = 0; i < areas.length(); i++)
+		{
+			a += areas[i];
+			if (r <= a)
+				return brushes[i];
+		}
+		return brushes[0];
 	}
 	
 	void ZoneThink()
@@ -247,12 +317,7 @@ class func_build_zone : ScriptBaseEntity
 				else
 					println("Build Zone: bad node type: " + nextNodeSpawn);
 				
-				Vector ori = getCentroid(self);
-				Vector min = pev.absmin;
-				Vector max = pev.absmax;
-				Vector offset = Vector(((max.x - min.x) / 2) * Math.RandomFloat(-1, 1), 
-									   ((max.y - min.y) / 2 )* Math.RandomFloat(-1, 1), 0);
-				ori = ori + offset;
+				Vector ori = getRandomPosition();
 				
 				Vector ground;
 				if (canSpawn(ori, radius, ground, isTree))

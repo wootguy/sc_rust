@@ -7,18 +7,18 @@
 #include "saveload"
 #include "items"
 #include "stability"
+#include "monster_c4"
 
 // TODO:
 // corpse collision without stucking players
 // destroy items?
 // weapon durability?
 // combine dropped stackables
-// hammer repairs should be faster and cost materials
 // HUDs for custom weapons
 // textures are too bright
 // Balance weapons
-// resources should have ratios, not random chance
-// ladder box not found??
+// sleeping bags
+// satchels, bandage?
 
 //
 // Game settings
@@ -28,7 +28,7 @@ int g_settler_reduction = 0; // reduces settlers per zone to increase build poin
 int g_raider_points = 40; // best if multiple of zone count
 bool g_build_point_rounding = true; // rounds build points to a multiple of 10 (may reduce build points)
 bool g_disable_ents = false;
-bool g_build_anywhere = false; // disables build zones
+bool g_build_anywhere = true; // disables build zones
 bool g_free_build = true; // buildings/items don't cost any materials
 int g_inventory_size = 20;
 int g_max_item_drops = 9; // maximum item drops per player (more drops = less build points)
@@ -37,7 +37,7 @@ float g_corpse_time = 60.0f; // time before corpses despawn
 int g_max_corpses = 2; // max corpses per player (should be at least 2 to prevent despawning valuable loot)
 float g_item_time = 60.0f; // time before items despawn
 float g_revive_time = 5.0f;
-int g_max_zone_monsters = 5;
+int g_max_zone_monsters = 0;
 
 //
 // End game settings
@@ -196,6 +196,12 @@ class PlayerState
 	float lastBreakAll = 0; // last time the player used the breakall command
 	dictionary teamRequests; // outgoing requests for team members
 	bool inGame = true;
+	
+	// guitar vars
+	float songPosition = 0; // for guitar song
+	bool playingSong = false;
+	float lastNote = 0;
+	int songId = 0;
 	
 	// vars for resuming after disconnected
 	array<RawItem> allItems; // need to maintain this list in case player leaves (so we can spawn a corpse)
@@ -587,6 +593,7 @@ void MapInit()
 	g_CustomEntityFuncs.RegisterCustomEntity( "func_breakable_custom", "func_breakable_custom" );
 	g_CustomEntityFuncs.RegisterCustomEntity( "func_build_zone", "func_build_zone" );
 	g_CustomEntityFuncs.RegisterCustomEntity( "player_corpse", "player_corpse" );
+	g_CustomEntityFuncs.RegisterCustomEntity( "monster_c4", "monster_c4" );
 	
 	g_Hooks.RegisterHook( Hooks::Player::PlayerUse, @PlayerUse );
 	g_Hooks.RegisterHook( Hooks::Player::ClientSay, @ClientSay );
@@ -638,11 +645,15 @@ void MapInit()
 	PrecacheSound("items/ammopickup1.wav"); // armor
 	PrecacheSound("items/ammopickup2.wav"); // armor
 	PrecacheSound("player/pl_jump2.wav"); // item give/loot
+	PrecacheSound("sc_rust/guitar.ogg");
+	PrecacheSound("sc_rust/guitar2.ogg");
+	PrecacheSound("sc_rust/c4_beep.wav");
 	g_Game.PrecacheModel( "models/woodgibs.mdl" );
 	g_Game.PrecacheModel( "models/sc_rust/pine_tree.mdl" );
 	g_Game.PrecacheModel( "models/sc_rust/rock.mdl" );
 	g_Game.PrecacheModel( "models/sc_rust/tr_barrel_blu1.mdl" );
 	g_Game.PrecacheModel( "models/skeleton.mdl" );
+	g_Game.PrecacheModel( "models/sc_rust/w_c4.mdl" );
 	
 	for (uint i = 0; i < g_material_damage_sounds.length(); i++)
 		for (uint k = 0; k < g_material_damage_sounds[i].length(); k++)
@@ -744,6 +755,7 @@ void MapActivate()
 		"b_metal_door_lock",
 		"b_ladder_box",
 		"b_ladder_hatch_ladder",
+		"b_ladder_hatch_frame",
 		"b_ladder_hatch_door",
 		"b_ladder_hatch_door_unlock",
 		"b_ladder_hatch_door_lock",
@@ -786,21 +798,24 @@ void MapActivate()
 		@ent = g_EntityFuncs.FindEntityByClassname(ent, "func_build_zone");
 		if (ent !is null)
 		{
-			g_build_zone_ents.insertLast(EHandle(ent));
-			int id = cast<func_build_zone@>(CastToScriptClass(ent)).id;
+			func_build_zone@ zone = cast<func_build_zone@>(CastToScriptClass(ent));
+			int id = zone.id;
 			bool unique = true;
 			for (uint i = 0; i < g_build_zones.length(); i++)
 			{
 				if (g_build_zones[i].id == id)
 				{
+					func_build_zone@ parent = cast<func_build_zone@>(CastToScriptClass(g_build_zone_ents[i]));
+					parent.subZones.insertLast(EHandle(ent));
 					unique = false;
 					break;
 				}
 			}
-			
 			if (!unique)
 				continue;
-			
+				
+			zone.Enable();
+			g_build_zone_ents.insertLast(EHandle(ent));
 			g_build_zones.insertLast(BuildZone(id, "???"));
 		}
 	} while (ent !is null);

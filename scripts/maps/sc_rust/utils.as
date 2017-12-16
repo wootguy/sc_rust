@@ -110,14 +110,14 @@ func_breakable_custom@ getBuildPartByID(int id)
 
 int getBuildZone(CBaseEntity@ ent)
 {
-	for (uint i = 0; i < g_build_zones.length(); i++)
+	for (uint i = 0; i < g_build_zone_ents.length(); i++)
 	{
 		if (!g_build_zone_ents[i])
 			continue;
 			
 		CBaseEntity@ zone = g_build_zone_ents[i];
 		func_build_zone@ zoneent = cast<func_build_zone@>(CastToScriptClass(zone));
-		if (zone.Intersects(ent))
+		if (zoneent.IntersectsZone(ent))
 			return zoneent.id;
 	}
 	return -1;
@@ -539,7 +539,7 @@ string getMaterialType(CBaseEntity@ ent)
 int getMaterialTypeInt(CBaseEntity@ ent)
 {
 	string smat = getMaterialType(ent);
-	int mat = 0;
+	int mat = -1;
 	if (smat == "_wood") mat = 0;
 	if (smat == "_stone") mat = 1;
 	if (smat == "_metal") mat = 2;

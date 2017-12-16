@@ -218,6 +218,7 @@ enum item_types
 	I_SNIPER,
 	I_UZI,
 	I_SAW,
+	I_GUITAR,
 	
 	I_ARROW,
 	I_FUEL,
@@ -336,7 +337,7 @@ array<Item> g_items = {
 		"Effective tree chopper and melee weapon"),
 	Item(I_METAL_PICKAXE, 1, true, false, "weapon_metal_pickaxe", "", "Metal Pickaxe", RawItem(I_WOOD, 100), RawItem(I_METAL, 125),
 		"Effective rock miner melee weapon"),
-	Item(I_CROWBAR, 1, true, false, "weapon_crowbar", "", "Crowbar", RawItem(I_METAL, 50), null,
+	Item(I_CROWBAR, 1, true, false, "weapon_custom_crowbar", "", "Crowbar", RawItem(I_METAL, 50), null,
 		"TING TING TING"),
 	Item(I_BOW, 1, true, false, "weapon_bow", "", "Hunting Bow", RawItem(I_WOOD, 300), null,
 		"Hard to use with lag. Right-click to load and aim, left-click to fire."),
@@ -346,24 +347,26 @@ array<Item> g_items = {
 		"Equip this to increase your current armor by " + ARMOR_VALUE + "."),
 	Item(I_FLAMETHROWER, 1, true, false, "weapon_flamethrower", "", "Flame Thrower", RawItem(I_HQMETAL, 20), RawItem(I_SCRAP, 25),
 		"Effective against wood and flesh. Does not damage stone or metal. Uses Fuel as ammo."),
-	Item(I_RPG, 1, true, false, "weapon_rpg", "", "RPG", RawItem(I_HQMETAL, 100), RawItem(I_SCRAP, 30),
+	Item(I_RPG, 1, true, false, "weapon_custom_rpg", "", "RPG", RawItem(I_HQMETAL, 100), RawItem(I_SCRAP, 30),
 		"Rocket launcher. Effective against buildings. Uses rockets as ammo."),
-	Item(I_GRENADE, 10, true, false, "weapon_handgrenade", "hand grenade", "Hand Grenade", RawItem(I_METAL, 25), RawItem(I_SCRAP, 5),
+	Item(I_GRENADE, 10, true, false, "weapon_custom_grenade", "hand grenade", "Hand Grenade", RawItem(I_METAL, 25), RawItem(I_SCRAP, 5),
 		"Effective against people, but doesn't do much damage to buildings."),
-	Item(I_SATCHEL, 5, true, false, "weapon_satchel", "satchel charge", "Satchel Charge", RawItem(I_METAL, 50), RawItem(I_SCRAP, 5),
+	Item(I_SATCHEL, 5, true, false, "weapon_custom_satchel", "satchel charge", "Satchel Charge", RawItem(I_METAL, 50), RawItem(I_SCRAP, 5),
 		"Effective against doors and buildings."),
-	Item(I_C4, 1, true, false, "weapon_c4", "", "C4", RawItem(I_METAL, 200), RawItem(I_SCRAP, 60),
+	Item(I_C4, 10, true, false, "weapon_custom_c4", "c4", "C4", RawItem(I_METAL, 200), RawItem(I_SCRAP, 60),
 		"Effective against doors and buildings."),
-	Item(I_DEAGLE, 1, true, false, "weapon_eagle", "", "Desert Eagle", RawItem(I_HQMETAL, 10), RawItem(I_SCRAP, 10),
+	Item(I_DEAGLE, 1, true, false, "weapon_custom_deagle", "", "Desert Eagle", RawItem(I_HQMETAL, 10), RawItem(I_SCRAP, 10),
 		"Powerful pistol with a laser sight. Uses 3.57 ammo."),
-	Item(I_SHOTGUN, 1, true, false, "weapon_shotgun", "", "Shotgun", RawItem(I_HQMETAL, 15), RawItem(I_SCRAP, 15),
+	Item(I_SHOTGUN, 1, true, false, "weapon_custom_shotgun", "", "Shotgun", RawItem(I_HQMETAL, 15), RawItem(I_SCRAP, 15),
 		"Most effective at close range. Uses buckshot ammo."),
-	Item(I_SNIPER, 1, true, false, "weapon_sniperrifle", "", "Sniper Rifle", RawItem(I_HQMETAL, 30), RawItem(I_SCRAP, 25),
+	Item(I_SNIPER, 1, true, false, "weapon_custom_sniper", "", "Sniper Rifle", RawItem(I_HQMETAL, 30), RawItem(I_SCRAP, 25),
 		"Camp in your base with this. Uses 7.26 ammo."),
-	Item(I_UZI, 1, true, false, "weapon_uzi", "", "Uzi", RawItem(I_HQMETAL, 40), RawItem(I_SCRAP, 10),
+	Item(I_UZI, 1, true, false, "weapon_custom_uzi", "", "Uzi", RawItem(I_HQMETAL, 40), RawItem(I_SCRAP, 10),
 		"Rapid-fire weapon. Uses 9MM ammo."),
-	Item(I_SAW, 1, true, false, "weapon_m249", "", "M249 SAW", RawItem(I_HQMETAL, 50), RawItem(I_SCRAP, 50),
+	Item(I_SAW, 1, true, false, "weapon_custom_saw", "", "M249 SAW", RawItem(I_HQMETAL, 50), RawItem(I_SCRAP, 50),
 		"Powerful machine gun with a high firing rate and damage. Uses 5.56 ammo."),
+	Item(I_GUITAR, 1, true, false, "weapon_guitar", "", "Guitar", RawItem(I_WOOD, 50), RawItem(I_SCRAP, 1),
+		"Play notes with primary fire, songs with secondary. Tertiary fire selects a song."),
 	
 	Item(I_ARROW, 50, false, true, "arrows", "", "Wooden Arrow", RawItem(I_WOOD, 20), RawItem(I_STONE, 10),
 		"Used with the hunting bow and crossbow."),
@@ -1467,24 +1470,19 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 			}
 			
 			if (buildType == B_LADDER_HATCH)
-			{
-				CBaseEntity@ hatch_frame = g_EntityFuncs.FindEntityByTargetname(null, "b_ladder_hatch_frame");
-				keys["model"] = string(hatch_frame.pev.model);
-			}
+				keys["model"] = getModelFromName("b_ladder_hatch_frame");
 			
 			g_EngineFuncs.MakeVectors(buildEnt.pev.angles);
 			
 			CBaseEntity@ ent = null;
 			if (buildType == B_WOOD_SHUTTERS)
 			{
-				CBaseEntity@ l_shutter = g_EntityFuncs.FindEntityByTargetname(null, "b_wood_shutter_l");
 				keys["origin"] = (buildEnt.pev.origin + g_Engine.v_right*47).ToString();
-				keys["model"] = string(l_shutter.pev.model);
+				keys["model"] = getModelFromName("b_wood_shutter_l");
 				@ent = g_EntityFuncs.CreateEntity("func_breakable_custom", keys, true);	
 				
-				CBaseEntity@ r_shutter = g_EntityFuncs.FindEntityByTargetname(null, "b_wood_shutter_l");
 				keys["origin"] = (buildEnt.pev.origin + g_Engine.v_right*-47).ToString();
-				keys["model"] = string(r_shutter.pev.model);
+				keys["model"] = getModelFromName("b_wood_shutter_l");
 				keys["angles"] = (buildEnt.pev.angles + Vector(0,180,0)).ToString();
 				CBaseEntity@ ent2 = g_EntityFuncs.CreateEntity("func_breakable_custom", keys, true);	
 				
@@ -1521,8 +1519,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 				if (buildType == B_LADDER) {
 					ent.pev.rendermode = kRenderTransAlpha;
 					ent.pev.renderamt = 255;
-					CBaseEntity@ ladder_box = g_EntityFuncs.FindEntityByTargetname(null, "b_ladder_box");
-					keys["model"] = string(ladder_box.pev.model);
+					keys["model"] = getModelFromName("b_ladder_box");
 					keys["parent"] = "" + (g_part_id - 1);
 					
 					CBaseEntity@ ent2 = g_EntityFuncs.CreateEntity("func_ladder", keys, true);
@@ -1532,9 +1529,8 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 				}
 				
 				if (buildType == B_LADDER_HATCH) {
-					CBaseEntity@ hatch_door = g_EntityFuncs.FindEntityByTargetname(null, "b_ladder_hatch_door");
 					keys["origin"] = (buildEnt.pev.origin + g_Engine.v_forward*32 + Vector(0,0,-4)).ToString();
-					keys["model"] = string(hatch_door.pev.model);
+					keys["model"] = getModelFromName("b_ladder_hatch_door");
 					keys["distance"] = "9999";
 					keys["speed"] = "0.00000001";
 					keys["breakable"] = "1";
@@ -1549,9 +1545,8 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 					ent2.pev.vuser1 = buildEnt.pev.angles;
 					ent2.pev.vuser2 = buildEnt.pev.angles + Vector(-82,0,0);
 					
-					CBaseEntity@ ladder_box = g_EntityFuncs.FindEntityByTargetname(null, "b_ladder_hatch_ladder");
 					keys["origin"] = (buildEnt.pev.origin + g_Engine.v_forward*32).ToString();
-					keys["model"] = string(ladder_box.pev.model);
+					keys["model"] = getModelFromName("b_ladder_hatch_ladder");
 					keys["targetname"] = "ladder_hatch" + (g_part_id - 1);
 					keys["spawnflags"] = "1"; // start off
 					CBaseEntity@ ent3 = g_EntityFuncs.CreateEntity("func_ladder", keys, true);	
