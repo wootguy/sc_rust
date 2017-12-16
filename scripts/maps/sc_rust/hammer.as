@@ -565,14 +565,16 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 		int partType = lookEnt.pev.colormap;
 
 		state.menu.SetTitle("Upgrade to:\n");
-		RawItem woodCost = getUpgradeCost(0, partType);
-		RawItem stoneCost = getUpgradeCost(1, partType);
-		RawItem metalCost = getUpgradeCost(2, partType);
-		RawItem armorCost = getUpgradeCost(3, partType);
-		state.menu.AddItem("Wood (" + woodCost.amt + " " + getUpgradeItem(0).title + ")", any("wood"));
-		state.menu.AddItem("Stone (" + stoneCost.amt + " " + getUpgradeItem(1).title + ")", any("stone"));
-		state.menu.AddItem("Metal (" + metalCost.amt + " " + getUpgradeItem(2).title + ")", any("metal"));
-		state.menu.AddItem("Armor (" + armorCost.amt + " " + getUpgradeItem(3).title + ")", any("armor"));
+		string woodCost = " (" + getUpgradeCost(0, partType).amt + " " + getUpgradeItem(0).title + ")";
+		string stoneCost = " (" + getUpgradeCost(1, partType).amt + " " + getUpgradeItem(1).title + ")";
+		string metalCost = " (" + getUpgradeCost(2, partType).amt + " " + getUpgradeItem(2).title + ")";
+		string armorCost = " (" + getUpgradeCost(3, partType).amt + " " + getUpgradeItem(3).title + ")";
+		if (g_free_build)
+			woodCost = stoneCost = metalCost = armorCost = "";
+		state.menu.AddItem("Wood" + woodCost, any("wood"));
+		state.menu.AddItem("Stone" + stoneCost, any("stone"));
+		state.menu.AddItem("Metal" + metalCost, any("metal"));
+		state.menu.AddItem("Armor" + armorCost, any("armor"));
 		
 		state.openMenu(plr);
 	}
@@ -635,7 +637,7 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 			int health = 100;
 			switch(material)
 			{
-				case 0: health = 2500; break;
+				case 0: health = 2000; break;
 				case 1: health = 5000; break;
 				case 2: health = 7000; break;
 				case 3: health = 9000; break;
@@ -1349,6 +1351,7 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 	
 	void SecondaryAttack() 
 	{
+		CBasePlayer@ plr = getPlayer();
 		if (nextUpgrade < g_Engine.time) {
 			nextUpgrade = g_Engine.time + 0.6f;
 			if (validTarget)
@@ -1357,9 +1360,14 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 					cancelUpgrade("Upgrade cancelled");
 				else
 				{
-					upgrading = true;
-					buildEnt.pev.rendercolor = Vector(255, 128, 0);
-					UpgradeMenu();
+					if (!forbiddenByCupboard(plr, buildEnt.pev.origin))
+					{
+						upgrading = true;
+						buildEnt.pev.rendercolor = Vector(255, 128, 0);
+						UpgradeMenu();
+					}
+					else
+						g_PlayerFuncs.PrintKeyBindingString(plr, "Upgrades blocked by tool cupboard");
 				}
 			}
 			else
@@ -1375,6 +1383,7 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 	
 	void TertiaryAttack()
 	{ 
+		CBasePlayer@ plr = getPlayer();
 		if (nextFuse < g_Engine.time) {
 			nextFuse = g_Engine.time + 0.6f;
 			cancelUpgrade();
@@ -1386,13 +1395,18 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 				}
 				else
 				{
-					fusing = true;
-					buildEnt.pev.rendercolor = Vector(0, 200, 0);
-					
-					buildEnt2.pev.effects &= ~EF_NODRAW;
-					buildEnt2.pev.origin = buildEnt.pev.origin;
-					buildEnt2.pev.angles = buildEnt.pev.angles;
-					g_EntityFuncs.SetModel(buildEnt2, buildEnt.pev.model);
+					if (!forbiddenByCupboard(plr, buildEnt.pev.origin))
+					{
+						fusing = true;
+						buildEnt.pev.rendercolor = Vector(0, 200, 0);
+						
+						buildEnt2.pev.effects &= ~EF_NODRAW;
+						buildEnt2.pev.origin = buildEnt.pev.origin;
+						buildEnt2.pev.angles = buildEnt.pev.angles;
+						g_EntityFuncs.SetModel(buildEnt2, buildEnt.pev.model);
+					}
+					else
+						g_PlayerFuncs.PrintKeyBindingString(plr, "Fusing blocked by tool cupboard");
 				}
 			}
 			else
@@ -1409,78 +1423,84 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 	
 	void Reload()
 	{
+		CBasePlayer@ plr = getPlayer();
 		if (nextRotate < g_Engine.time) {
 			nextRotate = g_Engine.time + 0.6f;
 			if (validTarget)
 			{
-				int partType = lookEnt.pev.colormap;
-				int socket = socketType(lookEnt.pev.colormap);
-				g_EngineFuncs.MakeVectors(lookEnt.pev.angles);
-				if (socket == SOCKET_WALL)
+				if (!forbiddenByCupboard(plr, buildEnt.pev.origin))
 				{
-					string modelSize = getModelSize(lookEnt);
-					if (modelSize == "_2x1" or modelSize == "_2x2" or modelSize == "_3x1" or modelSize == "_4x1")
+					int partType = lookEnt.pev.colormap;
+					int socket = socketType(lookEnt.pev.colormap);
+					g_EngineFuncs.MakeVectors(lookEnt.pev.angles);
+					if (socket == SOCKET_WALL)
 					{
-						int oldParent = lookEnt.pev.team;
-						float dist = 128;
-						if (modelSize == "_3x1")
-							dist = 256;
-						if (modelSize == "_4x1")
-							dist = 384;
-						CBaseEntity@ right = getPartAtPos(lookEnt.pev.origin + g_Engine.v_right*dist);
-						if (right !is null)
+						string modelSize = getModelSize(lookEnt);
+						if (modelSize == "_2x1" or modelSize == "_2x2" or modelSize == "_3x1" or modelSize == "_4x1")
 						{
-							string temp1 = lookEnt.pev.model;
-							string temp2 = right.pev.model;
-							g_EntityFuncs.SetModel(right, temp1);
-							g_EntityFuncs.SetModel(lookEnt, temp2);
-							lookEnt.pev.effects |= EF_NODRAW;
-							lookEnt.pev.solid = SOLID_NOT;
-							lookEnt.pev.angles.y += 180;
-							right.pev.angles.y += 180;
-							
-							// can't just turn on solidity or else the part will become semi-solid (game bug)
-							@right = respawnPart(right.pev.team);
-							
-							
-							for (uint i = 0; i < g_build_parts.size(); i++)
+							int oldParent = lookEnt.pev.team;
+							float dist = 128;
+							if (modelSize == "_3x1")
+								dist = 256;
+							if (modelSize == "_4x1")
+								dist = 384;
+							CBaseEntity@ right = getPartAtPos(lookEnt.pev.origin + g_Engine.v_right*dist);
+							if (right !is null)
 							{
-								func_breakable_custom@ part = cast<func_breakable_custom@>(CastToScriptClass(g_build_parts[i].GetEntity()));
-								if (part !is null and (part.entindex() == lookEnt.entindex() or part.parent == oldParent))
+								string temp1 = lookEnt.pev.model;
+								string temp2 = right.pev.model;
+								g_EntityFuncs.SetModel(right, temp1);
+								g_EntityFuncs.SetModel(lookEnt, temp2);
+								lookEnt.pev.effects |= EF_NODRAW;
+								lookEnt.pev.solid = SOLID_NOT;
+								lookEnt.pev.angles.y += 180;
+								right.pev.angles.y += 180;
+								
+								// can't just turn on solidity or else the part will become semi-solid (game bug)
+								@right = respawnPart(right.pev.team);
+								
+								
+								for (uint i = 0; i < g_build_parts.size(); i++)
 								{
-									part.parent = right.pev.team;
-								}
-								if (part !is null and (part.entindex() == right.entindex()))
-								{
-									part.parent = -1;
+									func_breakable_custom@ part = cast<func_breakable_custom@>(CastToScriptClass(g_build_parts[i].GetEntity()));
+									if (part !is null and (part.entindex() == lookEnt.entindex() or part.parent == oldParent))
+									{
+										part.parent = right.pev.team;
+									}
+									if (part !is null and (part.entindex() == right.entindex()))
+									{
+										part.parent = -1;
+									}
 								}
 							}
 						}
+						else
+						{
+							lookEnt.pev.angles.y += 180;
+						}
+					}
+					else if (partType == B_STAIRS or partType == B_STAIRS_L)
+					{
+						lookEnt.pev.angles.y -= 90;
+					}
+					else if (partType == B_ROOF)
+					{
+						Vector oldPos = lookEnt.pev.origin;
+						lookEnt.pev.angles.y += 180;
+						lookEnt.pev.origin = oldPos + g_Engine.v_forward*128;
+						updateRoofWalls(lookEnt);
+						updateRoofWalls(getPartAtPos(oldPos + g_Engine.v_right*128));
+						updateRoofWalls(getPartAtPos(oldPos + g_Engine.v_right*-128));
+						updateRoofWalls(getPartAtPos(lookEnt.pev.origin + g_Engine.v_right*128));
+						updateRoofWalls(getPartAtPos(lookEnt.pev.origin + g_Engine.v_right*-128));
 					}
 					else
 					{
-						lookEnt.pev.angles.y += 180;
+						g_PlayerFuncs.PrintKeyBindingString(getPlayer(), "This type of part can't be rotated");
 					}
 				}
-				else if (partType == B_STAIRS or partType == B_STAIRS_L)
-				{
-					lookEnt.pev.angles.y -= 90;
-				}
-				else if (partType == B_ROOF)
-				{
-					Vector oldPos = lookEnt.pev.origin;
-					lookEnt.pev.angles.y += 180;
-					lookEnt.pev.origin = oldPos + g_Engine.v_forward*128;
-					updateRoofWalls(lookEnt);
-					updateRoofWalls(getPartAtPos(oldPos + g_Engine.v_right*128));
-					updateRoofWalls(getPartAtPos(oldPos + g_Engine.v_right*-128));
-					updateRoofWalls(getPartAtPos(lookEnt.pev.origin + g_Engine.v_right*128));
-					updateRoofWalls(getPartAtPos(lookEnt.pev.origin + g_Engine.v_right*-128));
-				}
 				else
-				{
-					g_PlayerFuncs.PrintKeyBindingString(getPlayer(), "This type of part can't be rotated");
-				}
+					g_PlayerFuncs.PrintKeyBindingString(plr, "Rotatation blocked by tool cupboard");
 			}
 			else
 			{

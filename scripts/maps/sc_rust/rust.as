@@ -17,8 +17,12 @@
 // HUDs for custom weapons
 // textures are too bright
 // Balance weapons
-// sleeping bags
-// satchels, bandage?
+// sleeping bags, bandage?
+// air drops
+// make all bullets projectiles?
+// build ents aren't always see-through/tinted
+// save/load authed locks/cupboards
+// save/load nodes and dropped items
 
 //
 // Game settings
@@ -594,6 +598,7 @@ void MapInit()
 	g_CustomEntityFuncs.RegisterCustomEntity( "func_build_zone", "func_build_zone" );
 	g_CustomEntityFuncs.RegisterCustomEntity( "player_corpse", "player_corpse" );
 	g_CustomEntityFuncs.RegisterCustomEntity( "monster_c4", "monster_c4" );
+	g_CustomEntityFuncs.RegisterCustomEntity( "monster_satchel_charge", "monster_satchel_charge" );
 	
 	g_Hooks.RegisterHook( Hooks::Player::PlayerUse, @PlayerUse );
 	g_Hooks.RegisterHook( Hooks::Player::ClientSay, @ClientSay );
@@ -648,6 +653,7 @@ void MapInit()
 	PrecacheSound("sc_rust/guitar.ogg");
 	PrecacheSound("sc_rust/guitar2.ogg");
 	PrecacheSound("sc_rust/c4_beep.wav");
+	PrecacheSound("sc_rust/fuse.ogg");
 	g_Game.PrecacheModel( "models/woodgibs.mdl" );
 	g_Game.PrecacheModel( "models/sc_rust/pine_tree.mdl" );
 	g_Game.PrecacheModel( "models/sc_rust/rock.mdl" );

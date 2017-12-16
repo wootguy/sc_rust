@@ -351,10 +351,10 @@ array<Item> g_items = {
 		"Rocket launcher. Effective against buildings. Uses rockets as ammo."),
 	Item(I_GRENADE, 10, true, false, "weapon_custom_grenade", "hand grenade", "Hand Grenade", RawItem(I_METAL, 25), RawItem(I_SCRAP, 5),
 		"Effective against people, but doesn't do much damage to buildings."),
-	Item(I_SATCHEL, 5, true, false, "weapon_custom_satchel", "satchel charge", "Satchel Charge", RawItem(I_METAL, 50), RawItem(I_SCRAP, 5),
-		"Effective against doors and buildings."),
+	Item(I_SATCHEL, 10, true, false, "weapon_satchel_charge", "satchel", "Satchel Charge", RawItem(I_METAL, 50), RawItem(I_SCRAP, 15),
+		"Attaches to a surface and explodes in 5 seconds. Effective against doors and buildings."),
 	Item(I_C4, 10, true, false, "weapon_custom_c4", "c4", "C4", RawItem(I_METAL, 200), RawItem(I_SCRAP, 60),
-		"Effective against doors and buildings."),
+		"Attaches to a surface and explodes in 10 seconds. Effective against doors and buildings."),
 	Item(I_DEAGLE, 1, true, false, "weapon_custom_deagle", "", "Desert Eagle", RawItem(I_HQMETAL, 10), RawItem(I_SCRAP, 10),
 		"Powerful pistol with a laser sight. Uses 3.57 ammo."),
 	Item(I_SHOTGUN, 1, true, false, "weapon_custom_shotgun", "", "Shotgun", RawItem(I_HQMETAL, 15), RawItem(I_SCRAP, 15),
@@ -1192,7 +1192,8 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 				validBuild = false;
 		}
 
-		forbidden = forbiddenByCupboard(plr, buildEnt.pev.origin);	
+		bool isCupboard = buildEnt.pev.colormap == B_TOOL_CUPBOARD;
+		forbidden = forbiddenByCupboard(plr, buildEnt.pev.origin, isCupboard);	
 		
 		if (forbidden and validBuild) {
 			buildEnt.pev.rendercolor = Vector(255, 255, 0);
@@ -1430,17 +1431,17 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 			float health = 100;			
 			switch(buildType)
 			{
-				case B_WOOD_DOOR: health = 2000; break;
-				case B_METAL_DOOR: health = 4000; break;
-				case B_WOOD_BARS: health = 2000; break;
-				case B_METAL_BARS: health = 4000; break;
-				case B_HIGH_WOOD_WALL: health = 5000; break;
-				case B_HIGH_STONE_WALL: health = 10000; break;
+				case B_WOOD_DOOR: health = 1500; break;
+				case B_METAL_DOOR: health = 3000; break;
+				case B_WOOD_BARS: health = 1500; break;
+				case B_METAL_BARS: health = 3000; break;
+				case B_HIGH_WOOD_WALL: health = 4500; break;
+				case B_HIGH_STONE_WALL: health = 7000; break;
 				case B_LADDER_HATCH: health = 4000; break;
 				default: health = 1000;
 			}
 			if (buildType <= B_FOUNDATION_STEPS)
-				health = 100; // twig materials
+				health = 30; // twig materials
 		
 			Vector origin = buildEnt.pev.origin;				
 			dictionary keys;

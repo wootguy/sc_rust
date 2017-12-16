@@ -729,7 +729,7 @@ void updateRoofWalls(CBaseEntity@ roof)
 	roof.pev.colormap = oldcolormap;
 }
 	
-bool forbiddenByCupboard(CBasePlayer@ plr, Vector buildPos)
+bool forbiddenByCupboard(CBasePlayer@ plr, Vector buildPos, bool buildingCupboard=false)
 {
 	for (uint i = 0; i < g_tool_cupboards.length(); i++)
 	{
@@ -738,7 +738,7 @@ bool forbiddenByCupboard(CBasePlayer@ plr, Vector buildPos)
 			CBaseEntity@ ent = g_tool_cupboards[i];
 			if ((ent.pev.origin - buildPos).Length() < g_tool_cupboard_radius)
 			{
-				if (!getPlayerState(plr).isAuthed(ent))
+				if (buildingCupboard or !getPlayerState(plr).isAuthed(ent))
 					return true;
 			}
 		}
