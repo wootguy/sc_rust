@@ -797,6 +797,14 @@ TraceResult TraceLook(CBasePlayer@ plr, float dist=128, bool bigHull=false)
 	return tr;
 }
 
+float getUseDistance(CBaseEntity@ ent)
+{
+	float touchDist = 96;
+	if (ent.pev.colormap == E_SUPPLY_CRATE)
+		touchDist = 160;
+	return touchDist;
+}
+
 // returns amount that was actually given
 int giveAmmo(CBasePlayer@ plr, int amt, string type)
 {

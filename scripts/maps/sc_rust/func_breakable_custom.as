@@ -11,13 +11,17 @@ class BMaterial
 {
 	array<string> hitSounds;
 	array<string> breakSounds;
+	string gibs;
+	int gibsnd;
 	
 	BMaterial() {}
 	
-	BMaterial(array<string> hitSounds, array<string> breakSounds)
+	BMaterial(array<string> hitSounds, array<string> breakSounds, string gibs, int gibsnd)
 	{
 		this.hitSounds = hitSounds;
 		this.breakSounds = breakSounds;
+		this.gibs = gibs;
+		this.gibsnd = gibsnd;
 	}
 }
 
@@ -30,13 +34,13 @@ array< array<string> > g_material_damage_sounds = {
 array< array<string> > g_material_break_sounds = {
 	{"sc_rust/break_wood.ogg", "sc_rust/break_wood2.ogg", "sc_rust/break_wood3.ogg", "sc_rust/break_wood4.ogg"},
 	{"sc_rust/break_stone.ogg", "sc_rust/break_stone2.ogg", "sc_rust/break_stone3.ogg", "sc_rust/break_stone4.ogg"},
-	{"sc_rust/break_metal.ogg", "sc_rust/break_metal2.ogg", "sc_rust/break_metal3.ogg", "sc_rust/break_metal4.ogg"},
+	{"sc_rust/break_metal.ogg", "sc_rust/break_metal3.ogg", "sc_rust/break_metal4.ogg"},
 };
 
 array<BMaterial> g_materials = {
-	BMaterial(g_material_damage_sounds[0], g_material_break_sounds[0]),
-	BMaterial(g_material_damage_sounds[1], g_material_break_sounds[1]),
-	BMaterial(g_material_damage_sounds[2], g_material_break_sounds[2])
+	BMaterial(g_material_damage_sounds[0], g_material_break_sounds[0], "models/woodgibs.mdl", 8),
+	BMaterial(g_material_damage_sounds[1], g_material_break_sounds[1], "models/concrete_gibs.mdl", 64),
+	BMaterial(g_material_damage_sounds[2], g_material_break_sounds[2], "models/metalplategibs.mdl", 2)
 };
 
 array<string> fleshSounds = {"sc_rust/flesh1.ogg", "sc_rust/flesh2.ogg", "sc_rust/flesh3.ogg"};
@@ -62,7 +66,6 @@ void weird_think_bug_workaround(EHandle h_ent)
 
 class func_breakable_custom : ScriptBaseEntity
 {
-	BMaterial material;
 	int id = -1;
 	int zoneid = -1; // which zone this part belongs in
 	int parent = -1; // part id
@@ -174,7 +177,7 @@ class func_breakable_custom : ScriptBaseEntity
 		isCupboard = self.pev.colormap == B_TOOL_CUPBOARD;
 		isWindowBars = self.pev.colormap == B_WOOD_BARS or self.pev.colormap == B_METAL_BARS;
 		isAirdrop = self.pev.colormap == E_SUPPLY_CRATE;
-		//println("CREATE PART " + id + " WITH PARENT " + parent);
+		println("CREATE PART " + id + " WITH PARENT " + parent);
 		
 		
 		if (isNode)
@@ -193,8 +196,6 @@ class func_breakable_custom : ScriptBaseEntity
 			monsterDespawnTime = g_Engine.time + (g_corpse_time - 1); // -1 for fadeout delay
 			g_EntityFuncs.SetSize(self.pev, mins, maxs);
 		}
-		
-		material = g_materials[0];
 
 		if (!isNode)
 			updateConnections();
@@ -218,6 +219,14 @@ class func_breakable_custom : ScriptBaseEntity
 		{
 			MonsterThink();
 		}
+	}
+	
+	BMaterial@ getMaterial()
+	{
+		int matid = getMaterialTypeInt(self);
+		if (matid < 0) matid = 0;
+		if (matid >= 3) matid = 2;
+		return @g_materials[matid];
 	}
 	
 	void Blocked(CBaseEntity@ pOther)
@@ -781,6 +790,7 @@ class func_breakable_custom : ScriptBaseEntity
 		
 		pev.health -= flDamage;
 		
+		BMaterial@ material = getMaterial();
 		if (pev.health <= 0)
 		{
 			dead = true;
@@ -798,7 +808,7 @@ class func_breakable_custom : ScriptBaseEntity
 					mins.z = -8;
 					center = self.pev.origin;
 				}
-				te_breakmodel(center, self.pev.maxs - mins, Vector(0,0,0), 4, "models/woodgibs.mdl", 8, 0, 8);
+				te_breakmodel(center, self.pev.maxs - mins, Vector(0,0,0), 4, material.gibs, 8, 0, material.gibsnd);
 			}
 			else if (monster)
 			{

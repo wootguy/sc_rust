@@ -1391,7 +1391,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 			int parent = -1;
 			
 			if (buildSocket == SOCKET_DOORWAY or buildType == B_WOOD_SHUTTERS or buildType == B_LADDER or 
-				buildSocket == SOCKET_WINDOW or buildType == B_TOOL_CUPBOARD)
+				buildSocket == SOCKET_WINDOW or isFloorItem(buildEnt))
 			{
 				parent = attachEnt.pev.team;
 			}

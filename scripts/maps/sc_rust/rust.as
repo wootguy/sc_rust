@@ -15,19 +15,13 @@
 // destroy items?
 // weapon durability?
 // combine dropped stackables
-// HUDs for custom weapons
 // textures are too bright
 // Balance weapons
 // sleeping bags, bandage?
-// air drops
 // make all bullets projectiles?
 // build ents aren't always see-through/tinted
 // save/load authed locks/cupboards
 // save/load nodes and dropped items
-// "Too far away" even when first activating a chest
-// different break sounds/debris for stone/metal/armor
-// getting armor from chest only equips 1 of them
-// can equip weapon if already equipped
 // crates don't fall if the object they're sitting on is removed
 
 //
@@ -50,6 +44,7 @@ float g_supply_time = 120.0f; // time (in seconds) before air drop crate disappe
 float g_revive_time = 5.0f;
 float g_airdrop_min_delay = 0.1f; // time (in minutes) between airdrops
 float g_airdrop_max_delay = 0.5f; // time (in minutes) between airdrops
+float g_chest_touch_dist = 96;
 int g_max_zone_monsters = 0;
 
 //
@@ -250,6 +245,11 @@ class PlayerState
 		if (activeWep !is null)
 		{
 			Item@ activeItem = getItemByClassname(activeWep.pev.classname);
+			if (activeItem is null)
+			{
+				activeWepIdx = -1;
+				return;
+			}
 			oldWeaponClass = activeWep.pev.classname;
 			for (uint i = 0; i < allItems.size(); i++)
 			{
@@ -671,6 +671,8 @@ void MapInit()
 	PrecacheSound("sc_rust/b17.ogg");
 	PrecacheSound("sc_rust/b17_far.ogg");
 	g_Game.PrecacheModel( "models/woodgibs.mdl" );
+	g_Game.PrecacheModel( "models/concrete_gibs.mdl" );
+	g_Game.PrecacheModel( "models/metalplategibs.mdl" );
 	g_Game.PrecacheModel( "models/sc_rust/pine_tree.mdl" );
 	g_Game.PrecacheModel( "models/sc_rust/rock.mdl" );
 	g_Game.PrecacheModel( "models/sc_rust/tr_barrel_blu1.mdl" );

@@ -118,9 +118,7 @@ void inventoryCheck()
 			
 			if (state.currentChest)
 			{
-				float touchDist = 96;
-				if (state.currentChest.GetEntity().pev.colormap == E_SUPPLY_CRATE)
-					touchDist = 160;
+				float touchDist = getUseDistance(state.currentChest.GetEntity());
 				if ((state.currentChest.GetEntity().pev.origin - plr.pev.origin).Length() > touchDist)
 				{
 					state.currentChest = null;
@@ -548,14 +546,15 @@ int equipItem(CBasePlayer@ plr, int type, int amt)
 	}
 	else if (item.type == I_ARMOR)
 	{
-		if (plr.pev.armorvalue < 100)
+		bool equippedAny = false;
+		while (plr.pev.armorvalue <= (100-ARMOR_VALUE) and amt > 0)
 		{
+			equippedAny = true;
 			plr.pev.armorvalue += ARMOR_VALUE;
-			if (plr.pev.armorvalue > 100)
-				plr.pev.armorvalue = 100;
-			g_SoundSystem.PlaySound(plr.edict(), CHAN_ITEM, "items/ammopickup2.wav", 1.0f, 1.0f, 0, 100);
 			amt -= 1;
 		}
+		if (equippedAny)
+			g_SoundSystem.PlaySound(plr.edict(), CHAN_ITEM, "items/ammopickup2.wav", 1.0f, 1.0f, 0, 100);
 		barf = amt;
 		//else
 		//	g_PlayerFuncs.PrintKeyBindingString(plr, "Maximum armor equipped");
@@ -843,9 +842,14 @@ void playerMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CText
 		}
 		else if (invItem.isWeapon)
 		{
-			CItemInventory@ wep = getInventoryItem(plr, invItem.type);
-			if (equipItem(plr, invItem.type, wep.pev.button) == 0)
-				g_Scheduler.SetTimeout("delay_remove", 0, EHandle(wep));
+			if (@plr.HasNamedPlayerItem(invItem.classname) is null)
+			{
+				CItemInventory@ wep = getInventoryItem(plr, invItem.type);
+				if (equipItem(plr, invItem.type, wep.pev.button) == 0)
+					g_Scheduler.SetTimeout("delay_remove", 0, EHandle(wep));
+			}
+			else
+				g_PlayerFuncs.PrintKeyBindingString(plr, "You already have one equipped");
 		}
 		
 		g_Scheduler.SetTimeout("openPlayerMenu", 0.05, @plr, "equip-menu");
@@ -1270,6 +1274,19 @@ void lootMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextMe
 				
 				if (giveAmmo >= ammo and depositItem.type == I_SYRINGE)
 					g_EntityFuncs.Remove(plr.HasNamedPlayerItem("weapon_syringe"));
+			}
+			
+			if (overflow == 0 and depositItem.type == I_ARMOR)
+			{
+				amt -= giveInvAmt;
+				int givenArmor = Math.min(amt, int(plr.pev.armorvalue / ARMOR_VALUE));
+				CBaseEntity@ newItem = spawnItem(chest.pev.origin, depositItem.type, givenArmor);
+				newItem.pev.effects = EF_NODRAW;
+				newItem.pev.renderfx = -9999;
+				overflow = c_chest.depositItem(EHandle(newItem));
+				givenArmor -= overflow;
+				plr.pev.armorvalue -= givenArmor*ARMOR_VALUE;
+				g_SoundSystem.PlaySound(plr.edict(), CHAN_ITEM, "items/ammopickup1.wav", 1.0f, 1.0f, 0, 100);
 			}
 			
 			if (overflow > 0)
@@ -1903,8 +1920,12 @@ HookReturnCode PlayerUse( CBasePlayer@ plr, uint& out )
 			else if (phit.pev.colormap == B_LARGE_CHEST or phit.pev.colormap == B_SMALL_CHEST or phit.pev.colormap == B_FURNACE
 					or phit.pev.colormap == E_SUPPLY_CRATE)
 			{
-				state.currentChest = phit;
-				openLootMenu(plr, phit);
+				float usedDist = (phit.pev.origin - plr.pev.origin).Length();
+				if (usedDist < getUseDistance(phit))
+				{
+					state.currentChest = phit;
+					openLootMenu(plr, phit);
+				}
 			}
 			else
 				didAction = false;
