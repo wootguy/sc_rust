@@ -85,9 +85,6 @@ class Song
 		string path = guitar_song_path + fname;
 		File@ f = g_FileSystem.OpenFile( path, OpenFile::READ);
 		
-		for (uint i = 0; i < notes.length(); i++)
-			println("NOTE " + notes[i]);
-		
 		if( f !is null && f.IsOpen() )
 		{
 			println("Loading song: " + fname);

@@ -73,11 +73,13 @@ class func_breakable_custom : ScriptBaseEntity
 	bool isFurnace = false;
 	bool isWindowBars = false;
 	bool isCupboard = false;
+	bool isAirdrop = false;
 	bool supported = false; // is connected to a foundation somehow?
 	bool smelting = false; // true if this is a furnace with wood and ore inside
 	float lastSmelt = 0;
 	float lastWoodBurn = 0;
 	float lastThink = 0;
+	float deathTime = 0;
 	string killtarget;
 	Vector mins;
 	Vector maxs;
@@ -85,6 +87,7 @@ class func_breakable_custom : ScriptBaseEntity
 	int nodeType = -1;
 	
 	EHandle monster; // points to the monster that spawned this object (if we are a NODE_XEN)
+	EHandle chute; // airdrop
 	float monsterDespawnTime = 0;
 	array<EHandle> children;
 	array<EHandle> connections; // all parts that are supported by or support this part
@@ -170,6 +173,7 @@ class func_breakable_custom : ScriptBaseEntity
 		isFurnace = self.pev.colormap == B_FURNACE;
 		isCupboard = self.pev.colormap == B_TOOL_CUPBOARD;
 		isWindowBars = self.pev.colormap == B_WOOD_BARS or self.pev.colormap == B_METAL_BARS;
+		isAirdrop = self.pev.colormap == E_SUPPLY_CRATE;
 		//println("CREATE PART " + id + " WITH PARENT " + parent);
 		
 		
@@ -200,6 +204,12 @@ class func_breakable_custom : ScriptBaseEntity
 			SetThink( ThinkFunction( DoorThink ) );
 			pev.nextthink = g_Engine.time;
 		}
+		else if (isAirdrop)
+		{
+			deathTime = g_Engine.time + g_supply_time;
+			SetThink( ThinkFunction( AirdropThink ) );
+			pev.nextthink = g_Engine.time;
+		}
 		else if (isFurnace)
 		{
 			FurnaceThink();
@@ -207,6 +217,23 @@ class func_breakable_custom : ScriptBaseEntity
 		else if (nodeType == NODE_XEN)
 		{
 			MonsterThink();
+		}
+	}
+	
+	void Blocked(CBaseEntity@ pOther)
+	{
+		if (isAirdrop)
+		{
+			pev.velocity = Vector(0,0,0);
+			if (chute)
+			{
+				CBaseAnimating@ ent = cast<CBaseAnimating@>(chute.GetEntity());
+				pev.origin.z = ent.pev.origin.z - ent.pev.mins.z;
+				ent.pev.frame = 0;
+				ent.pev.sequence = 2;
+				ent.ResetSequenceInfo();
+				g_Scheduler.SetTimeout("delay_remove", 2, chute);
+			}
 		}
 	}
 	
@@ -368,14 +395,19 @@ class func_breakable_custom : ScriptBaseEntity
 		g_Scheduler.SetTimeout("weird_think_bug_workaround", 0, EHandle(self));
 	}
 	
+	void AirdropThink()
+	{
+		//self.pev.angles = self.pev.angles + self.pev.avelocity;
+		//pev.origin = pev.origin + pev.velocity;
+		if (g_Engine.time > deathTime)
+			Destroy();
+		pev.nextthink = g_Engine.time;
+	}
+	
 	void DoorThink()
 	{
-		if (isDoor)
-		{
-			//self.pev.angles = self.pev.angles + self.pev.avelocity;
-			pev.nextthink = g_Engine.time;
-			return;
-		}
+		//self.pev.angles = self.pev.angles + self.pev.avelocity;
+		pev.nextthink = g_Engine.time;
 	}
 	
 	void Touch( CBaseEntity@ pOther )
@@ -400,13 +432,14 @@ class func_breakable_custom : ScriptBaseEntity
 			case B_LARGE_CHEST: return CHEST_ITEM_MAX_LARGE;
 			case B_SMALL_CHEST: return CHEST_ITEM_MAX_SMALL;
 			case B_FURNACE: return CHEST_ITEM_MAX_FURNACE;
+			case E_SUPPLY_CRATE: return 64; // no limit, essentially
 		}
 		return 0;
 	}
 	
 	int depositItem(int type, int amt)
 	{
-		CBaseEntity@ newItem = spawnItem(pev.origin, type, amt);
+		CBaseEntity@ newItem = spawnItem(g_void_spawn, type, amt);
 		if (newItem is null)
 		{
 			println("Failed to create item type " + type + " x" + amt);
@@ -808,5 +841,12 @@ class func_breakable_custom : ScriptBaseEntity
 			}
 		}
 		return 0;
+	}
+
+	void Destroy()
+	{
+		g_EntityFuncs.Remove(monster);
+		g_EntityFuncs.Remove(chute);
+		g_EntityFuncs.Remove(self);
 	}
 };

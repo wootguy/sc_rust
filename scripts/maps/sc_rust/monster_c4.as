@@ -1,7 +1,7 @@
 
 class monster_c4 : ScriptBaseEntity
 {
-	int life = 3;
+	int life = 10;
 	
 	bool KeyValue( const string& in szKey, const string& in szValue )
 	{
@@ -13,7 +13,7 @@ class monster_c4 : ScriptBaseEntity
 		pev.movetype = MOVETYPE_FLY;
 		pev.solid = SOLID_NOT;
 		
-		g_EntityFuncs.SetModel(self, "models/sc_rust/w_c4.mdl");		
+		g_EntityFuncs.SetModel(self, "models/sc_rust/w_c4.mdl");
 		g_EntityFuncs.SetSize(self.pev, Vector( -8, -8, -8), Vector(8, 8, 8));
 		
 		// attach to surface

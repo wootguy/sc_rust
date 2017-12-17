@@ -169,6 +169,8 @@ enum build_types
 	B_FURNACE,
 	
 	B_ITEM_TYPES,
+	
+	E_SUPPLY_CRATE,
 };
 
 int B_TYPES = B_FOUNDATION_STEPS+1;
@@ -276,6 +278,8 @@ array<BuildPartInfo> g_part_info = {
 	BuildPartInfo(B_SMALL_CHEST, "Small Chest", "b_small_chest", 0),
 	BuildPartInfo(B_LARGE_CHEST, "Large Chest", "b_large_chest", 0),
 	BuildPartInfo(B_FURNACE, "Furnace", "b_furnace", 0),
+	
+	BuildPartInfo(E_SUPPLY_CRATE, "Supply Crate", "e_supply_crate", 0),
 };
 
 array<Item> g_items = {	
@@ -343,7 +347,7 @@ array<Item> g_items = {
 		"Hard to use with lag. Right-click to load and aim, left-click to fire."),
 	Item(I_SYRINGE, 100, true, false, "weapon_syringe", "health", "Syringe", RawItem(I_FUEL, 10), RawItem(I_SCRAP, 5),
 		"Right-click heals you, left-click heals a target."),
-	Item(I_ARMOR, 10, false, false, "item_battery", "", "Armor Piece", RawItem(I_HQMETAL, 10), RawItem(I_SCRAP, 5),
+	Item(I_ARMOR, 10, false, false, "item_battery", "", "Armor Piece", RawItem(I_HQMETAL, 10), RawItem(I_SCRAP, 10),
 		"Equip this to increase your current armor by " + ARMOR_VALUE + "."),
 	Item(I_FLAMETHROWER, 1, true, false, "weapon_flamethrower", "", "Flame Thrower", RawItem(I_HQMETAL, 20), RawItem(I_SCRAP, 25),
 		"Effective against wood and flesh. Does not damage stone or metal. Uses Fuel as ammo."),

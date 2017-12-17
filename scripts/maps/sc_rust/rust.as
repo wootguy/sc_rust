@@ -8,6 +8,7 @@
 #include "items"
 #include "stability"
 #include "monster_c4"
+#include "airdrop"
 
 // TODO:
 // corpse collision without stucking players
@@ -23,6 +24,11 @@
 // build ents aren't always see-through/tinted
 // save/load authed locks/cupboards
 // save/load nodes and dropped items
+// "Too far away" even when first activating a chest
+// different break sounds/debris for stone/metal/armor
+// getting armor from chest only equips 1 of them
+// can equip weapon if already equipped
+// crates don't fall if the object they're sitting on is removed
 
 //
 // Game settings
@@ -37,10 +43,13 @@ bool g_free_build = true; // buildings/items don't cost any materials
 int g_inventory_size = 20;
 int g_max_item_drops = 9; // maximum item drops per player (more drops = less build points)
 float g_tool_cupboard_radius = 512;
-float g_corpse_time = 60.0f; // time before corpses despawn
 int g_max_corpses = 2; // max corpses per player (should be at least 2 to prevent despawning valuable loot)
-float g_item_time = 60.0f; // time before items despawn
+float g_corpse_time = 60.0f; // time (in seconds) before corpses despawn
+float g_item_time = 60.0f; // time (in seconds) before items despawn
+float g_supply_time = 120.0f; // time (in seconds) before air drop crate disappears
 float g_revive_time = 5.0f;
+float g_airdrop_min_delay = 0.1f; // time (in minutes) between airdrops
+float g_airdrop_max_delay = 0.5f; // time (in minutes) between airdrops
 int g_max_zone_monsters = 0;
 
 //
@@ -568,6 +577,8 @@ array<EHandle> g_item_drops; // items that are currently sitting around
 array<EHandle> g_weapon_drops; // these disappear when they're picked up
 array<EHandle> g_corpses; // these disappear when they're picked up
 Vector g_dead_zone; // where dead players go until they respawn
+Vector g_void_spawn; // place where you can spawn items outside the play area
+float g_airdrop_height = 2048; // height where planes spawn
 array<string> g_upgrade_suffixes = {
 	"_twig",
 	"_wood",
@@ -599,6 +610,8 @@ void MapInit()
 	g_CustomEntityFuncs.RegisterCustomEntity( "player_corpse", "player_corpse" );
 	g_CustomEntityFuncs.RegisterCustomEntity( "monster_c4", "monster_c4" );
 	g_CustomEntityFuncs.RegisterCustomEntity( "monster_satchel_charge", "monster_satchel_charge" );
+	g_CustomEntityFuncs.RegisterCustomEntity( "monster_b17", "monster_b17" );
+	g_CustomEntityFuncs.RegisterCustomEntity( "item_parachute", "item_parachute" );
 	
 	g_Hooks.RegisterHook( Hooks::Player::PlayerUse, @PlayerUse );
 	g_Hooks.RegisterHook( Hooks::Player::ClientSay, @ClientSay );
@@ -608,6 +621,7 @@ void MapInit()
 	g_Scheduler.SetInterval("stabilityCheck", 0.0);
 	g_Scheduler.SetInterval("inventoryCheck", 0.05);
 	//g_Scheduler.SetInterval("decalFix", 0.0);
+	g_Scheduler.SetTimeout("spawn_airdrop", Math.RandomFloat(g_airdrop_min_delay*60.0f, g_airdrop_max_delay*60.0f));
 	
 	PrecacheSound("tfc/items/itembk2.wav");
 	
@@ -654,12 +668,17 @@ void MapInit()
 	PrecacheSound("sc_rust/guitar2.ogg");
 	PrecacheSound("sc_rust/c4_beep.wav");
 	PrecacheSound("sc_rust/fuse.ogg");
+	PrecacheSound("sc_rust/b17.ogg");
+	PrecacheSound("sc_rust/b17_far.ogg");
 	g_Game.PrecacheModel( "models/woodgibs.mdl" );
 	g_Game.PrecacheModel( "models/sc_rust/pine_tree.mdl" );
 	g_Game.PrecacheModel( "models/sc_rust/rock.mdl" );
 	g_Game.PrecacheModel( "models/sc_rust/tr_barrel_blu1.mdl" );
 	g_Game.PrecacheModel( "models/skeleton.mdl" );
 	g_Game.PrecacheModel( "models/sc_rust/w_c4.mdl" );
+	g_Game.PrecacheModel( "models/sc_rust/b17.mdl" );
+	g_Game.PrecacheModel( "models/sc_rust/parachute.mdl" );
+	g_Game.PrecacheModel( "sprites/xbeam4.spr" );
 	
 	for (uint i = 0; i < g_material_damage_sounds.length(); i++)
 		for (uint k = 0; k < g_material_damage_sounds[i].length(); k++)
@@ -768,7 +787,8 @@ void MapActivate()
 		
 		"e_tree",
 		"e_rock",
-		"e_barrel"
+		"e_barrel",
+		"e_supply_crate",
 	};
 	
 	for (uint i = 0; i < part_names.length(); i++)
@@ -835,9 +855,25 @@ void MapActivate()
 		g_EntityFuncs.Remove(dead_zone);
 	} 
 	else 
-	{
 		println("ERROR: rust_dead_zone entity is missing. Dead players will be able to spy on people.");
-	}
+	
+	CBaseEntity@ void_spawn = g_EntityFuncs.FindEntityByTargetname(null, "void_spawn_pos");
+	if (void_spawn !is null)
+	{
+		g_void_spawn = void_spawn.pev.origin;
+		g_EntityFuncs.Remove(void_spawn);
+	} 
+	else 
+		println("ERROR: void_spawn_pos entity is missing. Item containers will not function correctly.");
+		
+	CBaseEntity@ drop_height = g_EntityFuncs.FindEntityByTargetname(null, "air_drop_height");
+	if (drop_height !is null)
+	{
+		g_airdrop_height = drop_height.pev.origin.z;
+		g_EntityFuncs.Remove(drop_height);
+	} 
+	else 
+		println("ERROR: air_drop_height entity is missing. Planes will spawn at the wrong height.");
 	
 	WeaponCustomMapActivate();
 }
@@ -1006,6 +1042,11 @@ bool doRustCommand(CBasePlayer@ plr, const CCommand@ args)
 		if (args[0] == ".load")
 		{
 			loadMapData();
+			return true;
+		}
+		if (args[0] == ".airdrop")
+		{
+			spawn_airdrop();
 			return true;
 		}
 		if (args[0] == ".item")

@@ -118,7 +118,10 @@ void inventoryCheck()
 			
 			if (state.currentChest)
 			{
-				if ((state.currentChest.GetEntity().pev.origin - plr.pev.origin).Length() > 96)
+				float touchDist = 96;
+				if (state.currentChest.GetEntity().pev.colormap == E_SUPPLY_CRATE)
+					touchDist = 160;
+				if ((state.currentChest.GetEntity().pev.origin - plr.pev.origin).Length() > touchDist)
 				{
 					state.currentChest = null;
 					g_PlayerFuncs.PrintKeyBindingString(plr, "Loot target too far away");
@@ -460,7 +463,6 @@ CBaseEntity@ spawnItem(Vector origin, int type, int amt)
 	keys["target_on_drop"] = "item_dropped";
 	keys["target_on_collect"] = "item_collected";
 	keys["target_cant_collect"] = "item_cant_collect";
-	keys["button"] = "" + 1;
 	
 	if (type < 0 or type > ITEM_TYPES)
 	{
@@ -483,6 +485,7 @@ CBaseEntity@ spawnItem(Vector origin, int type, int amt)
 			if (amt >= 1)
 				keys["button"] = "" + amt;
 			amt = 1;
+			
 		}
 		CBaseEntity@ lastSpawn = null;
 		for (int i = 0; i < amt; i++)
@@ -1456,6 +1459,11 @@ void lootMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextMe
 						g_EntityFuncs.Remove(item);
 						items.removeAt(i);
 						i--;
+						if (items.size() == 0 and chest.pev.colormap == E_SUPPLY_CRATE)
+						{
+							func_breakable_custom@ crate = cast<func_breakable_custom@>(CastToScriptClass(chest));
+							crate.Destroy();
+						}
 					}
 					
 					found = true;
@@ -1471,7 +1479,7 @@ void lootMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextMe
 		}
 		else
 		{
-			g_SoundSystem.PlaySound(plr.edict(), CHAN_ITEM, "player/pl_jump2.wav", 1.0f, 1.0f, 0, Math.RandomLong(120,140));
+			g_SoundSystem.PlaySound(plr.edict(), CHAN_BODY, "player/pl_jump2.wav", 1.0f, 1.0f, 0, Math.RandomLong(120,140));
 		}
 	}
 	
@@ -1534,8 +1542,12 @@ void openLootMenu(CBasePlayer@ plr, CBaseEntity@ corpse, string submenu="")
 				break;
 			case B_FURNACE:
 				title = "Furnace:";
+			case E_SUPPLY_CRATE:
+				title = "Supply Crate:";
 				break;
 		}
+		
+		bool isAirdrop = corpse.pev.colormap == E_SUPPLY_CRATE;
 		
 		if (submenu == "give")
 		{			
@@ -1584,9 +1596,10 @@ void openLootMenu(CBasePlayer@ plr, CBaseEntity@ corpse, string submenu="")
 				state.menu.AddItem("Give " + prettyNumber(count), any("givestack-" + stackOptions[i] + "-" + itemId));
 			}
 		}
-		else if (submenu == "take")
+		else if (submenu == "take" or isAirdrop)
 		{
-			title += " -> Take";
+			if (!isAirdrop)
+				title += " -> Take";
 			
 			func_breakable_custom@ c_chest = cast<func_breakable_custom@>(CastToScriptClass(corpse));
 			
@@ -1887,7 +1900,8 @@ HookReturnCode PlayerUse( CBasePlayer@ plr, uint& out )
 					g_PlayerFuncs.PrintKeyBindingString(plr, "You are now authorized to build");
 				}
 			}
-			else if (phit.pev.colormap == B_LARGE_CHEST or phit.pev.colormap == B_SMALL_CHEST or phit.pev.colormap == B_FURNACE)
+			else if (phit.pev.colormap == B_LARGE_CHEST or phit.pev.colormap == B_SMALL_CHEST or phit.pev.colormap == B_FURNACE
+					or phit.pev.colormap == E_SUPPLY_CRATE)
 			{
 				state.currentChest = phit;
 				openLootMenu(plr, phit);

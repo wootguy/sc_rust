@@ -50,6 +50,30 @@ void te_blood(Vector pos, Vector dir, uint8 color=70, uint8 speed=16,
 	m.WriteByte(speed);
 	m.End();
 }
+void te_trail(CBaseEntity@ target, string sprite="sprites/laserbeam.spr", 
+	uint8 life=100, uint8 width=2, Color c=PURPLE,
+	NetworkMessageDest msgType=MSG_BROADCAST, edict_t@ dest=null)
+{
+	NetworkMessage m(msgType, NetworkMessages::SVC_TEMPENTITY, dest);
+	m.WriteByte(TE_BEAMFOLLOW);
+	m.WriteShort(target.entindex());
+	m.WriteShort(g_EngineFuncs.ModelIndex(sprite));
+	m.WriteByte(life);
+	m.WriteByte(width);
+	m.WriteByte(c.r);
+	m.WriteByte(c.g);
+	m.WriteByte(c.b);
+	m.WriteByte(c.a);
+	m.End();
+}
+void te_killbeam(CBaseEntity@ target, 
+	NetworkMessageDest msgType=MSG_BROADCAST, edict_t@ dest=null)
+{
+	NetworkMessage m(msgType, NetworkMessages::SVC_TEMPENTITY, dest);
+	m.WriteByte(TE_KILLBEAM);
+	m.WriteShort(target.entindex());
+	m.End();
+}
 
 Vector2D getPerp(Vector2D v) {
 	return Vector2D(-v.y, v.x);
@@ -121,6 +145,14 @@ int getBuildZone(CBaseEntity@ ent)
 			return zoneent.id;
 	}
 	return -1;
+}
+
+// any valid point in a build zone
+Vector getRandomPosition()
+{	
+	CBaseEntity@ zone = g_build_zone_ents[Math.RandomLong(0,  g_build_zone_ents.length()-1)];
+	func_build_zone@ zoneent = cast<func_build_zone@>(CastToScriptClass(zone));
+	return zoneent.getRandomPosition();
 }
 
 BuildZone@ getBuildZone(int id)
@@ -295,7 +327,7 @@ int getItemCount(CBasePlayer@ plr, int itemType, bool includeEquipment = true, b
 		while (inv !is null)
 		{
 			CItemInventory@ item = cast<CItemInventory@>(inv.hItem.GetEntity());
-			if (item.pev.colormap-1 == itemType and item.pev.renderfx != -9999)
+			if (item !is null and item.pev.colormap-1 == itemType and item.pev.renderfx != -9999)
 				count += checkItem.stackSize > 1 ? item.pev.button : 1;
 			@inv = inv.pNext;
 		}
