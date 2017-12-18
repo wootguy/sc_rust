@@ -1,6 +1,5 @@
-int MAX_VISIBLE_ENTS = 500;
-uint NODES_PER_ZONE = 32;
-float g_node_spawn_time = 20.0f;
+int MAX_VISIBLE_ENTS = 510;
+uint NODES_PER_ZONE = 128;
 float xen_agro_dist = 400.0f;
 
 class BuildZone
@@ -34,8 +33,9 @@ class func_build_zone : ScriptBaseEntity
 {
 	BMaterial material;
 	int id;
-	float spawnDelay = 0.05f; // fill up quickly when map loads, then slowly replace stuff
+	float spawnDelay = 0.0f; // fill up quickly when map loads, then slowly replace stuff
 	float nextSpawn = 0;
+	bool nodes_disabled = false;
 	
 	float treeRatio = 0.68f;
 	float rockRatio = 0.12f;
@@ -46,6 +46,8 @@ class func_build_zone : ScriptBaseEntity
 	int maxRocks = 0;
 	int maxBarrels = 0;
 	int maxMonsters = 0;
+	
+	uint maxNodes = NODES_PER_ZONE;
 	
 	array<EHandle> nodes; // trees & rocks
 	array<EHandle> animals;
@@ -62,6 +64,7 @@ class func_build_zone : ScriptBaseEntity
 		else if (szKey == "rock_ratio") rockRatio = atof(szValue);
 		else if (szKey == "barrel_ratio") barrelRatio = atof(szValue);
 		else if (szKey == "monster_ratio") monsterRatio = atof(szValue);
+		else if (szKey == "disable_nodes") nodes_disabled = atoi(szValue) != 0;
 		else return BaseClass.KeyValue( szKey, szValue );
 		
 		return true;
@@ -73,12 +76,14 @@ class func_build_zone : ScriptBaseEntity
 		self.pev.movetype = MOVETYPE_NONE;
 		self.pev.team = id;
 		
-		//self.pev.effects = EF_NODRAW;
+		self.pev.effects = EF_NODRAW;
 		self.pev.rendermode = 2;
 		self.pev.renderamt = 200;
 		
 		g_EntityFuncs.SetModel(self, self.pev.model);
 		g_EntityFuncs.SetOrigin(self, self.pev.origin);
+		
+		maxNodes = NODES_PER_ZONE;
 		
 		UpdateNodeRatios();
 	}
@@ -95,15 +100,15 @@ class func_build_zone : ScriptBaseEntity
 		if (abs(total - 1) > 0.01f)
 			println("Ratios for zone " + id +  " (" + total + ") do not add up to 1.0! Nodes will not spawn as expected.");
 			
-		maxTrees = int(Math.Floor(NODES_PER_ZONE*treeRatio + 0.5f));
-		maxRocks = int(Math.Floor(NODES_PER_ZONE*rockRatio + 0.5f));
-		maxBarrels = int(Math.Floor(NODES_PER_ZONE*barrelRatio + 0.5f));
-		maxMonsters = int(Math.Floor(NODES_PER_ZONE*monsterRatio + 0.5f));
+		maxTrees = int(Math.Floor(maxNodes*treeRatio + 0.5f));
+		maxRocks = int(Math.Floor(maxNodes*rockRatio + 0.5f));
+		maxBarrels = int(Math.Floor(maxNodes*barrelRatio + 0.5f));
+		maxMonsters = int(Math.Floor(maxNodes*monsterRatio + 0.5f));
 		if (maxMonsters > g_max_zone_monsters)
 			maxMonsters = g_max_zone_monsters;
 		
 		int maxTotal = maxTrees + maxRocks + maxBarrels + maxMonsters;
-		int diff = int(NODES_PER_ZONE) - maxTotal;
+		int diff = int(maxNodes) - maxTotal;
 		if (diff != 0)
 		{
 			// adjust largest value, so this change is less noticeable
@@ -129,10 +134,11 @@ class func_build_zone : ScriptBaseEntity
 	bool canSpawn(Vector pos, float radius, Vector&out ground, bool isTree)
 	{
 		TraceResult tr;
-		Vector vecEnd = pos + Vector(0,0,-4096);
+		Vector vecEnd = pos + Vector(0,0,-8192);
 		g_Utility.TraceHull( pos, vecEnd, dont_ignore_monsters, human_hull, null, tr );
 		CBaseEntity@ phit = g_EntityFuncs.Instance( tr.pHit );
 		ground = tr.vecEndPos + Vector(0,0,-36);
+		ground.z -= Math.min(0.05f, 1.0f-tr.vecPlaneNormal.z)*(isTree ? 512 : 256); // sink into the ground if on a slope
 		
 		if (phit.pev.classname != "worldspawn")
 			return false;
@@ -169,6 +175,7 @@ class func_build_zone : ScriptBaseEntity
 	{
 		CBaseEntity@ brush = getRandomBrush();
 		Vector ori = getCentroid(brush);
+		ori.z = brush.pev.absmax.z;
 		Vector min = brush.pev.absmin;
 		Vector max = brush.pev.absmax;
 		Vector offset = Vector(((max.x - min.x) / 2) * Math.RandomFloat(-1, 1), 
@@ -185,8 +192,14 @@ class func_build_zone : ScriptBaseEntity
 		
 		brushes.insertLast(self);
 		for (uint i = 0; i < subZones.length(); i++)
+		{
 			if (subZones[i])
-				brushes.insertLast(subZones[i].GetEntity());
+			{
+				func_build_zone@ subZone = cast<func_build_zone@>(CastToScriptClass(subZones[i].GetEntity()));
+				if (!subZone.nodes_disabled)
+					brushes.insertLast(subZones[i].GetEntity());
+			}
+		}
 		
 		float total = 0;
 		for (uint i = 0; i < brushes.length(); i++)
@@ -269,6 +282,7 @@ class func_build_zone : ScriptBaseEntity
 				}
 			}
 		}
+				
 		if (g_Engine.time > nextSpawn)
 		{
 			array<int> choices;
@@ -277,11 +291,12 @@ class func_build_zone : ScriptBaseEntity
 			if (numBarrels < maxBarrels) choices.insertLast(NODE_BARREL);
 			if (numMonsters < maxMonsters) choices.insertLast(NODE_XEN);
 				
-				
-			if (!g_disable_ents and nodes.size() < NODES_PER_ZONE and choices.length() > 0)
+			
+			if (!g_disable_ents and nodes.size() < maxNodes and choices.length() > 0)
 			{
 				string brushModel;
 				string itemModel;
+				float itemHeight = 0;
 				float radius = 64;
 				int health = 400;
 				bool isTree = false;
@@ -293,19 +308,21 @@ class func_build_zone : ScriptBaseEntity
 					brushModel = getModelFromName("e_tree");
 					itemModel = "models/sc_rust/pine_tree.mdl";
 					radius = 224.0f;
+					itemHeight = 512; // prevents trees from disappearing across hills
 					isTree = true;
 				}
 				else if (nextNodeSpawn == NODE_BARREL)
 				{
 					brushModel = getModelFromName("e_barrel");
-					itemModel = "models/sc_rust/tr_barrel_blu1.mdl";
+					itemModel = "models/sc_rust/tr_barrel.mdl";
 					radius = 18.0f;
 					health = 80;
+					itemHeight = 32;
 				}
 				else if (nextNodeSpawn == NODE_XEN)
 				{
 					brushModel = getModelFromName("e_barrel");
-					itemModel = "models/sc_rust/tr_barrel_blu1.mdl";
+					itemModel = "models/sc_rust/tr_barrel.mdl";
 					radius = 18.0f;
 				}
 				else if (nextNodeSpawn == NODE_ROCK)
@@ -313,6 +330,7 @@ class func_build_zone : ScriptBaseEntity
 					brushModel = getModelFromName("e_rock");
 					itemModel = "models/sc_rust/rock.mdl";
 					radius = 60.0f;
+					itemHeight = 64;
 				}
 				else
 					println("Build Zone: bad node type: " + nextNodeSpawn);
@@ -363,14 +381,22 @@ class func_build_zone : ScriptBaseEntity
 						CBaseEntity@ ent = g_EntityFuncs.CreateEntity("func_breakable_custom", keys, true);
 						nodes.insertLast(EHandle(ent));
 						
+						ori.z += itemHeight;
+						keys["origin"] = ori.ToString();
 						keys["model"] = itemModel;
 						keys["movetype"] = "5";
 						keys["scale"] = "1";
 						keys["sequencename"] = "idle";
 						keys["targetname"] = name;
 						CBaseEntity@ ent2 = g_EntityFuncs.CreateEntity("item_generic", keys, true);
+						ent2.pev.movetype = MOVETYPE_NONE; // epic lag without this
 					}
 					
+					if (nodes.size() >= maxNodes)
+					{
+						println("Zone " + id + " populated");
+						spawnDelay = g_node_spawn_time;
+					}
 					nextSpawn = g_Engine.time + spawnDelay;
 				}
 				else
@@ -379,15 +405,7 @@ class func_build_zone : ScriptBaseEntity
 				}
 			}
 		}
-		else
-		{
-			if (spawnDelay != g_node_spawn_time and nodes.size() == NODES_PER_ZONE)
-			{
-				println("Zone " + id + " populated");
-				spawnDelay = g_node_spawn_time;
-			}
-		}
 
-		pev.nextthink = g_Engine.time + 0.05;
+		pev.nextthink = g_Engine.time + 0.05f;
 	}
 };

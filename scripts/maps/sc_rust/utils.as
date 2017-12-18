@@ -165,6 +165,26 @@ BuildZone@ getBuildZone(int id)
 	return null;
 }
 
+void printVisibleEnts(CBaseEntity@ ent)
+{
+	int count = 0;
+	edict_t@ edt = g_EngineFuncs.EntitiesInPVS(ent.edict());
+	while (edt !is null)
+	{
+		CBaseEntity@ next = g_EntityFuncs.Instance( edt );
+		if (next !is null)
+		{
+			@edt = @next.pev.chain;
+			if (next.pev.effects & EF_NODRAW == 0 and string(next.pev.model).Length() > 0)
+			{
+				println("" + next.pev.classname + " " + next.pev.targetname);
+				count++;
+			}
+		}
+	}
+	println("Total Visible Ents: " + count);
+}
+
 array<EHandle> getPartsByID(int id)
 {
 	array<EHandle> ents;
@@ -236,17 +256,31 @@ string prettyPartName(CBaseEntity@ part)
 	if (int(modelName.Find("_3x1")) > 0) size = " (3x1)";
 	if (int(modelName.Find("_4x1")) > 0) size = " (4x1)";
 	
-	string title = "";
+	string bestTitle = "";
+	int bestLen = 0;
 	for (uint i = 0; i < g_part_info.length(); i++)
 	{
-		if (modelName.Find(g_part_info[i].copy_ent) == 0)
+		if (modelName.Find(g_part_info[i].copy_ent) == 0 and int(g_part_info[i].copy_ent.Length()) > bestLen)
 		{
-			title = g_part_info[i].title;
-			break;
+			bestTitle = g_part_info[i].title;
+			bestLen = g_part_info[i].copy_ent.Length();
 		}
 	}
 	
-	return title + size;
+	if (int(modelName.Find("shutter")) != -1)
+		bestTitle = g_part_info[B_WOOD_SHUTTERS].title;
+	
+	string owner = "";
+	/* not sure we want to let people know owners
+	if (part.pev.colormap == B_BED)
+	{
+		PlayerState@ state = getPlayerStateBySteamID(part.pev.noise1, part.pev.noise2);
+		if (state !is null and state.plr.IsValid())
+			owner = " (" + state.plr.GetEntity().pev.netname + ")";
+	}
+	*/
+	
+	return bestTitle + size + owner;
 }
 
 string getModelFromName(string partName)
@@ -558,9 +592,11 @@ string getMaterialType(CBaseEntity@ ent)
 	string modelName = getModelName(ent);
 	if (int(modelName.Find("_wood")) > 0)
 		material = "_wood";
-	if (int(modelName.Find("_stone")) > 0)
+	if (int(modelName.Find("_stone")) > 0 or
+		int(modelName.Find("furnace")) > 0)
 		material = "_stone";
-	if (int(modelName.Find("_metal")) > 0)
+	if (int(modelName.Find("_metal")) > 0 or 
+		int(modelName.Find("ladder_hatch")) > 0)
 		material = "_metal";
 	if (int(modelName.Find("_armor")) > 0)
 		material = "_armor";
@@ -700,6 +736,7 @@ bool isFloorItem(CBaseEntity@ ent)
 		case B_SMALL_CHEST:
 		case B_LARGE_CHEST:
 		case B_FURNACE:
+		case B_BED:
 			return true;
 	}
 	return false;

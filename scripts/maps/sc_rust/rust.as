@@ -17,22 +17,26 @@
 // combine dropped stackables
 // textures are too bright
 // Balance weapons
-// sleeping bags, bandage?
+// bandage?
 // make all bullets projectiles?
+// allow destroying part with hammer?
 // build ents aren't always see-through/tinted
 // save/load authed locks/cupboards
 // save/load nodes and dropped items
-// crates don't fall if the object they're sitting on is removed
+// airdrops don't fall if the object they're sitting on is removed after they land
+// xen invasion
+// decay raider structures
+// bury nodes into the ground if not on a flat surface
 
 //
 // Game settings
 //
 
-int g_settler_reduction = 0; // reduces settlers per zone to increase build points
+int g_settler_reduction = 1; // reduces settlers per zone to increase build points
 int g_raider_points = 40; // best if multiple of zone count
 bool g_build_point_rounding = true; // rounds build points to a multiple of 10 (may reduce build points)
 bool g_disable_ents = false;
-bool g_build_anywhere = true; // disables build zones
+bool g_build_anywhere = false; // disables build zones
 bool g_free_build = true; // buildings/items don't cost any materials
 int g_inventory_size = 20;
 int g_max_item_drops = 9; // maximum item drops per player (more drops = less build points)
@@ -41,15 +45,19 @@ int g_max_corpses = 2; // max corpses per player (should be at least 2 to preven
 float g_corpse_time = 60.0f; // time (in seconds) before corpses despawn
 float g_item_time = 60.0f; // time (in seconds) before items despawn
 float g_supply_time = 120.0f; // time (in seconds) before air drop crate disappears
-float g_revive_time = 5.0f;
-float g_airdrop_min_delay = 0.1f; // time (in minutes) between airdrops
-float g_airdrop_max_delay = 0.5f; // time (in minutes) between airdrops
+float g_revive_time = 5.0f; // time needed to revive player holding USE
+float g_airdrop_min_delay = 15.0f; // time (in minutes) between airdrops
+float g_airdrop_max_delay = 30.0f; // time (in minutes) between airdrops
+float g_airdrop_first_delay = 20.0f; // time (in minutes) before the FIRST airdrop
+float g_node_spawn_time = 90.0f; // time (in seconds) between node spawns
 float g_chest_touch_dist = 96;
 int g_max_zone_monsters = 0;
+
 
 //
 // End game settings
 //
+
 
 void dummyCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextMenuItem@ item) {}
 
@@ -69,8 +77,9 @@ class ZoneInfo
 	{
 		// each player entity counts towards limit, x2 is so each player can drop an item or spawn an effect or something.
 		int maxNodes = NODES_PER_ZONE;
+		maxNodes += 10; // airdops (plane + box + chute) + 6 water func_conveyors + worldspawn
 		// players + corpses + player item drops + trees/stones/animals
-		reservedParts = (g_Engine.maxClients*2) + (g_Engine.maxClients*g_max_item_drops) + maxNodes; // minimum reserved
+		reservedParts = g_Engine.maxClients*2 + maxNodes; // minimum reserved (assumes half of players won't have a corpse/dropped item)
 		
 		int maxSettlerParts = MAX_VISIBLE_ENTS - (reservedParts+g_raider_points);
 		if (g_build_point_rounding)
@@ -93,6 +102,10 @@ class ZoneInfo
 			partsPerPlayer = (partsPerPlayer / 10) * 10;
 			reservedParts = MAX_VISIBLE_ENTS - (partsPerPlayer*settlersPerZone + raiderParts); // give remainder to reserved
 		}
+		
+		int maxExpectedEnts = (NODES_PER_ZONE*2 + (partsPerPlayer + raiderParts))*numZones;
+		maxExpectedEnts += 10 + g_Engine.maxClients*(3+g_max_item_drops+g_inventory_size);
+		println("Max expected ents: " + maxExpectedEnts);
 	}
 }
 
@@ -213,6 +226,7 @@ class PlayerState
 	
 	// vars for resuming after disconnected
 	array<RawItem> allItems; // need to maintain this list in case player leaves (so we can spawn a corpse)
+	array<EHandle> beds;
 	int oldWeaponClip = 0; // for tracking clip usage
 	int activeWepIdx = 0;
 	string oldWeaponClass;
@@ -330,6 +344,11 @@ class PlayerState
 		
 		if (team !is null and zoneid == team.home_zone)
 			team.numParts++;
+			
+		if (part.pev.colormap == B_BED)
+		{
+			beds.insertLast(EHandle(part));
+		}
 	}
 	
 	void partDestroyed(CBaseEntity@ bpart)
@@ -621,7 +640,7 @@ void MapInit()
 	g_Scheduler.SetInterval("stabilityCheck", 0.0);
 	g_Scheduler.SetInterval("inventoryCheck", 0.05);
 	//g_Scheduler.SetInterval("decalFix", 0.0);
-	g_Scheduler.SetTimeout("spawn_airdrop", Math.RandomFloat(g_airdrop_min_delay*60.0f, g_airdrop_max_delay*60.0f));
+	g_Scheduler.SetTimeout("spawn_airdrop", g_airdrop_first_delay*60);
 	
 	PrecacheSound("tfc/items/itembk2.wav");
 	
@@ -675,7 +694,7 @@ void MapInit()
 	g_Game.PrecacheModel( "models/metalplategibs.mdl" );
 	g_Game.PrecacheModel( "models/sc_rust/pine_tree.mdl" );
 	g_Game.PrecacheModel( "models/sc_rust/rock.mdl" );
-	g_Game.PrecacheModel( "models/sc_rust/tr_barrel_blu1.mdl" );
+	g_Game.PrecacheModel( "models/sc_rust/tr_barrel.mdl" );
 	g_Game.PrecacheModel( "models/skeleton.mdl" );
 	g_Game.PrecacheModel( "models/sc_rust/w_c4.mdl" );
 	g_Game.PrecacheModel( "models/sc_rust/b17.mdl" );
@@ -773,6 +792,7 @@ void MapActivate()
 		"b_small_chest",
 		"b_large_chest",
 		"b_furnace",
+		"b_bed",
 		
 		"b_wood_shutter_r",
 		"b_wood_shutter_l",
@@ -878,6 +898,13 @@ void MapActivate()
 		println("ERROR: air_drop_height entity is missing. Planes will spawn at the wrong height.");
 	
 	WeaponCustomMapActivate();
+	
+	removeExtraEnts();
+}
+
+void removeExtraEnts()
+{
+	// TODO?
 }
 
 void activateCorpses(CBaseEntity@ plr)
@@ -933,6 +960,12 @@ void monster_node(EHandle h_mon)
 	g_Scheduler.SetTimeout("monster_node", 0, h_mon);
 }
 
+void monster_spawned(CBaseEntity@ pActivator, CBaseEntity@ pCaller, USE_TYPE useType, float flValue)
+{	
+	
+}
+
+
 void monster_killed(CBaseEntity@ pActivator, CBaseEntity@ pCaller, USE_TYPE useType, float flValue)
 {	
 	monster_node(EHandle(pCaller));
@@ -945,7 +978,19 @@ void player_respawn(CBaseEntity@ pActivator, CBaseEntity@ pCaller, USE_TYPE useT
 	CBasePlayer@ plr = cast<CBasePlayer@>(pCaller);
 	activateCorpses(plr);
 	clearInventory(plr);
-	getPlayerState(plr).updateItemList();
+	PlayerState@ state = getPlayerState(plr);
+	state.updateItemList();
+	for (uint i = 0; i < state.beds.length(); i++)
+	{
+		if (!state.beds[i].IsValid())
+		{
+			state.beds.removeAt(i);
+			i--;
+			continue;
+		}
+		plr.pev.origin = state.beds[i].GetEntity().pev.origin + Vector(0,0,40);
+	}
+	
 }
 
 EHandle createCorpse(CBasePlayer@ plr)
@@ -1049,6 +1094,11 @@ bool doRustCommand(CBasePlayer@ plr, const CCommand@ args)
 		if (args[0] == ".airdrop")
 		{
 			spawn_airdrop();
+			return true;
+		}
+		if (args[0] == ".vis")
+		{
+			printVisibleEnts(plr);
 			return true;
 		}
 		if (args[0] == ".item")

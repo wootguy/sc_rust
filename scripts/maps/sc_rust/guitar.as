@@ -24,7 +24,7 @@ class SongRow
 	
 	bool play(CBaseEntity@ ent, string sampleLow, string sampleHigh)
 	{
-		array<SOUND_CHANNEL> s_channels = { CHAN_WEAPON, CHAN_ITEM, CHAN_STATIC, CHAN_VOICE };
+		array<SOUND_CHANNEL> s_channels = { CHAN_WEAPON, CHAN_ITEM, CHAN_VOICE, CHAN_STATIC };
 		bool playedAnything = false;
 		for (uint i = 0; i < channels.size() and i < s_channels.length(); i++)
 		{
@@ -320,14 +320,12 @@ void guitar_note_play2(CBaseEntity@ pActivator, CBaseEntity@ pCaller, USE_TYPE u
 void guitar_note_play(CBaseEntity@ pActivator, CBaseEntity@ pCaller, USE_TYPE useType, float flValue)
 {	
 	string sample = "sc_rust/guitar.ogg";
-	// old was 56
 	float pitch = 44 + ((pActivator.pev.angles.x + 29.664917) / 59.329834) * (179.0f + 155.0f); // high E at 224
-	println("PLAY LE NOTE " + pitch);
 	if (pitch >= 224)
 	{
 		pitch -= 124;
 		sample = "sc_rust/guitar2.ogg";
 	}
 	
-	g_SoundSystem.PlaySound(pActivator.edict(), CHAN_MUSIC, sample, 1.0f, 1.0f, 0, int(pitch));
+	g_SoundSystem.PlaySound(pActivator.edict(), CHAN_STATIC, sample, 1.0f, 1.0f, 0, int(pitch));
 }

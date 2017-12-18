@@ -82,7 +82,7 @@ class item_parachute : ScriptBaseAnimating
 	}
 }
 
-class monster_b17 : ScriptBaseMonsterEntity
+class monster_b17 : ScriptBaseAnimating
 {
 	Vector airDropPos;
 	float lastDist = 0;

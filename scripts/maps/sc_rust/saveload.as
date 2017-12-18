@@ -77,7 +77,7 @@ void unlockSaveLoad()
 
 void loadMapPartial(ByteBuffer@ buf)
 {
-	for (int partIdx = 0; partIdx < 4 and buf.readPos < buf.data.size(); partIdx++)
+	for (int partIdx = 0; partIdx < 1 and buf.readPos < buf.data.size(); partIdx++)
 	{
 		float x = buf.ReadFloat();
 		float y = buf.ReadFloat();
@@ -181,7 +181,6 @@ void loadMapPartial(ByteBuffer@ buf)
 		if (effects & EF_NODRAW != 0)
 		{
 			ent.pev.solid = SOLID_NOT;
-			println("ITS A NODRAW");
 		}
 		else
 		{
@@ -197,7 +196,7 @@ void loadMapPartial(ByteBuffer@ buf)
 	}
 		
 	if (buf.readPos < buf.data.size())
-		g_Scheduler.SetTimeout("loadMapPartial", 0.05, @buf);
+		g_Scheduler.SetTimeout("loadMapPartial", 0.0, @buf);
 }
 
 void loadMapData()

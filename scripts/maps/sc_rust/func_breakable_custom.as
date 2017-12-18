@@ -77,6 +77,8 @@ class func_breakable_custom : ScriptBaseEntity
 	bool isWindowBars = false;
 	bool isCupboard = false;
 	bool isAirdrop = false;
+	bool isHatch = false;
+	bool isItem = false;
 	bool supported = false; // is connected to a foundation somehow?
 	bool smelting = false; // true if this is a furnace with wood and ore inside
 	float lastSmelt = 0;
@@ -177,7 +179,10 @@ class func_breakable_custom : ScriptBaseEntity
 		isCupboard = self.pev.colormap == B_TOOL_CUPBOARD;
 		isWindowBars = self.pev.colormap == B_WOOD_BARS or self.pev.colormap == B_METAL_BARS;
 		isAirdrop = self.pev.colormap == E_SUPPLY_CRATE;
-		println("CREATE PART " + id + " WITH PARENT " + parent);
+		isHatch = self.pev.colormap == B_LADDER_HATCH and isDoor;
+		isItem = isFloorItem(self);
+		if (!isNode and debug_mode)
+			println("CREATE PART " + id + " WITH PARENT " + parent);
 		
 		
 		if (isNode)
@@ -557,7 +562,7 @@ class func_breakable_custom : ScriptBaseEntity
 		array<Vector> checks;
 		int type = self.pev.colormap;
 		
-		if (isFloorPiece(self))
+		if (isFloorPiece(self) and !isHatch)
 		{
 			if (isTriangular(self))
 			{
@@ -664,7 +669,7 @@ class func_breakable_custom : ScriptBaseEntity
 		if (dead)
 			return 0;
 		
-		if (pevInflictor.classname != "func_breakable_custom" and !isDoor and !isLadder and !isWindowBars and !isCupboard and parent != -1)
+		if (pevInflictor.classname != "func_breakable_custom" and !isDoor and !isLadder and !isWindowBars and !isItem and parent != -1)
 		{
 			func_breakable_custom@ ent = getBuildPartByID(parent);
 			if (ent is null)
@@ -672,7 +677,7 @@ class func_breakable_custom : ScriptBaseEntity
 			else
 				ent.TakeDamage(pevInflictor, pevAttacker, flDamage, bitsDamageType);
 			return 0;
-		}		
+		}
 		
 		if (isNode and pevInflictor.classname == "player")
 		{
@@ -765,6 +770,8 @@ class func_breakable_custom : ScriptBaseEntity
 					flDamage = 10;
 			}
 		}
+		
+		float dmgVolume = bitsDamageType & DMG_BURN != 0 ? 0.0f : 1.0f;
 		if (!isNode)
 		{
 			if (bitsDamageType & DMG_BLAST != 0)
@@ -780,7 +787,7 @@ class func_breakable_custom : ScriptBaseEntity
 				if (mat == "_twig" or mat == "_wood")
 					flDamage *= 2;
 				else
-					flDamage /= 10;
+					flDamage = 0;
 			}
 			else if (pevInflictor.classname == "player")
 			{
@@ -798,8 +805,16 @@ class func_breakable_custom : ScriptBaseEntity
 			{
 				removeAllConnections();
 				part_broken(self, self, USE_TOGGLE, 0);
+				
+				if (pev.effects & EF_NODRAW != 0)
+				{
+					func_breakable_custom@ parentPart = getBuildPartByID(parent);
+					if (parentPart !is null)
+						@material = parentPart.getMaterial();
+				}
+
 				string sound = material.breakSounds[ Math.RandomLong(0, material.breakSounds.length()-1) ];
-				g_SoundSystem.PlaySound(self.edict(), CHAN_STATIC, sound, 1.0f, 1.0f, 0, 90 + Math.RandomLong(0, 20));
+				g_SoundSystem.PlaySound(self.edict(), CHAN_STATIC, sound, 1.0f, 1.0f, 0, Math.RandomLong(85, 115));
 				
 				Vector center = getCentroid(self);
 				Vector mins = self.pev.mins;
@@ -847,7 +862,7 @@ class func_breakable_custom : ScriptBaseEntity
 			else
 			{
 				string sound = material.hitSounds[ Math.RandomLong(0, material.hitSounds.length()-1) ];
-				g_SoundSystem.PlaySound(self.edict(), CHAN_STATIC, sound, 1.0f, 1.0f, 0, 90 + Math.RandomLong(0, 20));
+				g_SoundSystem.PlaySound(self.edict(), CHAN_STATIC, sound, dmgVolume, 1.0f, 0, Math.RandomLong(90, 110));
 			}
 		}
 		return 0;

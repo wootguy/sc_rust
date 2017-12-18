@@ -83,6 +83,7 @@ class Item
 			case I_LADDER: tabs = "            "; break;
 			case I_LADDER_HATCH: tabs = "    "; break;
 			case I_TOOL_CUPBOARD: tabs = "  "; break;
+			case I_BED: tabs = "    "; break;
 			
 			case I_ROCK: tabs = "              "; break;
 			case I_BUILDING_PLAN: tabs = "    "; break;
@@ -167,6 +168,7 @@ enum build_types
 	B_SMALL_CHEST,
 	B_LARGE_CHEST,
 	B_FURNACE,
+	B_BED,
 	
 	B_ITEM_TYPES,
 	
@@ -174,6 +176,12 @@ enum build_types
 };
 
 int B_TYPES = B_FOUNDATION_STEPS+1;
+
+// What to update when adding a new buildable item:
+// building_plan.as -> build_types + item_types + g_part_info + g_items + getCraftText
+// rust.as -> part_names
+// utils.as -> isFloorItem
+// items.as -> openPlayerMenu (if craftable)
 
 enum item_types
 {
@@ -191,6 +199,7 @@ enum item_types
 	I_SMALL_CHEST,
 	I_LARGE_CHEST,
 	I_FURNACE,
+	I_BED,
 	
 	I_WOOD,
 	I_STONE,
@@ -278,6 +287,7 @@ array<BuildPartInfo> g_part_info = {
 	BuildPartInfo(B_SMALL_CHEST, "Small Chest", "b_small_chest", 0),
 	BuildPartInfo(B_LARGE_CHEST, "Large Chest", "b_large_chest", 0),
 	BuildPartInfo(B_FURNACE, "Furnace", "b_furnace", 0),
+	BuildPartInfo(B_BED, "Sleeping Bag", "b_bed", 0),
 	
 	BuildPartInfo(E_SUPPLY_CRATE, "Supply Crate", "e_supply_crate", 0),
 };
@@ -311,6 +321,8 @@ array<Item> g_items = {
 		"Keep your things in this storage box. Stores up to " + CHEST_ITEM_MAX_LARGE + " items."),
 	Item(I_FURNACE, 1, false, false, "b_furnace", "", "Furnace", RawItem(I_STONE, 300), RawItem(I_FUEL, 50),
 		"Use this to smelt mined ore."),
+	Item(I_BED, 1, false, false, "b_bag", "", "Sleeping Bag", RawItem(I_WOOD, 100), RawItem(I_SCRAP, 5),
+		"Placing this gives you a location to respawn."),
 	
 	Item(I_WOOD, 1000, false, false, "", "", "Wood", null, null,
 		"Collected from trees and used to build bases and craft items."),
@@ -670,6 +682,8 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 				if (partSocket == SOCKET_WINDOW and attachType != B_WINDOW)
 					continue;
 				if ((part.pev.origin - tr.vecEndPos).Length() > 256)
+					continue;
+				if (part.pev.colormap == B_LADDER_HATCH and part.pev.targetname != "") // don't attach to door
 					continue;
 				
 				float attachDist = 96;
@@ -1376,7 +1390,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 				}
 				if (state.getNumParts(zoneid) >= state.maxPoints(zoneid))
 				{
-					g_PlayerFuncs.PrintKeyBindingString(plr, "You're out of build points!\n\nFuse your parts (Wrench) for more points.");
+					g_PlayerFuncs.PrintKeyBindingString(plr, "You're out of build points!\n\nFuse your parts (Hammer) for more points.");
 					return false;
 				}
 				
@@ -1435,6 +1449,10 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 			float health = 100;			
 			switch(buildType)
 			{
+				case B_BED: 
+				case B_SMALL_CHEST: 
+				case B_WOOD_SHUTTERS:
+					health = 200; break;
 				case B_WOOD_DOOR: health = 1500; break;
 				case B_METAL_DOOR: health = 3000; break;
 				case B_WOOD_BARS: health = 1500; break;
@@ -1442,7 +1460,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 				case B_HIGH_WOOD_WALL: health = 4500; break;
 				case B_HIGH_STONE_WALL: health = 7000; break;
 				case B_LADDER_HATCH: health = 4000; break;
-				default: health = 1000;
+				default: health = 500;
 			}
 			if (buildType <= B_FOUNDATION_STEPS)
 				health = 30; // twig materials

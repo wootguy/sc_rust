@@ -996,7 +996,7 @@ void openPlayerMenu(CBasePlayer@ plr, string subMenu)
 		state.menu.AddItem(g_items[I_METAL_BARS].getCraftText(), any("craft-0-" + I_METAL_BARS));
 		state.menu.AddItem(g_items[I_WOOD_SHUTTERS].getCraftText(), any("craft-0-" + I_WOOD_SHUTTERS));
 		state.menu.AddItem(g_items[I_HIGH_WOOD_WALL].getCraftText(), any("craft-0-" + I_HIGH_WOOD_WALL));
-		state.menu.AddItem(g_items[I_HIGH_STONE_WALL].getCraftText(), any("craft-0-" + I_HIGH_STONE_WALL));
+		state.menu.AddItem(g_items[I_HIGH_STONE_WALL].getCraftText() +"\n", any("craft-0-" + I_HIGH_STONE_WALL));
 	}
 	else if (subMenu == "item-menu") 
 	{
@@ -1012,7 +1012,7 @@ void openPlayerMenu(CBasePlayer@ plr, string subMenu)
 		state.menu.AddItem(g_items[I_TOOL_CUPBOARD].getCraftText(), any("craft-1-" + I_TOOL_CUPBOARD));
 		//state.menu.AddItem("Large Furnace", any("large-furnace"));
 		//state.menu.AddItem("Stash", any("stash"));
-		//state.menu.AddItem("Sleeping Bag", any("sleeping-bag"));
+		state.menu.AddItem(g_items[I_BED].getCraftText(), any("craft-1-" + I_BED));
 	}
 	else if (subMenu == "tool-menu")
 	{
@@ -1025,7 +1025,7 @@ void openPlayerMenu(CBasePlayer@ plr, string subMenu)
 		state.menu.AddItem(g_items[I_STONE_HATCHET].getCraftText(), any("craft-2-" + I_STONE_HATCHET));
 		state.menu.AddItem(g_items[I_STONE_PICKAXE].getCraftText(), any("craft-2-" + I_STONE_PICKAXE));
 		state.menu.AddItem(g_items[I_METAL_HATCHET].getCraftText(), any("craft-2-" + I_METAL_HATCHET));
-		state.menu.AddItem(g_items[I_METAL_PICKAXE].getCraftText(), any("craft-2-" + I_METAL_PICKAXE));
+		state.menu.AddItem(g_items[I_METAL_PICKAXE].getCraftText() + "\n", any("craft-2-" + I_METAL_PICKAXE));
 	}
 	else if (subMenu == "medical-menu")
 	{
@@ -1035,9 +1035,9 @@ void openPlayerMenu(CBasePlayer@ plr, string subMenu)
 		//state.menu.AddItem("Bandage", any("bandage"));
 		state.menu.AddItem(g_items[I_SYRINGE].getCraftText(), any("craft-3-" + I_SYRINGE));
 		//state.menu.AddItem("Medkit", any("small-medkit"));
-		state.menu.AddItem(g_items[I_ARMOR].getCraftText(), any("craft-3-" + I_ARMOR));
+		state.menu.AddItem(g_items[I_ARMOR].getCraftText() , any("craft-3-" + I_ARMOR));
 		//state.menu.AddItem("Large Medkit", any("large-medkit"));
-		state.menu.AddItem("Guitar", any("craft-3-" + I_GUITAR));
+		state.menu.AddItem(g_items[I_GUITAR].getCraftText() + "\n\n", any("craft-3-" + I_GUITAR));
 		
 	}
 	else if (subMenu == "weapon-menu")
@@ -1050,7 +1050,7 @@ void openPlayerMenu(CBasePlayer@ plr, string subMenu)
 		state.menu.AddItem(g_items[I_SHOTGUN].getCraftText(), any("craft-4-" + I_SHOTGUN));
 		state.menu.AddItem(g_items[I_SNIPER].getCraftText(), any("craft-4-" + I_SNIPER));
 		state.menu.AddItem(g_items[I_UZI].getCraftText(), any("craft-4-" + I_UZI));
-		state.menu.AddItem(g_items[I_SAW].getCraftText(), any("craft-4-" + I_SAW));
+		state.menu.AddItem(g_items[I_SAW].getCraftText() + "\n", any("craft-4-" + I_SAW));
 	}
 	else if (subMenu == "explode-menu")
 	{
@@ -1060,7 +1060,7 @@ void openPlayerMenu(CBasePlayer@ plr, string subMenu)
 		state.menu.AddItem(g_items[I_RPG].getCraftText(), any("craft-5-" + I_RPG));
 		state.menu.AddItem(g_items[I_GRENADE].getCraftText(), any("craft-5-" + I_GRENADE));
 		state.menu.AddItem(g_items[I_SATCHEL].getCraftText(), any("craft-5-" + I_SATCHEL));
-		state.menu.AddItem(g_items[I_C4].getCraftText() + "\n", any("craft-5-" + I_C4));
+		state.menu.AddItem(g_items[I_C4].getCraftText() + "\n\n", any("craft-5-" + I_C4));
 	}
 	else if (subMenu == "ammo-menu")
 	{
@@ -1070,7 +1070,7 @@ void openPlayerMenu(CBasePlayer@ plr, string subMenu)
 		state.menu.AddItem(g_items[I_9MM].getCraftText(), any("craft-6-" + I_9MM));
 		state.menu.AddItem(g_items[I_556].getCraftText(), any("craft-6-" + I_556));
 		state.menu.AddItem(g_items[I_BUCKSHOT].getCraftText(), any("craft-6-" + I_BUCKSHOT));
-		state.menu.AddItem(g_items[I_ROCKET].getCraftText(), any("craft-6-" + I_ROCKET));
+		state.menu.AddItem(g_items[I_ROCKET].getCraftText() + "\n\n", any("craft-6-" + I_ROCKET));
 		//state.menu.AddItem(g_items[I_FUEL].getCraftText() + "\n", any("craft-6-" + I_FUEL));
 	}
 	else if (subMenu == "craft-menu")
@@ -1082,7 +1082,7 @@ void openPlayerMenu(CBasePlayer@ plr, string subMenu)
 		state.menu.AddItem("Medical / Armor", any("medical-menu"));
 		state.menu.AddItem("Weapons", any("weapon-menu"));
 		state.menu.AddItem("Explosives", any("explode-menu"));
-		state.menu.AddItem("Ammo\n\n", any("ammo-menu"));
+		state.menu.AddItem("Ammo\n\n\n", any("ammo-menu"));
 	}
 	else if (subMenu == "equip-menu")
 	{

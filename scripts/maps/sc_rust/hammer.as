@@ -41,6 +41,12 @@ void upgradeMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTex
 	@menu = null;
 }
 
+const float MAX_HEALTH_TWIG = 30;
+const float MAX_HEALTH_WOOD = 2000;
+const float MAX_HEALTH_STONE = 5000;
+const float MAX_HEALTH_METAL = 7500;
+const float MAX_HEALTH_ARMOR = 10000;
+
 class weapon_hammer : ScriptBasePlayerWeaponEntity
 {
 	float m_flNextAnimTime;
@@ -60,6 +66,7 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 	int zoneid = -1;
 	float attackDamage = 5.0f;
 	float upgradeDist = 175;
+	float fuseDist = 320;
 	array<int> missAnims = {6,8,10};
 	array<int> hitAnims = {5,7,9};
 	SOUND_CHANNEL lastChannel = CHAN_WEAPON;
@@ -301,7 +308,7 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 				
 			if (upgrading and (getCentroid(lookEnt) - plr.pev.origin).Length() > upgradeDist)
 				cancelUpgrade("Part went out of range");
-			if (fusing and (getCentroid(buildEnt2) - plr.pev.origin).Length() > upgradeDist)
+			if (fusing and (getCentroid(buildEnt2) - plr.pev.origin).Length() > fuseDist)
 				cancelFuse("Part went out of range");
 			
 			if (lastHudUpdate < g_Engine.time + 0.05f)
@@ -402,7 +409,7 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 			
 			int mat = getMaterialTypeInt(ent);
 			
-			RawItem cost = getUpgradeCost(mat, ent.pev.colormap);
+			RawItem cost = getUpgradeCost(mat, ent);
 			cost.amt = Math.max(1, int(cost.amt*ratio + 0.5f));
 			
 			if (g_free_build or getItemCount(plr, cost.type, true, true) >= cost.amt)
@@ -479,8 +486,16 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 		return g_items[I_WOOD];
 	}
 	
-	RawItem getUpgradeCost(int materialType, int partType)
+	RawItem getUpgradeCost(int materialType, CBaseEntity@ part)
 	{
+		RawItem ret = getUpgradeCostBase(materialType, part);
+		ret.amt *= getModelSizei(part);
+		return ret;
+	}
+	
+	RawItem getUpgradeCostBase(int materialType, CBaseEntity@ part)
+	{
+		int partType = part.pev.colormap;
 		if (materialType == 0)
 		{	
 			switch(partType)
@@ -556,19 +571,30 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 		return RawItem(0,0);
 	}
 	
+	int getMaterialMaxHealth(int mat)
+	{
+		int health = MAX_HEALTH_TWIG;
+		switch(mat)
+		{
+			case 0: health = MAX_HEALTH_WOOD; break;
+			case 1: health = MAX_HEALTH_STONE; break;
+			case 2: health = MAX_HEALTH_METAL; break;
+			case 3: health = MAX_HEALTH_ARMOR; break;
+		}
+		return health;
+	}
+	
 	void UpgradeMenu()
 	{
 		CBasePlayer@ plr = getPlayer();
 		PlayerState@ state = getPlayerState(getPlayer());
 		state.initMenu(plr, upgradeMenuCallback);
-		
-		int partType = lookEnt.pev.colormap;
 
 		state.menu.SetTitle("Upgrade to:\n");
-		string woodCost = " (" + getUpgradeCost(0, partType).amt + " " + getUpgradeItem(0).title + ")";
-		string stoneCost = " (" + getUpgradeCost(1, partType).amt + " " + getUpgradeItem(1).title + ")";
-		string metalCost = " (" + getUpgradeCost(2, partType).amt + " " + getUpgradeItem(2).title + ")";
-		string armorCost = " (" + getUpgradeCost(3, partType).amt + " " + getUpgradeItem(3).title + ")";
+		string woodCost = " (" + getUpgradeCost(0, lookEnt).amt + " " + getUpgradeItem(0).title + ")";
+		string stoneCost = " (" + getUpgradeCost(1, lookEnt).amt + " " + getUpgradeItem(1).title + ")";
+		string metalCost = " (" + getUpgradeCost(2, lookEnt).amt + " " + getUpgradeItem(2).title + ")";
+		string armorCost = " (" + getUpgradeCost(3, lookEnt).amt + " " + getUpgradeItem(3).title + ")";
 		if (g_free_build)
 			woodCost = stoneCost = metalCost = armorCost = "";
 		state.menu.AddItem("Wood" + woodCost, any("wood"));
@@ -603,7 +629,7 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 			if (!g_free_build)
 			{
 				Item@ materialItem = getUpgradeItem(material);
-				RawItem cost = getUpgradeCost(material, partType);
+				RawItem cost = getUpgradeCost(material, lookEnt);
 				if (getItemCount(plr, cost.type) < cost.amt)
 				{
 					g_PlayerFuncs.PrintKeyBindingString(plr, "You need more " + materialItem.title);
@@ -634,15 +660,7 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 			if (buildEnt !is null)
 				buildEnt.pev.rendercolor = Vector(0, 255, 255);
 				
-			int health = 100;
-			switch(material)
-			{
-				case 0: health = 2000; break;
-				case 1: health = 5000; break;
-				case 2: health = 7000; break;
-				case 3: health = 9000; break;
-			}
-			lookEnt.pev.health = lookEnt.pev.max_health = health;
+			lookEnt.pev.health = lookEnt.pev.max_health = getMaterialMaxHealth(material)*getModelSizei(lookEnt);
 		}
 		else
 			g_PlayerFuncs.PrintKeyBindingString(getPlayer(), "Hammer not active");
@@ -658,6 +676,7 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 		int socket = socketType(ent.pev.colormap);
 		string size = getModelSize(ent);
 		string material = getMaterialType(ent);
+		int imat = getMaterialTypeInt(ent);
 		int fuseZone = getBuildZone(ent);
 		
 		array<CBaseEntity@> parts = { @ent };
@@ -789,8 +808,13 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 			}
 		}
 		
+		float partHealth = ent.pev.health / parts.length();
+		
+		
 		for (uint i = 0; i < parts.length(); i++)
 		{
+			parts[i].pev.max_health = getMaterialMaxHealth(imat);
+			parts[i].pev.health = partHealth;
 			if (parts[i] is null)
 			{
 				println("Failed to get adjacent square during separation");
@@ -1304,6 +1328,7 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 			}
 		}
 		
+		// begin the fuse
 		if (newModel.Length() > 0)
 		{
 			PlayerState@ state = getPlayerStateBySteamID(part2.pev.noise1, part2.pev.noise2);
@@ -1332,6 +1357,8 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 					}
 				}
 			}
+			part1.pev.max_health = getModelSizei(part1)*getMaterialMaxHealth(getMaterialTypeInt(part1));
+			part1.pev.health = part1.pev.health + part2.pev.health;
 			
 			g_SoundSystem.PlaySound(getPlayer().edict(), lastChannel, fuseSound, 1.0f, 1.0f, 0, Math.RandomLong(90, 110));
 			
