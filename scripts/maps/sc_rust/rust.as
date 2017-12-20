@@ -26,7 +26,8 @@
 // airdrops don't fall if the object they're sitting on is removed after they land
 // xen invasion
 // decay raider structures
-// bury nodes into the ground if not on a flat surface
+// distant explosion sounds
+// houndeye doesn't always stop attacking
 
 //
 // Game settings
@@ -37,7 +38,7 @@ int g_raider_points = 40; // best if multiple of zone count
 bool g_build_point_rounding = true; // rounds build points to a multiple of 10 (may reduce build points)
 bool g_disable_ents = false;
 bool g_build_anywhere = false; // disables build zones
-bool g_free_build = true; // buildings/items don't cost any materials
+bool g_free_build = false; // buildings/items don't cost any materials
 int g_inventory_size = 20;
 int g_max_item_drops = 9; // maximum item drops per player (more drops = less build points)
 float g_tool_cupboard_radius = 512;
@@ -51,7 +52,9 @@ float g_airdrop_max_delay = 30.0f; // time (in minutes) between airdrops
 float g_airdrop_first_delay = 20.0f; // time (in minutes) before the FIRST airdrop
 float g_node_spawn_time = 90.0f; // time (in seconds) between node spawns
 float g_chest_touch_dist = 96;
-int g_max_zone_monsters = 0;
+float g_gather_multiplier = 2.0f; // resource gather amount multiplied by this (for faster/slower games)
+float g_monster_forget_time = 60.0f; // time it takes for a monster to calm down after not seeing any players
+int g_max_zone_monsters = 4;
 
 
 //
@@ -279,7 +282,7 @@ class PlayerState
 	
 	void updateItemListQuick(int type, int newAmt)
 	{
-		if (newAmt == oldWeaponClip)
+		if (newAmt == oldWeaponClip or activeWepIdx == -1)
 			return;
 		if (newAmt < oldWeaponClip)
 		{
@@ -616,13 +619,15 @@ ZoneInfo g_zone_info;
 
 int MAX_SAVE_DATA_LENGTH = 1015; // Maximum length of a value saved with trigger_save. Discovered through testing
 
+string beta_dir = "beta/"; // set to blank before release, or change when assets need updating
+
 void MapInit()
 {
 	g_CustomEntityFuncs.RegisterCustomEntity( "weapon_building_plan", "weapon_building_plan" );
-	g_ItemRegistry.RegisterWeapon( "weapon_building_plan", "sc_rust", "" );
+	g_ItemRegistry.RegisterWeapon( "weapon_building_plan", "sc_rust/beta", "" );
 	
 	g_CustomEntityFuncs.RegisterCustomEntity( "weapon_hammer", "weapon_hammer" );
-	g_ItemRegistry.RegisterWeapon( "weapon_hammer", "sc_rust", "" );
+	g_ItemRegistry.RegisterWeapon( "weapon_hammer", "sc_rust/beta", "" );
 	
 	g_CustomEntityFuncs.RegisterCustomEntity( "func_breakable_custom", "func_breakable_custom" );
 	g_CustomEntityFuncs.RegisterCustomEntity( "func_build_zone", "func_build_zone" );
@@ -643,7 +648,6 @@ void MapInit()
 	g_Scheduler.SetTimeout("spawn_airdrop", g_airdrop_first_delay*60);
 	
 	PrecacheSound("tfc/items/itembk2.wav");
-	
 	PrecacheSound("sc_rust/bars_metal_place.ogg");
 	PrecacheSound("sc_rust/bars_wood_place.ogg");
 	PrecacheSound("sc_rust/code_lock_beep.ogg");
@@ -669,37 +673,36 @@ void MapInit()
 	PrecacheSound("sc_rust/high_wall_place_stone.ogg");
 	PrecacheSound("sc_rust/high_wall_place_wood.ogg");
 	PrecacheSound("sc_rust/stone_tree.ogg");
-	
-	// precache breakable object assets
 	PrecacheSound("debris/bustcrate1.wav");
 	PrecacheSound("debris/bustcrate2.wav");
 	PrecacheSound("debris/wood1.wav");
 	PrecacheSound("debris/wood2.wav");
 	PrecacheSound("debris/wood3.wav");
-	PrecacheSound("sc_rust/flesh1.ogg");
-	PrecacheSound("sc_rust/flesh2.ogg");
-	PrecacheSound("sc_rust/flesh3.ogg");
 	PrecacheSound("ambience/burning3.wav"); // furnace
 	PrecacheSound("items/ammopickup1.wav"); // armor
 	PrecacheSound("items/ammopickup2.wav"); // armor
 	PrecacheSound("player/pl_jump2.wav"); // item give/loot
+	PrecacheModel("models/woodgibs.mdl");
+	PrecacheModel("models/concrete_gibs.mdl");
+	PrecacheModel("models/metalplategibs.mdl");
+	PrecacheModel("models/skeleton.mdl");
+	PrecacheModel("sprites/xbeam4.spr");
+	
+	PrecacheSound("sc_rust/flesh1.ogg");
+	PrecacheSound("sc_rust/flesh2.ogg");
+	PrecacheSound("sc_rust/flesh3.ogg");
 	PrecacheSound("sc_rust/guitar.ogg");
 	PrecacheSound("sc_rust/guitar2.ogg");
 	PrecacheSound("sc_rust/c4_beep.wav");
 	PrecacheSound("sc_rust/fuse.ogg");
 	PrecacheSound("sc_rust/b17.ogg");
 	PrecacheSound("sc_rust/b17_far.ogg");
-	g_Game.PrecacheModel( "models/woodgibs.mdl" );
-	g_Game.PrecacheModel( "models/concrete_gibs.mdl" );
-	g_Game.PrecacheModel( "models/metalplategibs.mdl" );
-	g_Game.PrecacheModel( "models/sc_rust/pine_tree.mdl" );
-	g_Game.PrecacheModel( "models/sc_rust/rock.mdl" );
-	g_Game.PrecacheModel( "models/sc_rust/tr_barrel.mdl" );
-	g_Game.PrecacheModel( "models/skeleton.mdl" );
-	g_Game.PrecacheModel( "models/sc_rust/w_c4.mdl" );
-	g_Game.PrecacheModel( "models/sc_rust/b17.mdl" );
-	g_Game.PrecacheModel( "models/sc_rust/parachute.mdl" );
-	g_Game.PrecacheModel( "sprites/xbeam4.spr" );
+	PrecacheModel("models/sc_rust/pine_tree.mdl");
+	PrecacheModel("models/sc_rust/rock.mdl");
+	PrecacheModel("models/sc_rust/tr_barrel.mdl");
+	PrecacheModel("models/sc_rust/w_c4.mdl");
+	PrecacheModel("models/sc_rust/b17.mdl");
+	PrecacheModel("models/sc_rust/parachute.mdl");
 	
 	for (uint i = 0; i < g_material_damage_sounds.length(); i++)
 		for (uint k = 0; k < g_material_damage_sounds[i].length(); k++)
@@ -900,6 +903,32 @@ void MapActivate()
 	WeaponCustomMapActivate();
 	
 	removeExtraEnts();
+	
+	dropNodes();
+}
+
+void dropNodes()
+{
+	// place nodes on the ground (they're in the sky cause i'm too lazy to do this myself)
+	int count = 0;
+	CBaseEntity@ ent = null;
+	do {
+		@ent = g_EntityFuncs.FindEntityByTargetname(ent, "node_pos");
+		if (ent !is null) {
+			TraceResult tr;
+			g_Utility.TraceLine( ent.pev.origin, ent.pev.origin + Vector(0,0,-8192), ignore_monsters, null, tr );
+			Vector nodePos = tr.vecEndPos + Vector(0,0,1);
+			
+			dictionary keys;
+			keys["origin"] = nodePos.ToString();
+			g_EntityFuncs.CreateEntity("info_node", keys, true);
+			g_EntityFuncs.Remove(ent);
+			
+			count++;
+		}
+	} while (ent !is null);
+	
+	println("Dropped " + count + " nodes");
 }
 
 void removeExtraEnts()
@@ -991,6 +1020,7 @@ void player_respawn(CBaseEntity@ pActivator, CBaseEntity@ pCaller, USE_TYPE useT
 		plr.pev.origin = state.beds[i].GetEntity().pev.origin + Vector(0,0,40);
 	}
 	
+	plr.SetClassification(CLASS_HUMAN_MILITARY); // monsters will give this higher priority
 }
 
 EHandle createCorpse(CBasePlayer@ plr)
@@ -1418,18 +1448,18 @@ bool doRustCommand(CBasePlayer@ plr, const CCommand@ args)
 					PrintKeyBindingStringLong(plr, "Code accepted. Lock engaged.");
 					lock_object(ent, code, false);
 					clearDoorAuths(ent);
-					g_SoundSystem.PlaySound(ent.edict(), CHAN_ITEM, "sc_rust/code_lock_update.ogg", 1.0f, 1.0f, 0, 100);
+					g_SoundSystem.PlaySound(ent.edict(), CHAN_ITEM, fixPath("sc_rust/code_lock_update.ogg"), 1.0f, 1.0f, 0, 100);
 					state.authedLocks.insertLast(state.currentLock);
 				} 
 				else // guest is unlocking
 				{ 
 					if (code == ent.pev.noise3) {
 						PrintKeyBindingStringLong(plr, "Code accepted");
-						g_SoundSystem.PlaySound(ent.edict(), CHAN_ITEM, "sc_rust/code_lock_update.ogg", 1.0f, 1.0f, 0, 100);
+						g_SoundSystem.PlaySound(ent.edict(), CHAN_ITEM, fixPath("sc_rust/code_lock_update.ogg"), 1.0f, 1.0f, 0, 100);
 						state.authedLocks.insertLast(state.currentLock);
 					} else {
 						PrintKeyBindingStringLong(plr, "Incorrect code");
-						g_SoundSystem.PlaySound(ent.edict(), CHAN_ITEM, "sc_rust/code_lock_shock.ogg", 1.0f, 1.0f, 0, 100);
+						g_SoundSystem.PlaySound(ent.edict(), CHAN_ITEM, fixPath("sc_rust/code_lock_shock.ogg"), 1.0f, 1.0f, 0, 100);
 						plr.TakeDamage(ent.pev, ent.pev, 10.0f, DMG_SHOCK);
 					}	
 				}

@@ -185,10 +185,13 @@ class func_breakable_custom : ScriptBaseEntity
 			println("CREATE PART " + id + " WITH PARENT " + parent);
 		
 		
+		
 		if (isNode)
 		{
 			self.pev.effects = EF_NODRAW;
 		}
+		else
+			self.SetClassification(CLASS_PLAYER_ALLY);
 		
 		g_EntityFuncs.SetModel(self, self.pev.model);
 		//g_EntityFuncs.SetSize(self.pev, self.pev.mins, self.pev.maxs);
@@ -231,6 +234,10 @@ class func_breakable_custom : ScriptBaseEntity
 		int matid = getMaterialTypeInt(self);
 		if (matid < 0) matid = 0;
 		if (matid >= 3) matid = 2;
+		if (nodeType == NODE_ROCK)
+			matid = 1;
+		if (nodeType == NODE_BARREL)
+			matid = 2;
 		return @g_materials[matid];
 	}
 	
@@ -668,6 +675,8 @@ class func_breakable_custom : ScriptBaseEntity
 	{
 		if (dead)
 			return 0;
+			
+		//println("LE DMG: " + bitsDamageType);
 		
 		if (pevInflictor.classname != "func_breakable_custom" and !isDoor and !isLadder and !isWindowBars and !isItem and parent != -1)
 		{
@@ -753,6 +762,7 @@ class func_breakable_custom : ScriptBaseEntity
 					giveType = I_FUEL;
 				}
 				
+				giveAmount = int(giveAmount*g_gather_multiplier);
 				
 				if (hasSpace and giveAmount > 0)
 					g_PlayerFuncs.HudMessage(plr, params, "+" + int(giveAmount) + " " + g_items[giveType].title);
@@ -771,7 +781,6 @@ class func_breakable_custom : ScriptBaseEntity
 			}
 		}
 		
-		float dmgVolume = bitsDamageType & DMG_BURN != 0 ? 0.0f : 1.0f;
 		if (!isNode)
 		{
 			if (bitsDamageType & DMG_BLAST != 0)
@@ -780,6 +789,10 @@ class func_breakable_custom : ScriptBaseEntity
 					flDamage *= 6;
 				else
 					flDamage *= 10;
+			}
+			else if (bitsDamageType & DMG_SONIC != 0)
+			{
+				flDamage *= 5;
 			}
 			else if (bitsDamageType & DMG_BURN != 0)
 			{
@@ -798,6 +811,7 @@ class func_breakable_custom : ScriptBaseEntity
 		pev.health -= flDamage;
 		
 		BMaterial@ material = getMaterial();
+		float attn = 0.4f;
 		if (pev.health <= 0)
 		{
 			dead = true;
@@ -814,7 +828,7 @@ class func_breakable_custom : ScriptBaseEntity
 				}
 
 				string sound = material.breakSounds[ Math.RandomLong(0, material.breakSounds.length()-1) ];
-				g_SoundSystem.PlaySound(self.edict(), CHAN_STATIC, sound, 1.0f, 1.0f, 0, Math.RandomLong(85, 115));
+				g_SoundSystem.PlaySound(self.edict(), CHAN_STATIC, fixPath(sound), 1.0f, attn, 0, Math.RandomLong(85, 115));
 				
 				Vector center = getCentroid(self);
 				Vector mins = self.pev.mins;
@@ -835,7 +849,7 @@ class func_breakable_custom : ScriptBaseEntity
 			}
 			else
 			{
-				g_SoundSystem.PlaySound(self.edict(), CHAN_STATIC, "sc_rust/stone_tree.ogg", 1.0f, 1.0f, 0, 90 + Math.RandomLong(0, 20));
+				g_SoundSystem.PlaySound(self.edict(), CHAN_STATIC, fixPath("sc_rust/stone_tree.ogg"), 1.0f, attn, 0, 90 + Math.RandomLong(0, 20));
 			}
 
 			g_EntityFuncs.Remove(self);
@@ -857,12 +871,13 @@ class func_breakable_custom : ScriptBaseEntity
 				te_bloodsprite(mon.pev.origin + Vector(0,0,16), "sprites/bloodspray.spr", "sprites/blood.spr", BLOOD_COLOR_YELLOW);
 				
 				string sound = fleshSounds[ Math.RandomLong(0, fleshSounds.length()-1) ];
-				g_SoundSystem.PlaySound(self.edict(), CHAN_STATIC, sound, 0.8f, 1.0f, 0, Math.RandomLong(90, 110));
+				g_SoundSystem.PlaySound(self.edict(), CHAN_STATIC, fixPath(sound), 0.8f, attn, 0, Math.RandomLong(90, 110));
 			}
 			else
 			{
+				float dmgVolume = bitsDamageType & DMG_BURN != 0 ? 0.0f : 0.8f;
 				string sound = material.hitSounds[ Math.RandomLong(0, material.hitSounds.length()-1) ];
-				g_SoundSystem.PlaySound(self.edict(), CHAN_STATIC, sound, dmgVolume, 1.0f, 0, Math.RandomLong(90, 110));
+				g_SoundSystem.PlaySound(self.edict(), CHAN_STATIC, fixPath(sound), dmgVolume, attn, 0, Math.RandomLong(90, 110));
 			}
 		}
 		return 0;

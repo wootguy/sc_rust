@@ -13,7 +13,7 @@ class monster_c4 : ScriptBaseEntity
 		pev.movetype = MOVETYPE_FLY;
 		pev.solid = SOLID_NOT;
 		
-		g_EntityFuncs.SetModel(self, "models/sc_rust/w_c4.mdl");
+		g_EntityFuncs.SetModel(self, fixPath("models/sc_rust/w_c4.mdl"));
 		g_EntityFuncs.SetSize(self.pev, Vector( -8, -8, -8), Vector(8, 8, 8));
 		
 		// attach to surface
@@ -54,7 +54,7 @@ class monster_c4 : ScriptBaseEntity
 			g_EntityFuncs.Remove(self);
 		}
 		else
-			g_SoundSystem.PlaySound(self.edict(), CHAN_WEAPON, "sc_rust/c4_beep.wav", 1.0f, 1.0f, 0, 100);
+			g_SoundSystem.PlaySound(self.edict(), CHAN_WEAPON, fixPath("sc_rust/c4_beep.wav"), 1.0f, 1.0f, 0, 100);
 		
 		pev.nextthink = g_Engine.time + 1;
 	}
@@ -89,7 +89,7 @@ class monster_satchel_charge : ScriptBaseEntity
 		
 		g_EntityFuncs.SetOrigin( self, tr.vecEndPos);
 
-		g_SoundSystem.PlaySound(self.edict(), CHAN_WEAPON, "sc_rust/fuse.ogg", 1.0f, 1.0f, 0, 100);
+		g_SoundSystem.PlaySound(self.edict(), CHAN_WEAPON, fixPath("sc_rust/fuse.ogg"), 1.0f, 1.0f, 0, 100);
 		sparkPos = pev.origin + g_Engine.v_up*18 + g_Engine.v_right*-4 + g_Engine.v_forward*3;
 		deathTime = g_Engine.time + Math.RandomFloat(4, 20);
 		SetThink( ThinkFunction( Think ) );
@@ -103,7 +103,7 @@ class monster_satchel_charge : ScriptBaseEntity
 	{		
 		if (g_Engine.time > deathTime)
 		{			
-			g_SoundSystem.StopSound(self.edict(), CHAN_WEAPON, "sc_rust/fuse.ogg");
+			g_SoundSystem.StopSound(self.edict(), CHAN_WEAPON, fixPath("sc_rust/fuse.ogg"));
 			g_EntityFuncs.CreateExplosion(self.pev.origin, self.pev.angles, self.edict(), 126, true);
 			g_EntityFuncs.Remove(self);
 		}

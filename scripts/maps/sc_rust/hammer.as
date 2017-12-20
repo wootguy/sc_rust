@@ -91,7 +91,7 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 	void Spawn()
 	{		
 		Precache();
-		g_EntityFuncs.SetModel( self, "models/sc_rust/w_hammer.mdl" );
+		g_EntityFuncs.SetModel( self, fixPath("models/sc_rust/w_hammer.mdl") );
 
 		//self.m_iDefaultAmmo = 0;
 		//self.m_iClip = self.m_iDefaultAmmo;
@@ -103,9 +103,9 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 	void Precache()
 	{
 		self.PrecacheCustomModels();
-		g_Game.PrecacheModel( "models/sc_rust/w_hammer.mdl" );
-		g_Game.PrecacheModel( "models/sc_rust/p_hammer.mdl" );
-		g_Game.PrecacheModel( "models/sc_rust/v_hammer.mdl" );
+		PrecacheModel( "models/sc_rust/w_hammer.mdl" );
+		PrecacheModel( "models/sc_rust/p_hammer.mdl" );
+		PrecacheModel( "models/sc_rust/v_hammer.mdl" );
 		
 		PrecacheSound(repairSound);
 		PrecacheSound(swingSound);
@@ -160,7 +160,8 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 	bool Deploy()
 	{
 		
-		bool bResult = self.DefaultDeploy( self.GetV_Model( "models/sc_rust/v_hammer.mdl" ), self.GetP_Model( "models/sc_rust/p_hammer.mdl" ), 3, "crowbar" );
+		bool bResult = self.DefaultDeploy( self.GetV_Model( fixPath("models/sc_rust/v_hammer.mdl") ), 
+											self.GetP_Model( fixPath("models/sc_rust/p_hammer.mdl") ), 3, "crowbar" );
 		active = true;
 		createBuildEnts();
 		
@@ -420,14 +421,14 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 					printItemCost(plr, cost.type, -cost.amt, 0);
 				}
 				ent.pev.health += healAmt;
-				g_SoundSystem.PlaySound(plr.edict(), CHAN_ITEM, getRandomSound(upgradeWoodSounds), 1.0f, 1.0f, 0, 90 + Math.RandomLong(0, 20));
+				g_SoundSystem.PlaySound(plr.edict(), CHAN_ITEM, fixPath(getRandomSound(upgradeWoodSounds)), 1.0f, 1.0f, 0, 90 + Math.RandomLong(0, 20));
 			}
 			else
 			{
 				g_PlayerFuncs.PrintKeyBindingString(plr, "You need more " + g_items[cost.type].title);
 			}
 		}
-		g_SoundSystem.PlaySound(plr.edict(), lastChannel, getRandomSound(repairWoodSounds), 1.0f, 1.0f, 0, 90 + Math.RandomLong(0, 20));
+		g_SoundSystem.PlaySound(plr.edict(), lastChannel, fixPath(getRandomSound(repairWoodSounds)), 1.0f, 1.0f, 0, 90 + Math.RandomLong(0, 20));
 	}
 	
 	void Melee()
@@ -453,7 +454,7 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 					}
 					else if ((pHit.IsPlayer() or pHit.IsMonster()) and !pHit.IsMachine())
 					{
-						g_SoundSystem.PlaySound(plr.edict(), lastChannel, getRandomSound(hitFleshSounds), 0.9f, 1.0f, 0, 90 + Math.RandomLong(0, 20));
+						g_SoundSystem.PlaySound(plr.edict(), lastChannel, fixPath(getRandomSound(hitFleshSounds)), 0.9f, 1.0f, 0, 90 + Math.RandomLong(0, 20));
 
 						g_WeaponFuncs.ClearMultiDamage(); // fixes TraceAttack() crash for some reason
 						Vector attackDir = (tr.vecEndPos - plr.GetGunPosition()).Normalize();
@@ -462,7 +463,7 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 					}
 					else
 					{
-						g_SoundSystem.PlaySound(plr.edict(), lastChannel, worldHitSound, 0.9f, 1.0f, 0, 90 + Math.RandomLong(0, 20));
+						g_SoundSystem.PlaySound(plr.edict(), lastChannel, fixPath(worldHitSound), 0.9f, 1.0f, 0, 90 + Math.RandomLong(0, 20));
 					}
 				}
 			}
@@ -470,7 +471,7 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 		else
 		{
 			self.SendWeaponAnim( getRandomAnim(missAnims), 0, 0 );
-			g_SoundSystem.PlaySound(plr.edict(), lastChannel, swingSound, 1.0f, 1.0f, 0, 90 + Math.RandomLong(0, 20));
+			g_SoundSystem.PlaySound(plr.edict(), lastChannel, fixPath(swingSound), 1.0f, 1.0f, 0, 90 + Math.RandomLong(0, 20));
 		}
 	}
 	
@@ -496,7 +497,7 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 	RawItem getUpgradeCostBase(int materialType, CBaseEntity@ part)
 	{
 		int partType = part.pev.colormap;
-		if (materialType == 0)
+		if (materialType == 0 or materialType == -1)
 		{	
 			switch(partType)
 			{
@@ -638,7 +639,7 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 				}
 				else
 				{
-					printItemCost(plr, cost.type, cost.amt);
+					printItemCost(plr, cost.type, -cost.amt);
 					giveItem(plr, cost.type, -cost.amt, false);
 				}
 			}
@@ -651,7 +652,7 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 				case 2: upgradeSounds = upgradeMetalSounds; break;
 				case 3: upgradeSounds = upgradeMetalSounds; break;
 			}
-			g_SoundSystem.PlaySound(plr.edict(), lastChannel, getRandomSound(upgradeSounds), 1.0f, 1.0f, 0, 90 + Math.RandomLong(0, 20));
+			g_SoundSystem.PlaySound(plr.edict(), lastChannel, fixPath(getRandomSound(upgradeSounds)), 1.0f, 1.0f, 0, 90 + Math.RandomLong(0, 20));
 			lastChannel = lastChannel == CHAN_WEAPON ? CHAN_VOICE : CHAN_WEAPON;
 			
 			g_EntityFuncs.SetModel( lookEnt, getModelFromName(partname + size + matname));
@@ -829,7 +830,7 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 			bpart.parent = -1;
 		}
 		
-		g_SoundSystem.PlaySound(getPlayer().edict(), lastChannel, separateSound, 1.0f, 1.0f, 0, Math.RandomLong(90, 110));
+		g_SoundSystem.PlaySound(getPlayer().edict(), lastChannel, fixPath(separateSound), 1.0f, 1.0f, 0, Math.RandomLong(90, 110));
 
 		cancelFuse("Fused parts were separated");
 	}
@@ -1360,7 +1361,7 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 			part1.pev.max_health = getModelSizei(part1)*getMaterialMaxHealth(getMaterialTypeInt(part1));
 			part1.pev.health = part1.pev.health + part2.pev.health;
 			
-			g_SoundSystem.PlaySound(getPlayer().edict(), lastChannel, fuseSound, 1.0f, 1.0f, 0, Math.RandomLong(90, 110));
+			g_SoundSystem.PlaySound(getPlayer().edict(), lastChannel, fixPath(fuseSound), 1.0f, 1.0f, 0, Math.RandomLong(90, 110));
 			
 			cancelFuse();
 			return;

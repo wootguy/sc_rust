@@ -321,7 +321,7 @@ array<Item> g_items = {
 		"Keep your things in this storage box. Stores up to " + CHEST_ITEM_MAX_LARGE + " items."),
 	Item(I_FURNACE, 1, false, false, "b_furnace", "", "Furnace", RawItem(I_STONE, 300), RawItem(I_FUEL, 50),
 		"Use this to smelt mined ore."),
-	Item(I_BED, 1, false, false, "b_bag", "", "Sleeping Bag", RawItem(I_WOOD, 100), RawItem(I_SCRAP, 5),
+	Item(I_BED, 1, false, false, "b_bed", "", "Sleeping Bag", RawItem(I_WOOD, 100), RawItem(I_SCRAP, 5),
 		"Placing this gives you a location to respawn."),
 	
 	Item(I_WOOD, 1000, false, false, "", "", "Wood", null, null,
@@ -420,7 +420,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 	void Spawn()
 	{		
 		Precache();
-		g_EntityFuncs.SetModel( self, "models/sc_rust/w_blueprint.mdl" );
+		g_EntityFuncs.SetModel( self, fixPath("models/sc_rust/w_blueprint.mdl") );
 
 		//self.m_iDefaultAmmo = 0;
 		//self.m_iClip = self.m_iDefaultAmmo;
@@ -432,9 +432,9 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 	void Precache()
 	{
 		self.PrecacheCustomModels();
-		g_Game.PrecacheModel( "models/sc_rust/w_blueprint.mdl" );
-		g_Game.PrecacheModel( "models/sc_rust/p_blueprint.mdl" );
-		g_Game.PrecacheModel( "models/sc_rust/v_blueprint.mdl" );
+		PrecacheModel( "models/sc_rust/w_blueprint.mdl" );
+		PrecacheModel( "models/sc_rust/p_blueprint.mdl" );
+		PrecacheModel( "models/sc_rust/v_blueprint.mdl" );
 		
 		PrecacheSound("sc_rust/build1.ogg");
 		PrecacheSound("sc_rust/build2.ogg");
@@ -468,8 +468,8 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 	
 	bool Deploy()
 	{
-		bool bResult = self.DefaultDeploy( self.GetV_Model( "models/sc_rust/v_blueprint.mdl" ), 
-										   self.GetP_Model( "models/sc_rust/p_blueprint.mdl" ), 0, "trip" );
+		bool bResult = self.DefaultDeploy( self.GetV_Model( fixPath("models/sc_rust/v_blueprint.mdl") ), 
+										   self.GetP_Model( fixPath("models/sc_rust/p_blueprint.mdl") ), 0, "trip" );
 		
 		createBuildEnts();
 		
@@ -1442,7 +1442,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 				attachEnt.pev.button = 1;
 				attachEnt.pev.body = 0;
 				
-				g_SoundSystem.PlaySound(attachEnt.edict(), CHAN_STATIC, soundFile, 1.0f, 1.0f, 0, 90 + Math.RandomLong(0, 20));
+				g_SoundSystem.PlaySound(attachEnt.edict(), CHAN_STATIC, fixPath(soundFile), 1.0f, 1.0f, 0, 90 + Math.RandomLong(0, 20));
 				return true;
 			}
 		
@@ -1515,7 +1515,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 				ent2.pev.vuser1 = ent2.pev.angles;
 				ent2.pev.vuser2 = ent2.pev.angles + Vector(0,150,0);	
 				
-				g_SoundSystem.PlaySound(ent.edict(), CHAN_STATIC, "sc_rust/shutters_wood_place.ogg", 1.0f, 1.0f, 0, 90 + Math.RandomLong(0, 20));
+				g_SoundSystem.PlaySound(ent.edict(), CHAN_STATIC, fixPath("sc_rust/shutters_wood_place.ogg"), 1.0f, 1.0f, 0, 90 + Math.RandomLong(0, 20));
 				
 				g_build_parts.insertLast(EHandle(ent));
 				g_build_parts.insertLast(EHandle(ent2));
@@ -1528,7 +1528,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 			{				
 				@ent = g_EntityFuncs.CreateEntity("func_breakable_custom", keys, true);
 				
-				g_SoundSystem.PlaySound(ent.edict(), CHAN_STATIC, soundFile, 1.0f, 1.0f, 0, 90 + Math.RandomLong(0, 20));
+				g_SoundSystem.PlaySound(ent.edict(), CHAN_STATIC, fixPath(soundFile), 1.0f, 1.0f, 0, 90 + Math.RandomLong(0, 20));
 				
 				EHandle h_ent = ent;
 				g_build_parts.insertLast(EHandle(ent));

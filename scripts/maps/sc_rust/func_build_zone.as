@@ -53,8 +53,10 @@ class func_build_zone : ScriptBaseEntity
 	array<EHandle> animals;
 	array<EHandle> subZones;
 	
+	// too OP:
+	// "agrunt_spawner"
 	array<string> monster_spawners = {"houndeye_spawner", "gonome_spawner", "bullsquid_spawner", "headcrab_spawner",
-									  "slave_spawner", "agrunt_spawner", "babygarg_spawner", "babyvolt_spawner",
+									  "slave_spawner", "babygarg_spawner", "babyvolt_spawner",
 									  "pitdrone_spawner"};
 	
 	bool KeyValue( const string& in szKey, const string& in szValue )
@@ -243,32 +245,40 @@ class func_build_zone : ScriptBaseEntity
 			if (node.IsMonster())
 			{
 				numMonsters++;
-				if (node.GetClassification(0) != CLASS_ALIEN_MONSTER)
+				CBaseMonster@ mon = cast<CBaseMonster@>(node);
+				if (mon.pev.armorvalue < g_Engine.time)
 				{
-					CBaseMonster@ mon = cast<CBaseMonster@>(node);
-					if (mon.pev.armorvalue < g_Engine.time)
-					{
-						mon.pev.armorvalue = g_Engine.time + 1.0f;
-						CBaseEntity@ ent = null;
-						do {
-							@ent = g_EntityFuncs.FindEntityInSphere(ent, mon.pev.origin, xen_agro_dist, "player", "classname");
-							if (ent !is null)
-							{								
-								// check line-of-sight
-								TraceResult tr;
-								g_Utility.TraceLine( mon.EyePosition(), ent.pev.origin, dont_ignore_monsters, mon.edict(), tr );
-								CBaseEntity@ pHit = g_EntityFuncs.Instance( tr.pHit );
-								if (pHit !is null and pHit.entindex() == ent.entindex())
+					mon.pev.armorvalue = g_Engine.time + 1.0f;
+					CBaseEntity@ ent = null;
+					do {
+						@ent = g_EntityFuncs.FindEntityInSphere(ent, mon.pev.origin, xen_agro_dist, "player", "classname");
+						if (ent !is null)
+						{								
+							// check line-of-sight
+							TraceResult tr;
+							g_Utility.TraceLine( mon.EyePosition(), ent.pev.origin, dont_ignore_monsters, mon.edict(), tr );
+							CBaseEntity@ pHit = g_EntityFuncs.Instance( tr.pHit );
+							if (pHit !is null and pHit.entindex() == ent.entindex())
+							{
+								if (mon.GetClassification(0) != CLASS_ALIEN_MILITARY)
 								{
-									mon.SetClassification(CLASS_ALIEN_MONSTER);
+									mon.SetClassification(CLASS_ALIEN_MILITARY); // Hate players, dislike player allies
+									mon.pev.noise3 = mon.m_FormattedName;
 									mon.m_FormattedName = "" + mon.m_FormattedName + " (angry)";
-									//mon.MonsterUse(ent, ent, USE_TOGGLE, 0);
-									mon.PushEnemy(ent, ent.pev.origin);
+									mon.MonsterUse(ent, ent, USE_TOGGLE, 0);
+									//mon.PushEnemy(ent, ent.pev.origin);
 									//mon.m_flDistLook = 32;
 								}
+								mon.pev.teleport_time = g_Engine.time; // save last time player was seen
 							}
-						} while (ent !is null);
-					}		
+						}
+					} while (ent !is null);
+				}	
+				if (mon.GetClassification(0) != CLASS_NONE and mon.pev.teleport_time + g_monster_forget_time < g_Engine.time)
+				{
+					mon.SetClassification(CLASS_FORCE_NONE);
+					mon.ClearEnemyList();
+					mon.m_FormattedName = mon.pev.noise3;
 				}
 			}
 			else if (node.pev.classname == "func_breakable_custom")
@@ -383,7 +393,7 @@ class func_build_zone : ScriptBaseEntity
 						
 						ori.z += itemHeight;
 						keys["origin"] = ori.ToString();
-						keys["model"] = itemModel;
+						keys["model"] = fixPath(itemModel);
 						keys["movetype"] = "5";
 						keys["scale"] = "1";
 						keys["sequencename"] = "idle";

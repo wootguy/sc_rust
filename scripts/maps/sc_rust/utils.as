@@ -1284,7 +1284,21 @@ Team@ getPlayerTeam(CBasePlayer@ plr)
 }
 
 void PrecacheSound(string snd)
+{		
+	g_SoundSystem.PrecacheSound(fixPath(snd));
+	g_Game.PrecacheGeneric("sound/" + fixPath(snd));
+}
+
+void PrecacheModel(string mdl)
 {
-	g_SoundSystem.PrecacheSound(snd);
-	g_Game.PrecacheGeneric("sound/" + snd);
+	g_Game.PrecacheModel( fixPath(mdl) );
+}
+
+string fixPath(string asset)
+{
+	if (beta_dir.Length() > 0)
+	{
+		return asset.Replace("sc_rust/", "sc_rust/" + beta_dir);
+	}
+	return asset;
 }

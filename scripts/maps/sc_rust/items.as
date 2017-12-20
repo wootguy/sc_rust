@@ -152,6 +152,7 @@ void inventoryCheck()
 				
 				if (closestItem.IsPlayer() and (plr.pev.button & IN_USE) != 0)
 				{
+					CBasePlayer@ revPlr = cast<CBasePlayer@>(closestItem);
 					if (state.reviving)
 					{
 						float time = g_Engine.time - state.reviveStart;
@@ -164,7 +165,10 @@ void inventoryCheck()
 						progress += "]";
 						
 						if (time > 0.5f)
-							g_PlayerFuncs.HudMessage(plr, params, "Reviving " + closestItem.pev.netname + progress);
+						{
+							g_PlayerFuncs.HudMessage(plr, params, "Reviving " + revPlr.pev.netname + progress);
+							g_PlayerFuncs.HudMessage(revPlr, params, "" + plr.pev.netname + " is reviving you" + progress);
+						}
 						
 						if (time > g_revive_time)
 						{
@@ -943,7 +947,7 @@ void playerMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CText
 				int barf = giveItem(plr, itemType, amt, false, true, true);
 				if (barf == 0)
 				{
-					g_SoundSystem.PlaySound(plr.edict(), CHAN_ITEM, "sc_rust/build1.ogg", 1.0f, 1.0f, 0, Math.RandomLong(140, 160));
+					g_SoundSystem.PlaySound(plr.edict(), CHAN_ITEM, fixPath("sc_rust/build1.ogg"), 1.0f, 1.0f, 0, Math.RandomLong(140, 160));
 				}
 				else
 				{
@@ -1505,6 +1509,12 @@ void lootMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextMe
 
 void openLootMenu(CBasePlayer@ plr, CBaseEntity@ corpse, string submenu="")
 {
+	if (corpse is null or plr is null)
+	{
+		println("Null player/corpse!");
+		return;
+	}
+	
 	PlayerState@ state = getPlayerState(plr);
 	state.initMenu(plr, lootMenuCallback);
 	state.currentChest = corpse;
@@ -1679,7 +1689,7 @@ void rotate_door(CBaseEntity@ door, bool playSound)
 	}
 	
 	if (playSound) {
-		g_SoundSystem.PlaySound(door.edict(), CHAN_ITEM, soundFile, 1.0f, 1.0f, 0, 90 + Math.RandomLong(0, 20));
+		g_SoundSystem.PlaySound(door.edict(), CHAN_ITEM, fixPath(soundFile), 1.0f, 1.0f, 0, 90 + Math.RandomLong(0, 20));
 	}	
 	
 	if (dest != door.pev.angles) {
@@ -1753,11 +1763,11 @@ void codeLockMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTe
 	}
 	if (action == "unlock") {
 		lock_object(state.currentLock, "", true);
-		g_SoundSystem.PlaySound(lock.edict(), CHAN_ITEM, "sc_rust/code_lock_beep.ogg", 1.0f, 1.0f, 0, 100);
+		g_SoundSystem.PlaySound(lock.edict(), CHAN_ITEM, fixPath("sc_rust/code_lock_beep.ogg"), 1.0f, 1.0f, 0, 100);
 	}
 	if (action == "lock") {
 		lock_object(state.currentLock, "", false);
-		g_SoundSystem.PlaySound(lock.edict(), CHAN_ITEM, "sc_rust/code_lock_beep.ogg", 1.0f, 1.0f, 0, 55);
+		g_SoundSystem.PlaySound(lock.edict(), CHAN_ITEM, fixPath("sc_rust/code_lock_beep.ogg"), 1.0f, 1.0f, 0, 55);
 	}
 	if (action == "remove")
 	{	
@@ -1771,7 +1781,7 @@ void codeLockMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTe
 		int oldcolormap = lock.pev.colormap;
 		g_EntityFuncs.SetModel(lock, getModelFromName(newModel));
 		lock.pev.colormap = oldcolormap;
-		g_SoundSystem.PlaySound(lock.edict(), CHAN_ITEM, "sc_rust/code_lock_place.ogg", 1.0f, 1.0f, 0, 100);		
+		g_SoundSystem.PlaySound(lock.edict(), CHAN_ITEM, fixPath("sc_rust/code_lock_place.ogg"), 1.0f, 1.0f, 0, 100);		
 		giveItem(@plr, I_CODE_LOCK, 1);
 		
 		lock.pev.button = 0;
@@ -1866,11 +1876,11 @@ HookReturnCode PlayerUse( CBasePlayer@ plr, uint& out )
 					{
 						rotate_door(phit, true);
 						if (locked) {
-							g_SoundSystem.PlaySound(phit.edict(), CHAN_WEAPON, "sc_rust/code_lock_beep.ogg", 1.0f, 1.0f, 0, 100);
+							g_SoundSystem.PlaySound(phit.edict(), CHAN_WEAPON, fixPath("sc_rust/code_lock_beep.ogg"), 1.0f, 1.0f, 0, 100);
 						}
 					}
 					if (locked and !authed)
-						g_SoundSystem.PlaySound(phit.edict(), CHAN_WEAPON, "sc_rust/code_lock_denied.ogg", 1.0f, 1.0f, 0, 100);
+						g_SoundSystem.PlaySound(phit.edict(), CHAN_WEAPON, fixPath("sc_rust/code_lock_denied.ogg"), 1.0f, 1.0f, 0, 100);
 				}
 			}
 			else if (phit.pev.colormap == B_WOOD_SHUTTERS)
