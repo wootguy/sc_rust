@@ -459,6 +459,7 @@ CBaseEntity@ spawnItem(Vector origin, int type, int amt)
 	keys["weight"] = "0";
 	keys["spawnflags"] = "" + (256 + 512 + 128);
 	keys["solid"] = "0";
+	keys["movetype"] = "5";
 	keys["return_timelimit"] = "-1";
 	keys["holder_can_drop"] = "1";
 	keys["carried_hidden"] = "1";
@@ -590,6 +591,7 @@ int giveItem(CBasePlayer@ plr, int type, int amt, bool drop=false, bool combineS
 	keys["weight"] = "0";
 	keys["spawnflags"] = "" + (256 + 512 + 128);
 	keys["solid"] = "0";
+	keys["movetype"] = "5";
 	keys["return_timelimit"] = "-1";
 	keys["holder_can_drop"] = "1";
 	keys["carried_hidden"] = "1";

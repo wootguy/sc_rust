@@ -1,7 +1,3 @@
-int MAX_VISIBLE_ENTS = 510;
-uint NODES_PER_ZONE = 128;
-float xen_agro_dist = 400.0f;
-
 class BuildZone
 {
 	int numRaiderParts = 0; // number of total build parts in this zone
@@ -86,12 +82,11 @@ class func_build_zone : ScriptBaseEntity
 		g_EntityFuncs.SetOrigin(self, self.pev.origin);
 		
 		maxNodes = NODES_PER_ZONE;
-		
-		UpdateNodeRatios();
 	}
 	
 	void Enable()
 	{
+		UpdateNodeRatios();
 		SetThink( ThinkFunction( ZoneThink ) );
 		pev.nextthink = g_Engine.time;
 	}
@@ -251,7 +246,7 @@ class func_build_zone : ScriptBaseEntity
 					mon.pev.armorvalue = g_Engine.time + 1.0f;
 					CBaseEntity@ ent = null;
 					do {
-						@ent = g_EntityFuncs.FindEntityInSphere(ent, mon.pev.origin, xen_agro_dist, "player", "classname");
+						@ent = g_EntityFuncs.FindEntityInSphere(ent, mon.pev.origin, g_xen_agro_dist, "player", "classname");
 						if (ent !is null)
 						{								
 							// check line-of-sight

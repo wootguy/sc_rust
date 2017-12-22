@@ -29,6 +29,22 @@
 // distant explosion sounds
 // houndeye doesn't always stop attacking
 
+// allow dropping weapons, but convert to an item with the same model
+// allow placing chests under stairs
+// monsters congregating in corner shore_zone (bullquid to blame?)
+// Need more WOOD DOOR to repair door
+// baby garg wasn't getting killed by bow
+// flesh doesn't spawn where monsters die depending on death animation
+// monsters attack each other if only one is agro
+// monsters in water
+// monster revived itself while it was dieing!
+// airplane getting lighting from ground
+// hatchet and other tools mb are still too loud
+// C4 was empty on death
+// flying ammo lol
+// collecting items is sometimes difficult
+
+
 //
 // Game settings
 //
@@ -50,11 +66,13 @@ float g_revive_time = 5.0f; // time needed to revive player holding USE
 float g_airdrop_min_delay = 15.0f; // time (in minutes) between airdrops
 float g_airdrop_max_delay = 30.0f; // time (in minutes) between airdrops
 float g_airdrop_first_delay = 20.0f; // time (in minutes) before the FIRST airdrop
-float g_node_spawn_time = 90.0f; // time (in seconds) between node spawns
+float g_node_spawn_time = 120.0f; // time (in seconds) between node spawns
 float g_chest_touch_dist = 96;
 float g_gather_multiplier = 2.0f; // resource gather amount multiplied by this (for faster/slower games)
 float g_monster_forget_time = 60.0f; // time it takes for a monster to calm down after not seeing any players
-int g_max_zone_monsters = 4;
+int g_max_zone_monsters = 6;
+uint NODES_PER_ZONE = 128;
+float g_xen_agro_dist = 300.0f;
 
 
 //
@@ -618,6 +636,7 @@ int g_part_id = 0;
 ZoneInfo g_zone_info;
 
 int MAX_SAVE_DATA_LENGTH = 1015; // Maximum length of a value saved with trigger_save. Discovered through testing
+int MAX_VISIBLE_ENTS = 510;
 
 string beta_dir = "beta/"; // set to blank before release, or change when assets need updating
 
