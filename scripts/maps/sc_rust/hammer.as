@@ -569,6 +569,15 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 				case B_ROOF: 				return RawItem(I_HQMETAL, 100);
 			}
 		}
+		
+		int itemId = part.pev.colormap;
+		if (itemId >= 0 and itemId < int(g_part_info.length()))
+		{
+			Item@ item = getItemByClassname(g_part_info[itemId].copy_ent);
+			println("repair a " + item.title);
+			if (item !is null and item.costs.length() > 0)
+				return item.costs[0];
+		}
 		return RawItem(0,0);
 	}
 	

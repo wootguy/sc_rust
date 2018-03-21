@@ -36,11 +36,11 @@ void inventoryCheck()
 		}
 	} while (ent !is null);
 	
-	/*
+	
 	// check for dropped weapons
 	CBaseEntity@ wep = null;
 	do {
-		@wep = g_EntityFuncs.FindEntityByClassname(wep, "weaponbox");
+		@wep = g_EntityFuncs.FindEntityByClassname(wep, "weapon*");
 		if (wep !is null and wep.pev.noise3 == "")
 		{
 			CBaseEntity@ owner = g_EntityFuncs.Instance(wep.pev.owner);
@@ -48,19 +48,16 @@ void inventoryCheck()
 			{
 				CBasePlayer@ plr = cast<CBasePlayer@>(owner);
 				PlayerState@ state = getPlayerState(plr);
-				
-				if (plr.pev.deadflag > 0)
-				{
-					// don't drop weapons on death
-					wep.Touch(plr);
-					wep.pev.effects = EF_NODRAW;
-					wep.pev.movetype = MOVETYPE_NONE;
-				}
+				//wep.pev.noise3 = getPlayerUniqueId(plr);
 				
 				if (state.droppedItems >= g_max_item_drops)
 				{
+					//plr.SetItemPickupTimes(0);
+					//wep.pev.flags |= FL_ONGROUND;
+					
 					wep.Touch(plr);
-					wep.pev.effects = EF_NODRAW;
+					
+					//wep.pev.effects = EF_NODRAW;
 					wep.pev.movetype = MOVETYPE_NONE;
 					g_PlayerFuncs.PrintKeyBindingString(plr, "Can't drop more than " + g_max_item_drops + " item" + (g_max_item_drops > 1 ? "s" : ""));
 				}
@@ -73,7 +70,7 @@ void inventoryCheck()
 			}
 		}
 	} while(wep !is null);
-	*/
+	
 	
 	CBaseEntity@ e_plr = null;
 	do {

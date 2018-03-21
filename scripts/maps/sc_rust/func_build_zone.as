@@ -48,6 +48,7 @@ class func_build_zone : ScriptBaseEntity
 	array<EHandle> nodes; // trees & rocks
 	array<EHandle> animals;
 	array<EHandle> subZones;
+	array<Vector> ainodes; // list of node locations
 	
 	// too OP:
 	// "agrunt_spawner"
@@ -88,7 +89,7 @@ class func_build_zone : ScriptBaseEntity
 	{
 		UpdateNodeRatios();
 		SetThink( ThinkFunction( ZoneThink ) );
-		pev.nextthink = g_Engine.time;
+		pev.nextthink = g_Engine.time + 3.0f; // wait for node graph to generate before spawning stuff
 	}
 	
 	void UpdateNodeRatios()
@@ -237,16 +238,18 @@ class func_build_zone : ScriptBaseEntity
 				continue;
 			}
 			CBaseEntity@ node = nodes[i];
-			if (node.IsMonster())
+			if (node.IsMonster() and node.IsAlive())
 			{
 				numMonsters++;
 				CBaseMonster@ mon = cast<CBaseMonster@>(node);
+				bool isAgro = mon.GetClassification(0) != CLASS_NONE or mon.m_hEnemy.IsValid();
 				if (mon.pev.armorvalue < g_Engine.time)
 				{
 					mon.pev.armorvalue = g_Engine.time + 1.0f;
 					CBaseEntity@ ent = null;
 					do {
-						@ent = g_EntityFuncs.FindEntityInSphere(ent, mon.pev.origin, g_xen_agro_dist, "player", "classname");
+						float radius = isAgro ? mon.m_flDistLook : g_xen_agro_dist;
+						@ent = g_EntityFuncs.FindEntityInSphere(ent, mon.pev.origin, radius, "player", "classname");
 						if (ent !is null)
 						{								
 							// check line-of-sight
@@ -255,7 +258,7 @@ class func_build_zone : ScriptBaseEntity
 							CBaseEntity@ pHit = g_EntityFuncs.Instance( tr.pHit );
 							if (pHit !is null and pHit.entindex() == ent.entindex())
 							{
-								if (mon.GetClassification(0) != CLASS_ALIEN_MILITARY)
+								if (!isAgro)
 								{
 									mon.SetClassification(CLASS_ALIEN_MILITARY); // Hate players, dislike player allies
 									mon.pev.noise3 = mon.m_FormattedName;
@@ -269,12 +272,41 @@ class func_build_zone : ScriptBaseEntity
 						}
 					} while (ent !is null);
 				}	
-				if (mon.GetClassification(0) != CLASS_NONE and mon.pev.teleport_time + g_monster_forget_time < g_Engine.time)
+				if (isAgro and mon.pev.teleport_time + g_monster_forget_time < g_Engine.time)
 				{
 					mon.SetClassification(CLASS_FORCE_NONE);
 					mon.ClearEnemyList();
-					mon.m_FormattedName = mon.pev.noise3;
+					mon.ClearSchedule();
+					if (mon.GetClassification(0) != CLASS_NONE)
+						mon.m_FormattedName = mon.pev.noise3;
 				}
+				/*
+				if (mon.GetClassification(0) == CLASS_NONE and mon.pev.armortype < g_Engine.time)
+				{
+					mon.pev.armortype = g_Engine.time + 10.0f;
+					println("SEQUENCE BEGINS NOW");
+					
+					Vector sequencePos;
+					if (ainodes.length() > 0)
+						sequencePos = ainodes[Math.RandomLong(0, ainodes.length()-1)];
+					else
+						println("Zone " + id + " has no ainodes");
+					
+					sequencePos.z -= 96;
+					
+					dictionary keys;
+					keys["origin"] = sequencePos.ToString();
+					keys["targetname"] = "" + mon.pev.targetname + "_sequence";
+					keys["m_iszEntity"] = "" + mon.pev.targetname;
+					keys["m_fMoveTo"] = "2";
+					keys["moveto_radius"] = "128";
+					keys["spawnflags"] = "320";
+					
+					CBaseEntity@ seq = g_EntityFuncs.CreateEntity("scripted_sequence", keys, true);
+					g_EntityFuncs.FireTargets(seq.pev.targetname, null, null, USE_TOGGLE);
+					te_beampoints(mon.pev.origin, seq.pev.origin);
+				}
+				*/
 			}
 			else if (node.pev.classname == "func_breakable_custom")
 			{
@@ -364,7 +396,8 @@ class func_build_zone : ScriptBaseEntity
 								@ent = g_EntityFuncs.FindEntityByTargetname(ent, spawner.pev.netname);
 								if (ent !is null)
 								{
-									ent.pev.targetname = "node_xen";
+									//ent.pev.targetname = "node_xen";
+									ent.pev.armortype = g_Engine.time + 10.0f;
 									nodes.insertLast(EHandle(ent));
 								}
 							} while (ent !is null);

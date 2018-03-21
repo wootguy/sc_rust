@@ -28,22 +28,37 @@
 // decay raider structures
 // distant explosion sounds
 // houndeye doesn't always stop attacking
-
-// allow dropping weapons, but convert to an item with the same model
+// part highlighting/info traces should be consistent
+// allow dropping weapons, but convert to an item with the same model(?)
 // allow placing chests under stairs
-// monsters congregating in corner shore_zone (bullquid to blame?)
-// Need more WOOD DOOR to repair door
+// maps
+// sniper doesn't zoom in after 
+// blue blood sniper
+// fuse part rotated piece (4x1 bridge square floor)
+// cant place doors in fused doorways
+// still firing flmaethrower (animation)
+// monsters tend to crap up the server (20 per zone unplayable)
+
+// monsters congregating in one spot in most zones
 // baby garg wasn't getting killed by bow
 // flesh doesn't spawn where monsters die depending on death animation
 // monsters attack each other if only one is agro
-// monsters in water
-// monster revived itself while it was dieing!
 // airplane getting lighting from ground
 // hatchet and other tools mb are still too loud
 // C4 was empty on death
 // flying ammo lol
 // collecting items is sometimes difficult
+// footstep sound for build mats
+// extra poly (misaligned floor) between snow and desert area
+// base loading crashes
+// 20 items and u crash if look at inventory?
+// disable time limit!
+// disable super damage for deagle
+// sniper too powerful?
+// rejoining didn't spawn in the right place (cause i did .clean ?)
+// func_breakable_custom line 696 null pointer in takedamage
 
+// note: impulse 197 = show node connections
 
 //
 // Game settings
@@ -53,10 +68,10 @@ int g_settler_reduction = 1; // reduces settlers per zone to increase build poin
 int g_raider_points = 40; // best if multiple of zone count
 bool g_build_point_rounding = true; // rounds build points to a multiple of 10 (may reduce build points)
 bool g_disable_ents = false;
-bool g_build_anywhere = false; // disables build zones
-bool g_free_build = false; // buildings/items don't cost any materials
+bool g_build_anywhere = true; // disables build zones
+bool g_free_build = true; // buildings/items don't cost any materials
 int g_inventory_size = 20;
-int g_max_item_drops = 9; // maximum item drops per player (more drops = less build points)
+int g_max_item_drops = 2; // maximum item drops per player (more drops = less build points)
 float g_tool_cupboard_radius = 512;
 int g_max_corpses = 2; // max corpses per player (should be at least 2 to prevent despawning valuable loot)
 float g_corpse_time = 60.0f; // time (in seconds) before corpses despawn
@@ -69,9 +84,9 @@ float g_airdrop_first_delay = 20.0f; // time (in minutes) before the FIRST airdr
 float g_node_spawn_time = 120.0f; // time (in seconds) between node spawns
 float g_chest_touch_dist = 96;
 float g_gather_multiplier = 2.0f; // resource gather amount multiplied by this (for faster/slower games)
-float g_monster_forget_time = 60.0f; // time it takes for a monster to calm down after not seeing any players
+float g_monster_forget_time = 6.0f; // time it takes for a monster to calm down after not seeing any players
 int g_max_zone_monsters = 6;
-uint NODES_PER_ZONE = 128;
+uint NODES_PER_ZONE = 16;
 float g_xen_agro_dist = 300.0f;
 
 
@@ -458,11 +473,21 @@ class PlayerState
 	{
 		for (uint i = 0; i < droppedWeapons.size(); i++)
 		{
-			if (!droppedWeapons[i].IsValid())
+			bool pickedup = true;
+			if (droppedWeapons[i].IsValid())
 			{
+				CBaseEntity@ wep = droppedWeapons[i];
+				CBaseEntity@ aiment = g_EntityFuncs.Instance(wep.pev.aiment);
+				pickedup = aiment !is null;
+			}
+			
+			if (pickedup)
+			{
+				// weapon picked up
 				droppedWeapons.removeAt(i);
 				i--;
 				droppedItems--;
+				continue;
 			}
 		}
 	}
@@ -642,6 +667,8 @@ string beta_dir = "beta/"; // set to blank before release, or change when assets
 
 void MapInit()
 {
+	debug_mode = true;
+	
 	g_CustomEntityFuncs.RegisterCustomEntity( "weapon_building_plan", "weapon_building_plan" );
 	g_ItemRegistry.RegisterWeapon( "weapon_building_plan", "sc_rust/beta", "" );
 	
@@ -937,11 +964,24 @@ void dropNodes()
 			TraceResult tr;
 			g_Utility.TraceLine( ent.pev.origin, ent.pev.origin + Vector(0,0,-8192), ignore_monsters, null, tr );
 			Vector nodePos = tr.vecEndPos + Vector(0,0,1);
+			g_EntityFuncs.SetOrigin(ent, nodePos);
+			
+			int zone = getBuildZone(ent);
+			ent.pev.team = zone;
+			if (zone >= 0 and zone < int(g_build_zone_ents.length()))
+			{
+				println("Assigned node to zone " + ent.pev.team);
+				func_build_zone@ zoneEnt = cast<func_build_zone@>(CastToScriptClass(g_build_zone_ents[zone]));
+				zoneEnt.ainodes.insertLast(nodePos);
+			}
+			else
+				println("Node at " + ent.pev.origin.ToString() + " not assigned to a build zone");
+			
 			
 			dictionary keys;
 			keys["origin"] = nodePos.ToString();
 			g_EntityFuncs.CreateEntity("info_node", keys, true);
-			g_EntityFuncs.Remove(ent);
+			//g_EntityFuncs.Remove(ent);
 			
 			count++;
 		}

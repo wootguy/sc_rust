@@ -937,6 +937,7 @@ array<Vector2D> getBoundingVerts2D(CBaseEntity@ ent, Vector2D offset)
 	}
 	else
 	{
+		//if (ent)asdf; // TODO: Special outline for stairs so I can put chests underneath
 		verts.insertLast(ori + v_right*-ent.pev.mins.y + v_forward*ent.pev.maxs.x);
 		verts.insertLast(ori + v_right*-ent.pev.maxs.y + v_forward*ent.pev.maxs.x);
 	}
@@ -1030,16 +1031,16 @@ float collisionSA(CBaseEntity@ b1, CBaseEntity@ b2)
 		for (uint i = 0; i < b1Verts.length(); i++)
 		{
 			uint k = (i+1) % b1Verts.length();
-			te_beampoints(Vector(b1Verts[i].x, b1Verts[i].y, b1.pev.origin.z + 64), Vector(b1Verts[k].x, b1Verts[k].y, b1.pev.origin.z + 64));
+			//te_beampoints(Vector(b1Verts[i].x, b1Verts[i].y, b1.pev.origin.z + 64), Vector(b1Verts[k].x, b1Verts[k].y, b1.pev.origin.z + 64));
 		}
 		for (uint i = 0; i < b2Verts.length(); i++)
 		{
 			uint k = (i+1) % b2Verts.length();
-			te_beampoints(Vector(b2Verts[i].x, b2Verts[i].y, b2.pev.origin.z + 64), Vector(b2Verts[k].x, b2Verts[k].y, b2.pev.origin.z + 64));
+			//te_beampoints(Vector(b2Verts[i].x, b2Verts[i].y, b2.pev.origin.z + 64), Vector(b2Verts[k].x, b2Verts[k].y, b2.pev.origin.z + 64));
 		}
 		
-		te_beampoints(b1.pev.origin + Vector(0,0,64), b1.pev.origin + Vector(0,0,64) + fix3.Normalize()*overlap);
-		te_beampoints(b1.pev.origin, b2.pev.origin);
+		//te_beampoints(b1.pev.origin + Vector(0,0,64), b1.pev.origin + Vector(0,0,64) + fix3.Normalize()*overlap);
+		//te_beampoints(b1.pev.origin, b2.pev.origin);
 	}
 	
 	return overlap;
@@ -1066,7 +1067,8 @@ bool objectThroughRoof(CBaseEntity@ roof, CBaseEntity@ obj)
 	
 	g_EngineFuncs.MakeVectors(roof.pev.angles);
 	Vector plane = roof.pev.origin;
-	Vector normal = (g_Engine.v_forward + g_Engine.v_up).Normalize(); // roof is at perfectly 45 deg angle
+	Vector ndir = roof.pev.colormap == B_ROOF ? g_Engine.v_forward : -g_Engine.v_forward;
+	Vector normal = (ndir + g_Engine.v_up).Normalize(); // roof is at perfectly 45 deg angle
 	
 	te_beampoints(plane + normal*-64, plane + normal*64, "sprites/laserbeam.spr", 0, 100, 1, 1, 0, PURPLE);
 	 
@@ -1124,12 +1126,7 @@ float collisionBoxesYaw(CBaseEntity@ b1, CBaseEntity@ b2)
 	
 	if (b1.pev.colormap == B_LADDER_HATCH)
 		min1 = b1.pev.origin.z - 4;
-		
-	if (b1.pev.colormap == B_ROOF and isFloorItem(b2))
-		return objectThroughRoof(b1, b2) ? 1000 : 0;
-	if (b2.pev.colormap == B_ROOF and isFloorItem(b1))
-		return objectThroughRoof(b2, b1) ? 1000 : 0;
-		
+	
 	if (b1.pev.colormap == B_ROOF)
 	{
 		min1 = b1.pev.origin.z - 60;
@@ -1146,7 +1143,22 @@ float collisionBoxesYaw(CBaseEntity@ b1, CBaseEntity@ b2)
 		float overlapXY = collisionSA(b1, b2);
 		float overlapZ = Math.max(0, Math.min(max1, max2) - Math.max(min1, min2));
 		// check 2D top-down collision
-		return Math.min(abs(overlapZ), abs(overlapXY));
+		float overlapMin = Math.min(abs(overlapZ), abs(overlapXY));
+		
+		if (overlapMin > 0)
+		{
+			if (b1.pev.colormap == B_ROOF and isFloorItem(b2))
+				return objectThroughRoof(b1, b2) ? 1000 : 0;
+			if (b2.pev.colormap == B_ROOF and isFloorItem(b1))
+				return objectThroughRoof(b2, b1) ? 1000 : 0;
+
+			if ((b1.pev.colormap == B_STAIRS or b1.pev.colormap == B_STAIRS_L) and isFloorItem(b2))
+				return objectThroughRoof(b1, b2) ? 1000 : 0;
+			if ((b2.pev.colormap == B_STAIRS or b2.pev.colormap == B_STAIRS_L) and isFloorItem(b1))
+				return objectThroughRoof(b2, b1) ? 1000 : 0;
+		}
+		
+		return overlapMin;
 	}
 	return 0;
 }

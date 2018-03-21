@@ -1,12 +1,12 @@
 
 // items are randomly chosen from this list when filling the crate
 array<RawItem> supply_items = {
-	RawItem(I_SCRAP,10*g_gather_multiplier),
-	RawItem(I_SCRAP,20*g_gather_multiplier),
-	RawItem(I_HQMETAL,10*g_gather_multiplier),
-	RawItem(I_HQMETAL,20*g_gather_multiplier),
-	RawItem(I_FUEL,50*g_gather_multiplier),
-	RawItem(I_FUEL,100*g_gather_multiplier),
+	RawItem(I_SCRAP,int(10*g_gather_multiplier)),
+	RawItem(I_SCRAP,int(20*g_gather_multiplier)),
+	RawItem(I_HQMETAL,int(10*g_gather_multiplier)),
+	RawItem(I_HQMETAL,int(20*g_gather_multiplier)),
+	RawItem(I_FUEL,int(50*g_gather_multiplier)),
+	RawItem(I_FUEL,int(100*g_gather_multiplier)),
 	
 	RawItem(I_METAL_HATCHET,1),
 	RawItem(I_METAL_PICKAXE,1),
