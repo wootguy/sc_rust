@@ -107,7 +107,7 @@ class Song
 				if (line.Find("!repeat=") == 0)
 				{
 					repeatStart = songPos;
-					numRepeats = atoi( line.SubString(string("!channels=").Length()) );
+					numRepeats = atoi( line.SubString(string("!repeat=").Length()) );
 				}
 				if (line.Find("!repeatend") == 0)
 				{
@@ -127,7 +127,9 @@ class Song
 				}
 				if (line.Find("!channels=") == 0)
 				{
-					line = line.SubString(string("!channels=").Length());
+					string prefix = "!channels"; // do not try string("!channels").Length() - you will crash. WTF WHY?!?!?
+					line = line.SubString(prefix.Length());
+					line = line.SubString(prefix.Length());
 					array<string>@ newChans = line.Split("+");
 					use_channels.deleteAll();
 					for (uint i = 0; i < newChans.length(); i++)
@@ -137,7 +139,8 @@ class Song
 				}
 				if (line.Find("!octaves=") == 0)
 				{
-					line = line.SubString(string("!octaves=").Length());
+					string prefix = "!octaves";
+					line = line.SubString(prefix.Length());
 					array<string>@ newOct = line.Split("+");
 					octave_offsets.deleteAll();
 					for (uint i = 0; i < newOct.length(); i++)
@@ -183,7 +186,7 @@ class Song
 				
 				//println(line);
 				rows.insertLast(SongRow(channels));
-			}			
+			}				
 		}
 		else
 		{
