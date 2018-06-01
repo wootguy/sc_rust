@@ -146,6 +146,27 @@ class func_breakable_custom : ScriptBaseEntity
 			}
 		}
 		
+		// write authed players
+		array<string> authed_players;
+		array<string>@ stateKeys = player_states.getKeys();
+		for (uint i = 0; i < stateKeys.length(); i++)
+		{
+			PlayerState@ state = cast<PlayerState@>( player_states[stateKeys[i]] );
+			for (uint k = 0; k < state.authedLocks.length(); k++)
+			{
+				if (!state.authedLocks[k] or state.authedLocks[k].GetEntity().entindex() == self.entindex())
+				{
+					string authid = getPlayerUniqueId(cast<CBasePlayer@>(state.plr.GetEntity()));
+					authed_players.insertLast(authid);
+				}
+			}
+		}
+		
+		buf.Write(uint8(authed_players.size()));
+		for (uint i = 0; i < authed_players.length(); i++) {
+			buf.Write(authed_players[i]);
+		}
+		
 		return buf;
 	}
 	

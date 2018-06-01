@@ -41,7 +41,7 @@ void saveMapData()
 	
 	if( f.IsOpen() )
 	{
-		if (g_build_parts.length() > 0)
+		if (g_build_parts.length() > 0 or g_build_zone_ents.length() > 0)
 		{
 			ByteBuffer buf;
 			buf.Write(uint32(g_build_parts.length()));
@@ -49,6 +49,38 @@ void saveMapData()
 			{
 				func_breakable_custom@ ent = cast<func_breakable_custom@>(CastToScriptClass(g_build_parts[i].GetEntity()));
 				buf.Write(ent.serialize());
+			}
+			
+			buf.Write(uint16(g_build_zone_ents.length()));
+			for (uint i = 0; i < g_build_zone_ents.size(); i++)
+			{
+				func_build_zone@ zone = cast<func_build_zone@>(CastToScriptClass(g_build_zone_ents[i].GetEntity()));
+				
+				buf.Write(uint16(zone.nodes.size()));
+				println("prepare to save " + zone.nodes.size() + " nodes");
+				for (uint k = 0; k < zone.nodes.size(); k++) 
+				{
+					CBaseEntity@ node = zone.nodes[k];
+					uint8 nodeType = NODE_XEN;
+					if (node.pev.classname == "func_breakable_custom")
+					{
+						func_breakable_custom@ nodeBreak = cast<func_breakable_custom@>(CastToScriptClass(node));
+						nodeType = nodeBreak.nodeType;
+					}
+					else if (!node.IsMonster())
+						println("Unexpected node type: " + node.pev.classname);
+						
+					buf.Write(uint8(nodeType));
+					if (nodeType == NODE_XEN)
+						buf.Write(string(node.pev.classname));
+					buf.Write(node.pev.origin.x);
+					buf.Write(node.pev.origin.y);
+					buf.Write(node.pev.origin.z);
+					buf.Write(node.pev.angles.x);
+					buf.Write(node.pev.angles.y);
+					buf.Write(node.pev.angles.z);
+					buf.Write(node.pev.health);
+				}
 			}
 			
 			string dataString = buf.base128encode();
@@ -75,9 +107,116 @@ void unlockSaveLoad()
 	}
 }
 
-void loadMapPartial(ByteBuffer@ buf)
+void loadNodesPartial(ByteBuffer@ buf, int zonesLoaded, int numZones, int nodesLoaded, int numNodes)
 {
-	for (int partIdx = 0; partIdx < 1 and buf.readPos < buf.data.size(); partIdx++)
+	func_build_zone@ zone = cast<func_build_zone@>(CastToScriptClass(g_build_zone_ents[zonesLoaded].GetEntity()));
+	
+	for (int nodeIdx = 0; nodeIdx < 1 and nodesLoaded < numNodes and buf.readPos < buf.data.size(); nodeIdx++, nodesLoaded++)
+	{
+		int nodeType = buf.ReadByte();
+		string classname = "func_breakable_custom";
+		if (nodeType == NODE_XEN)
+			classname = buf.ReadString();
+		float x = buf.ReadFloat();
+		float y = buf.ReadFloat();
+		float z = buf.ReadFloat();
+		float ax = buf.ReadFloat();
+		float ay = buf.ReadFloat();
+		float az = buf.ReadFloat();
+		Vector origin(x, y, z);
+		Vector angles(ax, ay, az);
+		float health = buf.ReadFloat();
+		
+		if (nodeType == NODE_XEN)
+		{
+			dictionary keys;
+			Vector ori = origin;
+			keys["origin"] = ori.ToString();
+			keys["angles"] = angles.ToString();
+			keys["health"] = "" + health;
+			
+			CBaseEntity@ ent = g_EntityFuncs.CreateEntity(classname, keys, true);
+			ent.pev.armortype = g_Engine.time + 10.0f;
+
+			zone.nodes.insertLast(EHandle(ent));
+		}
+		else
+		{
+			string brushModel = "";
+			string itemModel = "";
+			float itemHeight = 0;
+			if (nodeType == NODE_TREE)
+			{
+				brushModel = getModelFromName("e_tree");
+				itemModel = "models/sc_rust/pine_tree.mdl";
+				itemHeight = 512; // prevents trees from disappearing across hills
+			}
+			else if (nodeType == NODE_BARREL)
+			{
+				brushModel = getModelFromName("e_barrel");
+				itemModel = "models/sc_rust/tr_barrel.mdl";
+				itemHeight = 32;
+			}
+			else if (nodeType == NODE_ROCK)
+			{
+				brushModel = getModelFromName("e_rock");
+				itemModel = "models/sc_rust/rock.mdl";
+				itemHeight = 64;
+			}
+			else
+				println("Build Zone: bad node type: " + nodeType);
+		
+			string name = "node" + g_node_id++;
+			Vector ori = origin;
+			
+			dictionary keys;
+			keys["origin"] = ori.ToString();
+			keys["angles"] = angles.ToString();
+			keys["model"] = brushModel;
+			keys["material"] = "1";
+			keys["killtarget"] = name;
+			keys["health"] = "" + health;
+			keys["colormap"] = "-1";
+			keys["message"] = "node";
+			keys["nodetype"] = "" + nodeType;
+			
+			CBaseEntity@ ent = g_EntityFuncs.CreateEntity("func_breakable_custom", keys, true);
+			zone.nodes.insertLast(EHandle(ent));
+			
+			ori.z += itemHeight;
+			keys["origin"] = ori.ToString();
+			keys["model"] = fixPath(itemModel);
+			keys["movetype"] = "5";
+			keys["scale"] = "1";
+			keys["sequencename"] = "idle";
+			keys["targetname"] = name;
+			CBaseEntity@ ent2 = g_EntityFuncs.CreateEntity("item_generic", keys, true);
+			ent2.pev.movetype = MOVETYPE_NONE; // epic lag without this
+		}
+		
+		if (buf.err != 0)
+		{
+			println("Rust: Failed to load. Unexpected end of file.");
+			return;
+		}
+	}
+	
+	if (buf.readPos < buf.data.size())
+	{
+		if (nodesLoaded >= numNodes) {
+			println("loaded " + numNodes + " into zone idx " + zonesLoaded);
+			nodesLoaded = 0;
+			numNodes = buf.ReadUInt16();
+			zonesLoaded++;
+		}
+		if (nodesLoaded < numNodes and zonesLoaded < numZones)
+			g_Scheduler.SetTimeout("loadNodesPartial", 0.0, @buf, zonesLoaded, numZones, nodesLoaded, numNodes);
+	}
+}
+
+void loadMapPartial(ByteBuffer@ buf, int partsLoaded, int numParts)
+{
+	for (int partIdx = 0; partIdx < 1 and partsLoaded < numParts and buf.readPos < buf.data.size(); partIdx++, partsLoaded++)
 	{
 		float x = buf.ReadFloat();
 		float y = buf.ReadFloat();
@@ -176,6 +315,14 @@ void loadMapPartial(ByteBuffer@ buf)
 			}
 		}
 		
+		int authCount = buf.ReadByte();
+		for (int i = 0; i < authCount; i++) {
+			string authid = buf.ReadString();
+			PlayerState@ state = getPlayerStateBySteamID(authid, authid);
+			state.authedLocks.insertLast(EHandle(ent));
+		}
+		
+		
 		//g_EntityFuncs.SetSize(ent.pev, ent.pev.mins, ent.pev.maxs);
 		//g_EntityFuncs.SetOrigin(ent, ent.pev.origin);
 		if (effects & EF_NODRAW != 0)
@@ -194,9 +341,18 @@ void loadMapPartial(ByteBuffer@ buf)
 		if (id >= g_part_id)
 			g_part_id = id+1;
 	}
-		
+	
 	if (buf.readPos < buf.data.size())
-		g_Scheduler.SetTimeout("loadMapPartial", 0.0, @buf);
+	{
+		if (partsLoaded < numParts)
+			g_Scheduler.SetTimeout("loadMapPartial", 0.0, @buf, partsLoaded, numParts);
+		else
+		{
+			uint32 numZones = buf.ReadUInt16();
+			uint32 numNodes = buf.ReadUInt16();
+			g_Scheduler.SetTimeout("loadNodesPartial", 0.0, @buf, 0, numZones, 0, numNodes);
+		}
+	}
 }
 
 void loadMapData()
@@ -211,15 +367,21 @@ void loadMapData()
 		for (uint i = 0; i < g_build_parts.length(); i++)
 			g_EntityFuncs.Remove(g_build_parts[i]);
 		
+		for (uint i = 0; i < g_build_zone_ents.size(); i++)
+		{
+			func_build_zone@ zone = cast<func_build_zone@>(CastToScriptClass(g_build_zone_ents[i].GetEntity()));
+			zone.Clear();
+		}
+		
 		// load parts
 		ByteBuffer buf(f);
 		uint32 numParts = buf.ReadUInt32();
 		if (numParts > 900)
 			numParts = 900;
 		
-		println("Loading " + numParts + " parts");
+		println("Loading " + numParts + " parts from " + path);
 		
-		loadMapPartial(buf);
+		loadMapPartial(buf, 0, numParts);
 	}
 	else
 	{

@@ -124,6 +124,26 @@ class func_build_zone : ScriptBaseEntity
 				maxMonsters + " monsters");
 	}
 	
+	void Clear()
+	{
+		for (uint i = 0; i < nodes.length(); i++)
+		{
+			CBaseEntity@ node = nodes[i];
+			if (node.pev.classname == "func_breakable_custom")
+			{
+				func_breakable_custom@ ent = cast<func_breakable_custom@>(CastToScriptClass(node));
+				if (ent.killtarget.Length() > 0)
+				{
+					CBaseEntity@ kill = g_EntityFuncs.FindEntityByTargetname(null, ent.killtarget);
+					if (kill !is null)
+						g_EntityFuncs.Remove(kill);
+				}
+			}
+			
+			g_EntityFuncs.Remove(node);
+		}
+	}
+	
 	void Use(CBaseEntity@ pActivator, CBaseEntity@ pCaller, USE_TYPE useType, float flValue = 0.0f)
 	{
 		//println("USED BY " + pCaller.pev.classname);
@@ -224,6 +244,12 @@ class func_build_zone : ScriptBaseEntity
 	
 	void ZoneThink()
 	{
+		if (saveLoadInProgress) 
+		{
+			pev.nextthink = g_Engine.time + 0.05f;
+			return;
+		}
+		
 		int numTrees = 0;
 		int numRocks = 0;
 		int numBarrels = 0;
@@ -396,7 +422,7 @@ class func_build_zone : ScriptBaseEntity
 								@ent = g_EntityFuncs.FindEntityByTargetname(ent, spawner.pev.netname);
 								if (ent !is null)
 								{
-									//ent.pev.targetname = "node_xen";
+									ent.pev.targetname = "node_xen";
 									ent.pev.armortype = g_Engine.time + 10.0f;
 									nodes.insertLast(EHandle(ent));
 								}
