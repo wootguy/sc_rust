@@ -32,6 +32,11 @@ class func_build_zone : ScriptBaseEntity
 	float spawnDelay = 0.0f; // fill up quickly when map loads, then slowly replace stuff
 	float nextSpawn = 0;
 	bool nodes_disabled = false;
+	bool think_disabled = false;
+	
+	bool spawning_wave = false;
+	string wave_spawner = "monster_gonome";
+	float wave_extra_health = 0;
 	
 	float treeRatio = 0.68f;
 	float rockRatio = 0.12f;
@@ -90,10 +95,41 @@ class func_build_zone : ScriptBaseEntity
 		UpdateNodeRatios();
 		SetThink( ThinkFunction( ZoneThink ) );
 		pev.nextthink = g_Engine.time + 3.0f; // wait for node graph to generate before spawning stuff
+		think_disabled = false;
+	}
+	
+	void Disable()
+	{
+		think_disabled = true;
+	}
+	
+	void DeleteNullNodes()
+	{
+		for (uint i = 0; i < nodes.size(); i++)
+		{
+			if (@nodes[i].GetEntity() == null)
+			{
+				nodes.removeAt(i);
+				i--;
+			}
+		}
 	}
 	
 	void UpdateNodeRatios()
 	{
+		float oldTreeRatio = treeRatio;
+		float oldRockRatio = rockRatio;
+		float oldBarrelRatio = barrelRatio;
+		float oldMonsterRatio = monsterRatio;
+		
+		if (g_invasion_mode) { 
+			// force a balanced amount of resources when confined to a single zone
+			treeRatio = 0.5f;
+			rockRatio = 0.15f;
+			barrelRatio = 0.15f;
+			monsterRatio = 0.2f;
+		}
+	
 		float total = treeRatio + rockRatio + barrelRatio + monsterRatio;
 		if (abs(total - 1) > 0.01f)
 			println("Ratios for zone " + id +  " (" + total + ") do not add up to 1.0! Nodes will not spawn as expected.");
@@ -102,8 +138,10 @@ class func_build_zone : ScriptBaseEntity
 		maxRocks = int(Math.Floor(maxNodes*rockRatio + 0.5f));
 		maxBarrels = int(Math.Floor(maxNodes*barrelRatio + 0.5f));
 		maxMonsters = int(Math.Floor(maxNodes*monsterRatio + 0.5f));
-		if (maxMonsters > g_max_zone_monsters)
+		if (!g_invasion_mode and maxMonsters > g_max_zone_monsters)
 			maxMonsters = g_max_zone_monsters;
+		if (g_invasion_mode and maxMonsters > 32)
+			maxMonsters = 32;
 		
 		int maxTotal = maxTrees + maxRocks + maxBarrels + maxMonsters;
 		int diff = int(maxNodes) - maxTotal;
@@ -122,6 +160,13 @@ class func_build_zone : ScriptBaseEntity
 		
 		println("Zone " + id + " maxs: " + maxTrees + " trees + " + maxRocks + " rocks + " + maxBarrels + " barrels + " + 
 				maxMonsters + " monsters");
+				
+		if (g_invasion_mode) {
+			treeRatio = oldTreeRatio;
+			rockRatio = oldRockRatio;
+			barrelRatio = oldBarrelRatio;
+			monsterRatio = oldMonsterRatio;
+		}
 	}
 	
 	void Clear()
@@ -142,6 +187,7 @@ class func_build_zone : ScriptBaseEntity
 			
 			g_EntityFuncs.Remove(node);
 		}
+		nodes.resize(0);
 	}
 	
 	void Use(CBaseEntity@ pActivator, CBaseEntity@ pCaller, USE_TYPE useType, float flValue = 0.0f)
@@ -242,8 +288,39 @@ class func_build_zone : ScriptBaseEntity
 		return brushes[0];
 	}
 	
+	float SpawnInvasionWave(string monsterClass)
+	{
+		wave_extra_health = 0;
+		DeleteNullNodes();
+		
+		for (uint i = 0; i < nodes.size(); i++)
+		{
+			CBaseEntity@ ent = nodes[i];
+			if (ent.IsMonster() and ent.IsAlive())
+			{
+				CBaseMonster@ mon = cast<CBaseMonster@>(ent);
+				wave_extra_health += ent.pev.health;
+				mon.GibMonster();
+			}
+		}
+		
+		wave_extra_health = (wave_extra_health / maxMonsters)*2;
+		wave_extra_health = (int(wave_extra_health)/10)*10;
+		wave_extra_health = 0;
+		
+		spawning_wave = true;
+		spawnDelay = 0;
+		wave_spawner = monsterClass;
+		
+		return wave_extra_health;
+	}
+	
 	void ZoneThink()
 	{
+		if (think_disabled)
+		{
+			return;
+		}
 		if (saveLoadInProgress) 
 		{
 			pev.nextthink = g_Engine.time + 0.05f;
@@ -297,8 +374,22 @@ class func_build_zone : ScriptBaseEntity
 							}
 						}
 					} while (ent !is null);
+					
+					if (g_invasion_mode and @mon.m_hEnemy.GetEntity() == null)
+					{
+						CBasePlayer@ plr = getRandomLivingPlayer();
+						if (plr !is null and (plr.pev.flags & FL_NOTARGET == 0))
+							mon.PushEnemy(plr, plr.pev.origin);
+						else
+						{
+							CBaseEntity@ part = getRandomBasePart();
+							if (part !is null) {
+								mon.PushEnemy(part, part.pev.origin);
+							}
+						}
+					}
 				}	
-				if (isAgro and mon.pev.teleport_time + g_monster_forget_time < g_Engine.time)
+				if (isAgro and mon.pev.teleport_time + g_monster_forget_time < g_Engine.time and !g_invasion_mode)
 				{
 					mon.SetClassification(CLASS_FORCE_NONE);
 					mon.ClearEnemyList();
@@ -346,14 +437,22 @@ class func_build_zone : ScriptBaseEntity
 			}
 		}
 				
-		if (g_Engine.time > nextSpawn)
+		if (g_Engine.time > nextSpawn or spawning_wave)
 		{
 			array<int> choices;
 			if (numTrees < maxTrees) choices.insertLast(NODE_TREE);
 			if (numRocks < maxRocks) choices.insertLast(NODE_ROCK);
 			if (numBarrels < maxBarrels) choices.insertLast(NODE_BARREL);
-			if (numMonsters < maxMonsters) choices.insertLast(NODE_XEN);
-				
+			if (numMonsters < maxMonsters and !g_invasion_mode) choices.insertLast(NODE_XEN);
+			
+			if (spawning_wave) 
+			{
+				if (numMonsters < maxMonsters)
+				{
+					choices.resize(0);
+					choices.insertLast(NODE_XEN);
+				}
+			}
 			
 			if (!g_disable_ents and nodes.size() < maxNodes and choices.length() > 0)
 			{
@@ -409,10 +508,14 @@ class func_build_zone : ScriptBaseEntity
 					if (nextNodeSpawn == NODE_XEN)
 					{
 						string spawnerName = monster_spawners[Math.RandomLong(0, monster_spawners.length()-1)];
+						if (spawning_wave)
+							spawnerName = wave_spawner;
 						CBaseEntity@ spawner = g_EntityFuncs.FindEntityByTargetname(null, spawnerName);
 						if (spawner !is null)
 						{
 							spawner.pev.origin = ori;
+							if (spawnerName == "controller_spawner")
+								spawner.pev.origin.z += 512;
 							spawner.pev.angles = Vector(0, Math.RandomLong(-180, 180), 0);
 							spawner.pev.netname = "xen_node_zone_" + id;
 							g_EntityFuncs.FireTargets(spawner.pev.targetname, null, null, USE_TOGGLE);
@@ -425,6 +528,11 @@ class func_build_zone : ScriptBaseEntity
 									ent.pev.targetname = "node_xen";
 									ent.pev.armortype = g_Engine.time + 10.0f;
 									nodes.insertLast(EHandle(ent));
+									if (spawning_wave)
+									{
+										ent.pev.health += wave_extra_health;
+										ent.SetClassification(CLASS_ALIEN_MILITARY);
+									}
 								}
 							} while (ent !is null);
 						}
@@ -459,7 +567,13 @@ class func_build_zone : ScriptBaseEntity
 					if (nodes.size() >= maxNodes)
 					{
 						println("Zone " + id + " populated");
-						spawnDelay = g_node_spawn_time;
+						spawnDelay = g_invasion_mode ? g_node_spawn_time_invasion : g_node_spawn_time;
+					}
+					if (spawning_wave and numMonsters >= maxMonsters-1)
+					{
+						spawning_wave = false;
+						spawnDelay = g_node_spawn_time_invasion;
+						println("Wave spawn complete");
 					}
 					nextSpawn = g_Engine.time + spawnDelay;
 				}

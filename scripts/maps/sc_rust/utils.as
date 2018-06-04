@@ -75,6 +75,16 @@ void te_killbeam(CBaseEntity@ target,
 	m.End();
 }
 
+void build_effect(Vector origin) {
+	te_smoke(origin, "sprites/black_smoke3.spr", 10, 50);
+				
+	float j = 48;
+	for (uint z = 0; z < 8; z++) {
+		Vector jitter = Vector(Math.RandomFloat(-j, j), Math.RandomFloat(-j, j), Math.RandomFloat(-j, j));
+		te_smoke(origin + jitter, g_puff_sprites[Math.RandomLong(0,g_puff_sprites.size()-1)], 20, 50);
+	}
+}
+
 Vector2D getPerp(Vector2D v) {
 	return Vector2D(-v.y, v.x);
 }
@@ -151,7 +161,11 @@ int getBuildZone(CBaseEntity@ ent)
 Vector getRandomPosition()
 {	
 	CBaseEntity@ zone = g_build_zone_ents[Math.RandomLong(0,  g_build_zone_ents.length()-1)];
+	if (g_invasion_mode)
+		@zone = g_invasion_zone.GetEntity();
+	
 	func_build_zone@ zoneent = cast<func_build_zone@>(CastToScriptClass(zone));
+	
 	return zoneent.getRandomPosition();
 }
 
@@ -298,6 +312,7 @@ bool isMeleeWeapon(string wepName)
 	if (wepName == "weapon_stone_pickaxe") return true;
 	if (wepName == "weapon_metal_pickaxe") return true;
 	if (wepName == "weapon_crowbar") return true;
+	if (wepName == "weapon_custom_crowbar") return true;
 	if (wepName == "weapon_wrench") return true;
 	if (wepName == "weapon_grapple") return true;
 	
@@ -339,7 +354,7 @@ void clearInventory(CBasePlayer@ plr)
 			CBaseEntity@ owner = g_EntityFuncs.Instance( ent.pev.owner );
 			if (owner !is null and owner.entindex() == plr.entindex())
 			{
-				println("OWNER IS " + owner.pev.netname);
+				//println("OWNER IS " + owner.pev.netname);
 				ent.pev.renderfx = -9999;
 				g_Scheduler.SetTimeout("delay_remove", 0, EHandle(ent));
 			}			
@@ -1070,7 +1085,7 @@ bool objectThroughRoof(CBaseEntity@ roof, CBaseEntity@ obj)
 	Vector ndir = roof.pev.colormap == B_ROOF ? g_Engine.v_forward : -g_Engine.v_forward;
 	Vector normal = (ndir + g_Engine.v_up).Normalize(); // roof is at perfectly 45 deg angle
 	
-	te_beampoints(plane + normal*-64, plane + normal*64, "sprites/laserbeam.spr", 0, 100, 1, 1, 0, PURPLE);
+	//te_beampoints(plane + normal*-64, plane + normal*64, "sprites/laserbeam.spr", 0, 100, 1, 1, 0, PURPLE);
 	 
 	int sign = 0;
 	for (int i = 0; i < int(verts.length()); i++)
@@ -1292,6 +1307,57 @@ Team@ getPlayerTeam(CBasePlayer@ plr)
 			}
 		}
 	}
+	return null;
+}
+
+CBasePlayer@ getAnyPlayer() 
+{
+	CBaseEntity@ ent = null;
+	do {
+		@ent = g_EntityFuncs.FindEntityByClassname(ent, "player");
+		if (ent !is null) {
+			CBasePlayer@ plr = cast<CBasePlayer@>(ent);
+			return plr;
+		}
+	} while (ent !is null);
+	return null;
+}
+
+CBasePlayer@ getRandomLivingPlayer() 
+{
+	CBaseEntity@ ent = null;
+	array<CBasePlayer@> choices;
+	do {
+		@ent = g_EntityFuncs.FindEntityByClassname(ent, "player");
+		if (ent !is null and ent.IsAlive()) {
+			CBasePlayer@ plr = cast<CBasePlayer@>(ent);
+			choices.insertLast(plr);
+		}
+	} while (ent !is null);
+	
+	if (choices.size() > 0)
+		return choices[Math.RandomLong(0, choices.size()-1)];
+	
+	return null;
+}
+
+CBaseEntity@ getRandomBasePart()
+{
+	CBaseEntity@ ent = null;
+	array<CBaseEntity@> choices;
+	do {
+		@ent = g_EntityFuncs.FindEntityByClassname(ent, "func_breakable_custom");
+		if (ent !is null and ent.IsAlive()) 
+		{
+			func_breakable_custom@ part = castToPart(EHandle(ent));
+			if (!part.isNode)
+				choices.insertLast(ent);
+		}
+	} while (ent !is null);
+	
+	if (choices.size() > 0)
+		return choices[Math.RandomLong(0, choices.size()-1)];
+	
 	return null;
 }
 

@@ -698,6 +698,7 @@ int giveItem(CBasePlayer@ plr, int type, int amt, bool drop=false, bool combineS
 		{
 			g_EngineFuncs.MakeVectors(Vector(0, plr.pev.angles.y, 0));
 			ent.pev.velocity = g_Engine.v_forward*dropSpeed;
+			ent.pev.movetype = MOVETYPE_TOSS;
 			item_dropped(plr, ent, USE_TOGGLE, 0);
 		}
 		else
@@ -760,7 +761,7 @@ array<string> getStackOptions(CBasePlayer@ plr, int itemId)
 
 void playerMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextMenuItem@ item)
 {
-	if (item is null)
+	if (item is null or plr is null or !plr.IsAlive())
 		return;
 	string action;
 	item.m_pUserData.retrieve(action);
@@ -848,7 +849,7 @@ void playerMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CText
 			if (@plr.HasNamedPlayerItem(invItem.classname) is null)
 			{
 				CItemInventory@ wep = getInventoryItem(plr, invItem.type);
-				if (equipItem(plr, invItem.type, wep.pev.button) == 0)
+				if (equipItem(plr, invItem.type, wep.pev.button) == -2)
 					g_Scheduler.SetTimeout("delay_remove", 0, EHandle(wep));
 			}
 			else
@@ -934,7 +935,7 @@ void playerMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CText
 				int amt = craftItem.isWeapon and craftItem.stackSize == 1 ? 0 : 1;
 				if (craftItem.type == I_9MM) amt = 5;
 				if (craftItem.type == I_556) amt = 5;
-				if (craftItem.type == I_ARROW) amt = 2;
+				if (craftItem.type == I_ARROW) amt = 5;
 				if (!g_free_build)
 				{
 					for (uint i = 0; i < craftItem.costs.size(); i++)
@@ -1206,7 +1207,7 @@ void openPlayerMenu(CBasePlayer@ plr, string subMenu)
 
 void lootMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextMenuItem@ mitem)
 {
-	if (mitem is null)
+	if (mitem is null or plr is null or !plr.IsAlive())
 		return;
 	string action;
 	mitem.m_pUserData.retrieve(action);

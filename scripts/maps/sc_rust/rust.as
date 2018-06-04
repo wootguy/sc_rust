@@ -1,9 +1,10 @@
+#include "../weapon_custom/weapon_custom"
 #include "building_plan"
 #include "hammer"
 #include "func_breakable_custom"
 #include "func_build_zone"
 #include "player_corpse"
-#include "../weapon_custom/v3.1/weapon_custom"
+#include "ByteBuffer"
 #include "saveload"
 #include "items"
 #include "stability"
@@ -11,52 +12,51 @@
 #include "airdrop"
 
 // TODO:
-// corpse collision without stucking players
-// destroy items?
-// weapon durability?
+// lossy can't join teams?
+// crash when +USE on weapon you already have
+// inventory full message not always shown
+// cant drop more thqn 2 items after mining when full
+// restrict commands to admins
+// force game mode cvar?
+// disable all debug prints and rever test setting overrides
+
+// Should do/fix but too lazy:
+// base loading crashes
+// too much ammo carry capacity?
+// 20 items and u crash if look at inventory?
+// collecting items is sometimes difficult
+// rejoining didn't spawn in the right place (cause i did .clean ?)
+// func_breakable_custom line 696 null pointer in takedamage
+// C4 was empty on death
+// fuse part rotated for no reason (4x1 bridge square floor)
+// part highlighting/info traces should be consistent
+// monsters tend to crap up the server (20 per zone unplayable)
+// monsters congregating in one spot in most zones
+// decay raider structures
+// save/load dropped items and player inventories?
 // combine dropped stackables
+// destroy items?
+// corpse collision without stucking players
+// weapon durability?
 // textures are too bright
 // Balance weapons
 // bandage?
 // make all bullets projectiles?
-// allow destroying part with hammer?
-// build ents aren't always see-through/tinted
-// save/load authed locks/cupboards
-// save/load nodes and dropped items
 // airdrops don't fall if the object they're sitting on is removed after they land
-// xen invasion
-// decay raider structures
 // distant explosion sounds
 // houndeye doesn't always stop attacking
-// part highlighting/info traces should be consistent
 // allow dropping weapons, but convert to an item with the same model(?)
-// allow placing chests under stairs
-// maps
-// sniper doesn't zoom in after 
+// map screen
 // blue blood sniper
-// fuse part rotated piece (4x1 bridge square floor)
-// cant place doors in fused doorways
-// still firing flmaethrower (animation)
-// monsters tend to crap up the server (20 per zone unplayable)
-
-// monsters congregating in one spot in most zones
 // baby garg wasn't getting killed by bow
 // flesh doesn't spawn where monsters die depending on death animation
 // monsters attack each other if only one is agro
-// airplane getting lighting from ground
+// still firing flamethrower (animation)
 // hatchet and other tools mb are still too loud
-// C4 was empty on death
-// flying ammo lol
-// collecting items is sometimes difficult
-// footstep sound for build mats
-// extra poly (misaligned floor) between snow and desert area
-// base loading crashes
-// 20 items and u crash if look at inventory?
-// disable time limit!
-// disable super damage for deagle
-// sniper too powerful?
-// rejoining didn't spawn in the right place (cause i did .clean ?)
-// func_breakable_custom line 696 null pointer in takedamage
+// sniper doesn't zoom in after 
+// cant place doors in fused doorways
+// apache spawns
+// build ents aren't always see-through/tinted
 
 // note: impulse 197 = show node connections
 
@@ -68,8 +68,8 @@ int g_settler_reduction = 1; // reduces settlers per zone to increase build poin
 int g_raider_points = 40; // best if multiple of zone count
 bool g_build_point_rounding = true; // rounds build points to a multiple of 10 (may reduce build points)
 bool g_disable_ents = false;
-bool g_build_anywhere = true; // disables build zones
-bool g_free_build = true; // buildings/items don't cost any materials
+bool g_build_anywhere = false; // disables build zones
+bool g_free_build = true; // buildings/items don't cost any materials and build points are shared
 int g_inventory_size = 20;
 int g_max_item_drops = 2; // maximum item drops per player (more drops = less build points)
 float g_tool_cupboard_radius = 512;
@@ -78,17 +78,31 @@ float g_corpse_time = 60.0f; // time (in seconds) before corpses despawn
 float g_item_time = 60.0f; // time (in seconds) before items despawn
 float g_supply_time = 120.0f; // time (in seconds) before air drop crate disappears
 float g_revive_time = 5.0f; // time needed to revive player holding USE
-float g_airdrop_min_delay = 15.0f; // time (in minutes) between airdrops
-float g_airdrop_max_delay = 30.0f; // time (in minutes) between airdrops
-float g_airdrop_first_delay = 20.0f; // time (in minutes) before the FIRST airdrop
+float g_airdrop_min_delay = 10.0f; // time (in minutes) between airdrops
+float g_airdrop_max_delay = 20.0f; // time (in minutes) between airdrops
+float g_airdrop_first_delay = 15.0f; // time (in minutes) before the FIRST airdrop
 float g_node_spawn_time = 120.0f; // time (in seconds) between node spawns
 float g_chest_touch_dist = 96;
 float g_gather_multiplier = 2.0f; // resource gather amount multiplied by this (for faster/slower games)
 float g_monster_forget_time = 6.0f; // time it takes for a monster to calm down after not seeing any players
 int g_max_zone_monsters = 6;
-uint NODES_PER_ZONE = 16;
+uint NODES_PER_ZONE = 64;
 float g_xen_agro_dist = 300.0f;
 
+bool g_invasion_mode = false; // monsters spawn in waves and always attack
+float g_invasion_delay = 8.0f; // minutes between waves
+float g_invasion_initial_delay = 8.0f; // minutes before the invasion starts (first wave)
+float g_node_spawn_time_invasion = 30.0f; // time (in seconds) between node spawns when in invasion mode
+
+float g_vote_time = 5.0f; // time (in seconds) for vote to expire. Timer resets when new player joins.
+
+const int CHEST_ITEM_MAX_SMALL = 14; // 2 menu pages for small chests
+const int CHEST_ITEM_MAX_LARGE = 28; // 4 menu pages for large chests
+const int CHEST_ITEM_MAX_FURNACE = 3; // slots for wood, ore, and result
+
+float COOK_TIME_WOOD = 2.0f;
+float COOK_TIME_METAL = 2.0f;
+float COOK_TIME_HQMETAL = 4.0f;
 
 //
 // End game settings
@@ -104,6 +118,7 @@ class ZoneInfo
 	int settlersPerZone;
 	int wastedSettlers;
 	int partsPerPlayer;
+	int partsPerZone;
 	int reservedParts; // for trees/items/etc.
 	int raiderParts; // parts for raiders, shared across all raiders for each zone
 	
@@ -111,26 +126,40 @@ class ZoneInfo
 	
 	void init()
 	{
+		if (g_build_zones.length() == 0)
+		{
+			println("Error: no build zones exist.");
+			return;
+		}
 		// each player entity counts towards limit, x2 is so each player can drop an item or spawn an effect or something.
 		int maxNodes = NODES_PER_ZONE;
 		maxNodes += 10; // airdops (plane + box + chute) + 6 water func_conveyors + worldspawn
 		// players + corpses + player item drops + trees/stones/animals
 		reservedParts = g_Engine.maxClients*2 + maxNodes; // minimum reserved (assumes half of players won't have a corpse/dropped item)
 		
-		int maxSettlerParts = MAX_VISIBLE_ENTS - (reservedParts+g_raider_points);
+		if (g_invasion_mode) {
+			reservedParts += g_Engine.maxClients*2; // all players confined to a single zone, must account for worst case (2 items + 2 corpses)
+			reservedParts += 32; // for monsters that spawn other monsters (tor, agrunt, gonarch)
+		}
+		
+		int raider_points = g_raider_points;
+		if (g_invasion_mode or g_creative_mode)
+			raider_points = 0;
+		
+		int maxSettlerParts = MAX_VISIBLE_ENTS - (reservedParts+raider_points);
 		if (g_build_point_rounding)
 			maxSettlerParts = (maxSettlerParts / 10) * 10;
 		numZones = g_build_zones.length();
 		slots = g_Engine.maxClients + (g_build_zones.length()-1);
-		settlersPerZone = Math.max(1, (slots / g_build_zones.length()) - g_settler_reduction);
+		settlersPerZone = Math.max(1, (slots / g_build_zones.length()) - g_settler_reduction);		
 		wastedSettlers = g_Engine.maxClients - (settlersPerZone*g_build_zones.length());
 		partsPerPlayer = maxSettlerParts / settlersPerZone;
-			
+		partsPerZone = maxSettlerParts;
 		
 		for (uint i = 0; i < g_build_zones.length(); i++)
 			g_build_zones[i].maxSettlers = settlersPerZone;
 		
-		raiderParts = g_raider_points;
+		raiderParts = raider_points;
 		
 		if (g_build_point_rounding)
 		{
@@ -181,7 +210,7 @@ class Team
 	{
 		int maxPoints = members.size()*g_zone_info.partsPerPlayer;
 		int overflow = numParts - maxPoints;
-		println("TEAM OVERFLOW? " + numParts + " / " + maxPoints);
+		//println("TEAM OVERFLOW? " + numParts + " / " + maxPoints);
 
 		if (overflow > 0)
 		{
@@ -574,7 +603,7 @@ class PlayerState
 			return total;
 		}
 	
-		if (zoneid != home_zone)
+		if (zoneid != home_zone or g_creative_mode)
 		{
 			// use shared part count
 			BuildZone@ zone = getBuildZone(zoneid);
@@ -597,6 +626,8 @@ class PlayerState
 	// number of points available in the current build zone
 	int maxPoints(int zoneid)
 	{
+		if (g_invasion_mode or g_creative_mode)
+			return g_zone_info.partsPerZone;
 		if (zoneid == -1)
 			return 0;
 		if (zoneid != home_zone)
@@ -644,6 +675,15 @@ array<EHandle> g_corpses; // these disappear when they're picked up
 Vector g_dead_zone; // where dead players go until they respawn
 Vector g_void_spawn; // place where you can spawn items outside the play area
 float g_airdrop_height = 2048; // height where planes spawn
+int g_invasion_round = 0;
+float g_next_invasion_wave = 0;
+bool g_wave_in_progress = false;
+int g_vote_state = 1;
+int g_mode_select = 0;
+int g_difficulty = 0;
+bool g_creative_mode = false;
+bool waiting_for_voters = true;
+bool finished_invasion = false;
 array<string> g_upgrade_suffixes = {
 	"_twig",
 	"_wood",
@@ -651,6 +691,9 @@ array<string> g_upgrade_suffixes = {
 	"_metal",
 	"_armor"
 };
+
+array<string> g_puff_sprites = {"sprites/black_smoke3.spr", "sprites/boom.spr", "sprites/boom2.spr",
+					"sprites/boom3.spr", "sprites/puff1.spr", "sprites/puff2.spr"};
 
 dictionary g_partname_to_model; // maps models to part names
 dictionary g_model_to_partname; // maps part names to models
@@ -660,6 +703,8 @@ int g_part_id = 0;
 //bool debug_mode = false;
 ZoneInfo g_zone_info;
 
+EHandle g_invasion_zone;
+
 int MAX_SAVE_DATA_LENGTH = 1015; // Maximum length of a value saved with trigger_save. Discovered through testing
 int MAX_VISIBLE_ENTS = 510;
 
@@ -667,7 +712,7 @@ string beta_dir = "beta/"; // set to blank before release, or change when assets
 
 void MapInit()
 {
-	debug_mode = true;
+	debug_mode = false;
 	
 	g_CustomEntityFuncs.RegisterCustomEntity( "weapon_building_plan", "weapon_building_plan" );
 	g_ItemRegistry.RegisterWeapon( "weapon_building_plan", "sc_rust/beta", "" );
@@ -687,11 +732,6 @@ void MapInit()
 	g_Hooks.RegisterHook( Hooks::Player::ClientSay, @ClientSay );
 	g_Hooks.RegisterHook( Hooks::Player::ClientDisconnect, @ClientLeave );
 	g_Hooks.RegisterHook( Hooks::Player::ClientPutInServer, @ClientJoin );
-	
-	g_Scheduler.SetInterval("stabilityCheck", 0.0);
-	g_Scheduler.SetInterval("inventoryCheck", 0.05);
-	//g_Scheduler.SetInterval("decalFix", 0.0);
-	g_Scheduler.SetTimeout("spawn_airdrop", g_airdrop_first_delay*60);
 	
 	PrecacheSound("tfc/items/itembk2.wav");
 	PrecacheSound("sc_rust/bars_metal_place.ogg");
@@ -733,6 +773,11 @@ void MapInit()
 	PrecacheModel("models/metalplategibs.mdl");
 	PrecacheModel("models/skeleton.mdl");
 	PrecacheModel("sprites/xbeam4.spr");
+	
+	for (uint i = 0; i < g_puff_sprites.size(); i++)
+		PrecacheModel(g_puff_sprites[i]);
+		
+		
 	
 	PrecacheSound("sc_rust/flesh1.ogg");
 	PrecacheSound("sc_rust/flesh2.ogg");
@@ -950,7 +995,451 @@ void MapActivate()
 	
 	removeExtraEnts();
 	
-	dropNodes();
+	//dropNodes();
+	
+	resetVoteBlockers();
+	
+	//setupInvasionMode();
+	setupCreativeMode();
+}
+
+void delay_say(string text)
+{
+	g_PlayerFuncs.SayTextAll(getAnyPlayer(), text +"\n");
+}
+
+void resetVoteBlockers()
+{
+	CBaseEntity@ block1 = g_EntityFuncs.FindEntityByTargetname(null, "option1_block");
+	CBaseEntity@ block2 = g_EntityFuncs.FindEntityByTargetname(null, "option2_block");
+	CBaseEntity@ block3 = g_EntityFuncs.FindEntityByTargetname(null, "option3_block");
+	block1.pev.solid = block2.pev.solid = block3.pev.solid = SOLID_NOT;
+	block1.pev.rendercolor = block2.pev.rendercolor = block3.pev.rendercolor = Vector(0, 255, 0);
+}
+
+void tallyVotes()
+{
+	if (g_next_invasion_wave == 0 or g_next_invasion_wave > g_Engine.time)
+	{
+		g_Scheduler.SetTimeout("tallyVotes", 0.1f);
+		return;
+	}
+	
+	g_EntityFuncs.FireTargets("tally_votes", null, null, USE_TOGGLE);
+	
+	CBaseEntity@ option1 = g_EntityFuncs.FindEntityByTargetname(null, "option1_vote");
+	CBaseEntity@ option2 = g_EntityFuncs.FindEntityByTargetname(null, "option2_vote");
+	CBaseEntity@ option3 = g_EntityFuncs.FindEntityByTargetname(null, "option3_vote");
+	if (option1 is null or option2 is null or option3 is null)
+	{
+		println("Error: missing game_conter ents for tallying votes!");
+		return;
+	}
+	
+	clearTimer();
+	
+	// choose game mode
+	int op1_votes = int(option1.pev.frags);
+	int op2_votes = int(option2.pev.frags);
+	int op3_votes = int(option3.pev.frags);
+	option1.pev.frags = option2.pev.frags = option3.pev.frags = 0;
+	
+	println("Vote totals: " + op1_votes + " " + op2_votes + " " + op3_votes);
+	
+	if (g_vote_state == 1)
+	{
+		int selection = getVoteSelection(op1_votes, op2_votes, op3_votes, "PvP", "Co-op", "Creative");
+		if (selection == -1)
+		{
+			waiting_for_voters = true;
+			return;
+		}
+		
+		resetVoteBlockers();
+		g_mode_select = selection;
+		if (selection == 0)
+		{
+			g_PlayerFuncs.SayTextAll(getAnyPlayer(), "PvP mode selected.\n");
+			g_vote_state = 0;
+			g_Scheduler.SetTimeout("setupPvpMode", 3.0f);
+		}
+		else if (selection == 1)
+		{
+			g_PlayerFuncs.SayTextAll(getAnyPlayer(), "Co-op mode selected. Now vote for difficulty.\n");
+			g_vote_state = 2;
+			waiting_for_voters = true;
+			g_PlayerFuncs.RespawnAllPlayers(true, true);
+			g_EntityFuncs.FireTargets("vote_options1", null, null, USE_OFF);
+			g_EntityFuncs.FireTargets("vote_options2", null, null, USE_ON);
+		}
+		else if (selection == 2)
+		{
+			g_PlayerFuncs.SayTextAll(getAnyPlayer(), "Creative mode selected.\n");
+			g_vote_state = 0;
+			g_Scheduler.SetTimeout("setupCreativeMode", 3.0f);
+		}
+	}
+	else if (g_vote_state == 2)
+	{
+		int selection = getVoteSelection(op1_votes, op2_votes, op3_votes, "PvP", "Co-op", "Creative");
+		if (selection == -1)
+		{
+			waiting_for_voters = true;
+			return;
+		}
+		
+		g_difficulty = selection;
+		if (selection == 0)
+			g_PlayerFuncs.SayTextAll(getAnyPlayer(), "Easy mode selected.\n");
+		else if (selection == 1)
+			g_PlayerFuncs.SayTextAll(getAnyPlayer(), "Medium mode selected.\n");
+		else if (selection == 2)
+			g_PlayerFuncs.SayTextAll(getAnyPlayer(), "Hard mode selected.\n");
+			
+		g_Scheduler.SetTimeout("setupInvasionMode", 3.0f);
+	}
+}
+
+int getVoteSelection(int votes1, int votes2, int votes3, string op1, string op2, string op3)
+{
+	if (votes1 + votes2 + votes3 == 0)
+	{
+		g_PlayerFuncs.SayTextAll(getAnyPlayer(), "Nobody voted. Stand in a green room to vote.\n");
+		return -1;
+	}
+	if (votes1 == votes2 and votes2 == votes3)
+	{
+		g_PlayerFuncs.SayTextAll(getAnyPlayer(), "The vote was evenly split. A random mode will be chosen.\n");
+		return Math.RandomLong(0, 2);
+	}
+	else if (votes1 == votes2 and votes1 > 0)
+	{
+		if (votes3 > 0) {
+			g_PlayerFuncs.SayTextAll(getAnyPlayer(), "The vote is tied between " + op1 + " and " + op2 + ". Vote again.\n");
+			CBaseEntity@ block = g_EntityFuncs.FindEntityByTargetname(null, "option3_block");
+			block.pev.solid = SOLID_BSP;
+			block.pev.rendercolor = Vector(255, 0, 0);
+			g_PlayerFuncs.RespawnAllPlayers(true, true);
+			return -1;
+		} else {
+			g_PlayerFuncs.SayTextAll(getAnyPlayer(), "The vote is tied between " + op1 + " and " + op2 + ". A random option will be chosen.\n");
+			return Math.RandomLong(0, 1);
+		}
+	}
+	else if (votes1 == votes3 and votes1 > 0)
+	{
+		if (votes2 > 0) {
+			g_PlayerFuncs.SayTextAll(getAnyPlayer(), "The vote is tied between " + op1 + " and " + op3 + ". Vote again.\n");
+			CBaseEntity@ block = g_EntityFuncs.FindEntityByTargetname(null, "option2_block");
+			block.pev.solid = SOLID_BSP;
+			block.pev.rendercolor = Vector(255, 0, 0);
+			g_PlayerFuncs.RespawnAllPlayers(true, true);
+			return -1;
+		} else {
+			g_PlayerFuncs.SayTextAll(getAnyPlayer(), "The vote is tied between " + op1 + " and " + op3 + ". A random option will be chosen.\n");
+			return Math.RandomLong(0, 1)*2;
+		}
+	}
+	else if (votes2 == votes3 and votes2 > 0)
+	{
+		if (votes1 > 0) {
+			g_PlayerFuncs.SayTextAll(getAnyPlayer(), "The vote is tied between " + op2 + " and " + op3 + ". Vote again.\n");
+			CBaseEntity@ block = g_EntityFuncs.FindEntityByTargetname(null, "option1_block");
+			block.pev.solid = SOLID_BSP;
+			block.pev.rendercolor = Vector(255, 0, 0);
+			g_PlayerFuncs.RespawnAllPlayers(true, true);
+			return -1;
+		} else {
+			g_PlayerFuncs.SayTextAll(getAnyPlayer(), "The vote is tied between " + op2 + " and " + op3 + ". A random option will be chosen.\n");
+			return Math.RandomLong(2, 3);
+		}
+	}
+	else if (votes1 > votes2)
+		return 0;
+	else if (votes2 > votes3)
+		return 1;
+	else
+		return 2;
+}
+
+void cast_vote(CBaseEntity@ pActivator, CBaseEntity@ pCaller, USE_TYPE useType, float flValue)
+{
+	if (waiting_for_voters) // vote hasn't started yet
+	{
+		waiting_for_voters = false;
+		resetVoteTimer();
+		g_PlayerFuncs.SayTextAll(getAnyPlayer(), "Vote started!\n");
+	}
+}
+
+void resetVoteTimer()
+{
+	g_next_invasion_wave = g_Engine.time + g_vote_time;
+	updateWaveTimer();
+	tallyVotes();
+}
+
+void startGame()
+{
+	g_vote_state = 0;
+	waiting_for_voters = false;
+	
+	g_Scheduler.SetTimeout("spawn_airdrop", g_airdrop_first_delay*60);
+	g_Scheduler.SetInterval("stabilityCheck", 0.0);
+	g_Scheduler.SetInterval("inventoryCheck", 0.05);
+	g_Scheduler.SetInterval("cleanup_map", 60);
+	
+	g_EntityFuncs.FireTargets("vote_spawn", null, null, USE_OFF);
+	equipAllPlayers();
+	g_PlayerFuncs.RespawnAllPlayers(true, true);
+	
+	if (g_invasion_mode) {
+		g_PlayerFuncs.SayTextAll(getAnyPlayer(), "Invasion starts in " + g_invasion_initial_delay + " minutes\n");
+		updateWaveTimer();
+	}
+}
+
+void setupInvasionMode()
+{
+	g_invasion_mode = true;
+	g_free_build = false;
+	g_build_anywhere = false;
+	
+	disableFriendlyFire();
+	
+	if (g_difficulty == 0)
+		g_invasion_delay = g_invasion_initial_delay = 8.0f;
+	if (g_difficulty == 1)
+		g_invasion_delay = g_invasion_initial_delay = 6.0f;
+	if (g_difficulty == 2)
+		g_invasion_delay = g_invasion_initial_delay = 5.0f;
+		
+	//g_invasion_delay = g_invasion_initial_delay = 0.05f;
+	g_free_build = true;
+	
+	g_zone_info.init();
+	g_EntityFuncs.FireTargets("zone_clip", null, null, USE_TOGGLE);
+	int rand = Math.RandomLong(0, g_build_zone_ents.size()-1);
+	CBaseEntity@ randomZoneEnt = g_build_zone_ents[rand];
+	func_build_zone@ randomZone = cast<func_build_zone@>(CastToScriptClass(randomZoneEnt));
+	g_invasion_zone = randomZoneEnt;
+	println("Starting invasion mode in zone " + randomZone.id);
+	
+	for (uint i = 0; i < g_build_zone_ents.size(); i++)
+	{
+		func_build_zone@ zone = cast<func_build_zone@>(CastToScriptClass(g_build_zone_ents[i].GetEntity()));
+		zone.Clear();
+		randomZone.UpdateNodeRatios();
+		if (zone.id != randomZone.id)
+			zone.Disable();
+	}
+	
+	CBaseEntity@ ent = null;
+	do {
+		@ent = g_EntityFuncs.FindEntityByTargetname(ent, "zone_spawn");
+		if (ent !is null)
+		{
+			if (getBuildZone(ent) == randomZone.id)
+				ent.Use(null, null, USE_ON);
+			else
+				ent.Use(null, null, USE_OFF);
+		}
+	} while (ent !is null);
+	
+	g_invasion_round = 0;
+	g_next_invasion_wave = 3.0f + g_Engine.time + g_invasion_initial_delay*60;
+	g_Scheduler.SetTimeout("spawnInvasionWave", g_next_invasion_wave-g_Engine.time);
+	
+	g_Scheduler.SetTimeout("startGame", 3.0f);
+	g_Scheduler.SetTimeout("updateWaveStatus", 3.0f);
+}
+
+void setupPvpMode()
+{
+	g_invasion_mode = false;
+	g_free_build = false;
+	g_build_anywhere = false;
+	
+	g_EntityFuncs.FireTargets("zone_spawn", null, null, USE_ON);
+	
+	g_Scheduler.SetTimeout("startGame", 3.0f);
+}
+
+void disableFriendlyFire()
+{
+	CBaseEntity@ ent = null;
+	do {
+		@ent = g_EntityFuncs.FindEntityByClassname(ent, "*");
+		if (ent !is null and string(ent.pev.classname).StartsWith("weapon_custom_")) {
+			ent.KeyValue("friendly_fire", "0");
+		}
+	} while (ent !is null);
+}
+
+void setupCreativeMode()
+{
+	g_invasion_mode = false;
+	g_free_build = true;
+	g_creative_mode = true;
+	g_build_anywhere = false;
+	
+	disableFriendlyFire();
+
+	g_EntityFuncs.FireTargets("zone_spawn", null, null, USE_ON);
+	
+	g_Scheduler.SetTimeout("startGame", 3.0f);
+}
+
+array<string> invasion_waves = {"babyvolt_spawner", "zombie_spawner", "pitdrone_spawner", "controller_spawner",
+								"bullsquid_spawner", "slave_spawner", "houndeye_spawner", "gonome_spawner", 
+								"babygarg_spawner", "trooper_spawner", "agrunt_spawner", "volt_spawner", 
+								"mom_spawner", "garg_spawner", "kingpin_spawner"};
+array<string> invasion_wave_titles = {"Baby Voltigores", "Zombie Barneys", "Pit Drones", "Alien Controllers",
+								"Bullsquids", "Alien Slaves", "Houndeyes", "Gonomes", "Baby Gargs", "Shock Troopers", 
+								"Alien Grunts", "Gonarchs", "Voltigores", "Gargantuas", "Kingpins"};
+
+void clearTimer()
+{
+	HUDNumDisplayParams params;
+	params.channel = 0;
+	params.flags = HUD_ELEM_HIDDEN;
+	g_PlayerFuncs.HudTimeDisplay( null, params );
+}
+
+// thanks th_escape for le codes :>
+void updateWaveTimer()
+{
+	if (g_invasion_mode or (g_vote_state > 0 and !waiting_for_voters)) {
+		g_Scheduler.SetTimeout("updateWaveTimer", 1.0f);
+	} else {
+		return;
+	}
+	
+	HUDNumDisplayParams params;
+	
+	params.channel = 0;
+	
+	params.flags = HUD_ELEM_SCR_CENTER_X | HUD_ELEM_DEFAULT_ALPHA |
+		HUD_TIME_MINUTES | HUD_TIME_SECONDS | HUD_TIME_COUNT_DOWN;
+	
+	float timeLeft = g_next_invasion_wave - g_Engine.time;
+	params.value = timeLeft;
+	
+	params.x = 0;
+	params.y = 0.06;
+
+	params.color1 = RGBA_SVENCOOP;
+	
+	if ( (g_invasion_mode and timeLeft < 60) or (g_vote_state > 0 and timeLeft < 5))
+	{
+		params.flags |= HUD_TIME_MILLISECONDS;
+		params.color1 = RGBA_RED;
+	}
+	
+	params.spritename = "stopwatch";
+	
+	g_PlayerFuncs.HudTimeDisplay( null, params );
+}
+
+bool checkWaveStatus()
+{
+	CBaseEntity@ ent = null;
+	do {
+		@ent = g_EntityFuncs.FindEntityByClassname(ent, "*");
+		if (ent !is null and ent.IsMonster() and ent.IsAlive() and !ent.IsPlayer() and ent.pev.classname != "squadmaker") {
+			return true;
+		}
+	} while (ent !is null);
+	return false;
+}
+
+void invasionLose()
+{
+	g_EntityFuncs.FireTargets("game_over_sound", null, null, USE_TOGGLE);
+	g_EntityFuncs.FireTargets("game_over", null, null, USE_TOGGLE);
+}
+
+void equipAllPlayers()
+{
+	CBaseEntity@ ent = null;
+	do {
+		@ent = g_EntityFuncs.FindEntityByClassname(ent, "player");
+		if (ent !is null and ent.IsAlive()) {
+			CBasePlayer@ plr = cast<CBasePlayer@>(ent);
+			equipPlayer(plr);
+		}
+	} while (ent !is null);
+}
+
+void updateWaveStatus()
+{
+	g_wave_in_progress = checkWaveStatus();
+	
+	if (g_wave_in_progress and g_build_parts.length() == 0)
+	{
+		g_PlayerFuncs.ScreenFadeAll(Vector(32,0,0), 3.0f, 255.0f, 255, FFADE_OUT);
+		g_EntityFuncs.FireTargets("game_over_text", null, null, USE_TOGGLE);
+		g_Scheduler.SetTimeout("invasionLose", 6.0f);
+		return;
+	}
+	
+	bool isFinalWave = g_invasion_round >= int(invasion_waves.size())-1;
+	
+	if (!g_wave_in_progress and isFinalWave and !finished_invasion)
+	{
+		finished_invasion = true;
+		
+		equipAllPlayers();
+		
+		g_PlayerFuncs.SayTextAll(getAnyPlayer(), "You win! Destroy what's left of your base to end the game.\n");
+		g_EntityFuncs.FireTargets("game_win_sound", null, null, USE_TOGGLE);
+		for (uint i = 0; i < g_build_parts.length(); i++)
+		{
+			CBaseEntity@ ent = g_build_parts[i].GetEntity();
+			if (ent is null) {
+				g_build_parts.removeAt(i);
+				i--;
+				continue;
+			}
+			ent.pev.health = 1;
+			ent.pev.max_health = 1;
+		}
+	}
+	
+	if (finished_invasion and g_build_parts.length() == 0)
+	{
+		g_EntityFuncs.FireTargets("game_over", null, null, USE_TOGGLE);
+	}
+	
+	g_Scheduler.SetTimeout("updateWaveStatus", 2.0f);
+}
+
+void spawnInvasionWave()
+{	
+	func_build_zone@ zone = cast<func_build_zone@>(CastToScriptClass(g_invasion_zone.GetEntity()));
+
+	bool isFinalWave = g_invasion_round >= int(invasion_waves.size())-1;
+	
+	float extrahealth = zone.SpawnInvasionWave(invasion_waves[g_invasion_round]);
+	string penalty = "";
+	if (extrahealth > 0) { 
+		penalty = " (+" + extrahealth + " health from living monsters in previous wave)";
+	}
+	
+	g_PlayerFuncs.SayTextAll(getAnyPlayer(), "Wave " + (g_invasion_round+1) + " - " + invasion_wave_titles[g_invasion_round] + penalty + "\n");
+	
+	g_invasion_round++;
+	
+	if (isFinalWave)
+	{
+		g_PlayerFuncs.SayTextAll(getAnyPlayer(), "Final wave! Kill all monsters to win.\n");
+		clearTimer();
+	}
+	else
+	{
+		g_Scheduler.SetTimeout("spawnInvasionWave", g_invasion_delay*60);
+		g_next_invasion_wave = g_Engine.time + g_invasion_delay*60;
+	}
 }
 
 void dropNodes()
@@ -982,6 +1471,9 @@ void dropNodes()
 			keys["origin"] = nodePos.ToString();
 			g_EntityFuncs.CreateEntity("info_node", keys, true);
 			//g_EntityFuncs.Remove(ent);
+			
+			keys["origin"] = (nodePos + Vector(0,0,512)).ToString();
+			g_EntityFuncs.CreateEntity("info_node_air", keys, true);
 			
 			count++;
 		}
@@ -1059,11 +1551,47 @@ void monster_killed(CBaseEntity@ pActivator, CBaseEntity@ pCaller, USE_TYPE useT
 	monster_node(EHandle(pCaller));
 }
 
+void equipPlayer(CBasePlayer@ plr)
+{
+	if (g_vote_state > 0) 
+	{
+		plr.GiveNamedItem("weapon_guitar", 0, 0);
+		return;
+	}
+	plr.GiveNamedItem("weapon_rock", 0, 0);
+	if (g_creative_mode)
+	{
+		plr.GiveNamedItem("weapon_building_plan", 0, 0);
+		plr.GiveNamedItem("weapon_hammer", 0, 0);
+		plr.GiveNamedItem("weapon_guitar", 0, 0);
+		plr.GiveNamedItem("weapon_custom_deagle", 0, 0);
+		plr.GiveNamedItem("weapon_bow", 0, 0);
+		giveItem(plr, I_9MM, 50, false, true, true);
+		giveItem(plr, I_556, 50, false, true, true);
+		giveItem(plr, I_ARROW, 50, false, true, true);
+		giveItem(plr, I_BUCKSHOT, 20, false, true, true);
+		giveItem(plr, I_ROCKET, 5, false, true, true);
+		giveItem(plr, I_FUEL, 200, false, true, true);
+		plr.pev.armorvalue = 100;
+		plr.pev.health = 100;
+	}
+	else if (finished_invasion)
+	{
+		plr.GiveNamedItem("weapon_custom_saw", 0, 0);
+		plr.GiveNamedItem("weapon_custom_rpg", 0, 0);
+		plr.GiveNamedItem("weapon_custom_flamethrower", 0, 0);
+		giveItem(plr, I_556, 200, false, true, true);
+		giveItem(plr, I_ROCKET, 5, false, true, true);
+		giveItem(plr, I_FUEL, 200, false, true, true);
+	}
+}
+
 void player_respawn(CBaseEntity@ pActivator, CBaseEntity@ pCaller, USE_TYPE useType, float flValue)
 {
 	if (!pCaller.IsPlayer())
 		return;
 	CBasePlayer@ plr = cast<CBasePlayer@>(pCaller);
+	equipPlayer(plr);
 	activateCorpses(plr);
 	clearInventory(plr);
 	PlayerState@ state = getPlayerState(plr);
@@ -1131,6 +1659,7 @@ void revive_finish(EHandle h_plr)
 
 void cleanup_map()
 {
+	array<EHandle> orphans;
 	CBaseEntity@ ent = null;
 	do {
 		@ent = g_EntityFuncs.FindEntityByClassname(ent, "item_inventory");
@@ -1157,11 +1686,15 @@ void cleanup_map()
 					{
 						details += " " + g_items[type].title + " x" + ent.pev.button;
 					}
+					orphans.insertLast(EHandle(ent));
 					println("Found orphaned item at " + ent.pev.origin.ToString() + " " + details);
 				}
 			}
 		}
 	} while (ent !is null);
+	
+	for (uint i = 0; i < orphans.size(); i++)
+		g_EntityFuncs.Remove(orphans[i]);
 }
 
 bool doRustCommand(CBasePlayer@ plr, const CCommand@ args)
@@ -1534,11 +2067,13 @@ bool doRustCommand(CBasePlayer@ plr, const CCommand@ args)
 
 HookReturnCode ClientLeave(CBasePlayer@ plr)
 {
+	if (g_vote_state > 0) {
+		return HOOK_CONTINUE;
+	}
 	PlayerState@ state = getPlayerState(plr);
 	state.inGame = false;
 	state.resumeOnJoin = true;
 	state.leaveTeam();
-	println("" + plr.pev.netname + " left the paws");
 	
 	// spawn corpse for leaver
 	if (plr.pev.deadflag == DEAD_NO)
@@ -1559,6 +2094,12 @@ HookReturnCode ClientJoin(CBasePlayer@ plr)
 {
 	if (plr is null)
 		return HOOK_CONTINUE;
+		
+	if (g_vote_state > 0 and !waiting_for_voters) {
+		resetVoteTimer();
+		return HOOK_CONTINUE;
+	}
+		
 	PlayerState@ state = getPlayerState(plr);
 	
 	if (state.resumeOnJoin and state.lastCorpse.IsValid())
@@ -1596,8 +2137,6 @@ HookReturnCode ClientJoin(CBasePlayer@ plr)
 	}
 	
 	state.inGame = true;
-	
-	println("" + plr.pev.netname + " joined the paws");
 
 	return HOOK_CONTINUE;
 }

@@ -376,21 +376,21 @@ array<Item> g_items = {
 	Item(I_SHOTGUN, 1, true, false, "weapon_custom_shotgun", "", "Shotgun", RawItem(I_HQMETAL, 15), RawItem(I_SCRAP, 15),
 		"Most effective at close range. Uses buckshot ammo."),
 	Item(I_SNIPER, 1, true, false, "weapon_custom_sniper", "", "Sniper Rifle", RawItem(I_HQMETAL, 30), RawItem(I_SCRAP, 25),
-		"Camp in your base with this. Uses 7.26 ammo."),
+		"Camp in your base with this. Uses rifle ammo."),
 	Item(I_UZI, 1, true, false, "weapon_custom_uzi", "", "Uzi", RawItem(I_HQMETAL, 40), RawItem(I_SCRAP, 10),
-		"Rapid-fire weapon. Uses 9MM ammo."),
+		"Rapid-fire weapon. Uses pistol ammo."),
 	Item(I_SAW, 1, true, false, "weapon_custom_saw", "", "M249 SAW", RawItem(I_HQMETAL, 50), RawItem(I_SCRAP, 50),
-		"Powerful machine gun with a high firing rate and damage. Uses 5.56 ammo."),
+		"Powerful machine gun with a high firing rate and damage. Uses rifle ammo."),
 	Item(I_GUITAR, 1, true, false, "weapon_guitar", "", "Guitar", RawItem(I_WOOD, 50), RawItem(I_SCRAP, 1),
 		"Play notes with primary fire, songs with secondary. Tertiary fire selects a song."),
 	
-	Item(I_ARROW, 50, false, true, "arrows", "", "Wooden Arrow", RawItem(I_WOOD, 20), RawItem(I_STONE, 10),
+	Item(I_ARROW, 50, false, true, "arrows", "", "Wooden Arrow", RawItem(I_WOOD, 40), RawItem(I_STONE, 20),
 		"Used with the hunting bow and crossbow."),
 	Item(I_FUEL, 500, false, true, "fuel", "", "Fuel", null, null,
 		"Crafting material and ammo for the flame thrower. Collected from monsters."),
-	Item(I_556, 100, false, true, "556", "", "5.56 Ammo", RawItem(I_METAL, 10), RawItem(I_HQMETAL, 5),
+	Item(I_556, 100, false, true, "556", "", "Rifle Ammo", RawItem(I_METAL, 10), RawItem(I_HQMETAL, 5),
 		"Used with the saw and sniper rifle."),
-	Item(I_9MM, 100, false, true, "9mm", "", "9mm Ammo", RawItem(I_METAL, 10), RawItem(I_HQMETAL, 5), 
+	Item(I_9MM, 100, false, true, "9mm", "", "Pistol Ammo", RawItem(I_METAL, 10), RawItem(I_HQMETAL, 5), 
 		"Used with the uzi."),
 	Item(I_BUCKSHOT, 50, false, true, "buckshot", "", "Shotgun Shell", RawItem(I_METAL, 20), RawItem(I_HQMETAL, 10),
 		"Used with the shotgun."),
@@ -1169,8 +1169,9 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 					continue;
 				if (attachEnt !is null and ent.entindex() == attachEnt.entindex())
 					continue;
-				if (ent.pev.solid == SOLID_NOT or ent.pev.effects & EF_NODRAW != 0)
+				if (ent.pev.solid == SOLID_NOT)
 					continue;
+				//if (ent.pev.effects & EF_NODRAW != 0)
 				if (ent.pev.solid == SOLID_TRIGGER and ent.pev.classname != "func_build_clip")
 					continue;
 				if (buildType == B_CODE_LOCK or buildType == B_LADDER)
@@ -1197,10 +1198,14 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 				} 
 				else if (debug_mode && overlap > 0)
 				{
-					println("OVERLAP BY: " + cname + " overlap " + overlap);
+					//println("OVERLAP BY: " + cname + " overlap " + overlap);
 				}
 			}
 		} while (ent !is null);
+		
+		// extra limitations in invasion mode
+		if (g_invasion_mode and g_EngineFuncs.PointContents(newOri) != CONTENTS_EMPTY)
+			validBuild = false;
 		
 		// only allow building in build zones
 		if (!g_build_anywhere)
@@ -1257,7 +1262,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 					{
 						BuildZone@ zone = getBuildZone(zoneid);
 						string status;
-						if (zoneid == state.home_zone)
+						if (zoneid == state.home_zone or g_invasion_mode or g_creative_mode)
 						{
 							status = "Settler";
 							params.r1 = 48;
@@ -1271,27 +1276,36 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 							params.g1 = 48;
 							params.b1 = 48;
 						}
-
-						g_PlayerFuncs.HudMessage(plr, params, "Build Zone: " + zoneid + 
-												 "\nSettlers: " + zone.numSettlers + " / " + zone.maxSettlers +
-												 "\nStatus: " + status);
+						
+						if (!g_invasion_mode and !g_creative_mode)
+							g_PlayerFuncs.HudMessage(plr, params, "Build Zone: " + zoneid + 
+													 "\nSettlers: " + zone.numSettlers + " / " + zone.maxSettlers +
+													 "\nStatus: " + status);
+													 
+						if (g_creative_mode or g_invasion_mode)
+						{
+							g_PlayerFuncs.HudMessage(plr, params, "Build Zone: " + zoneid);
+						}
 					}
 					else
 					{
 						g_PlayerFuncs.HudMessage(plr, params, "Build Zone: Outskirts\n(Building not allowed)");
 					}
 					
-					params.x = 0.8;
-					params.channel = 0;
-					int maxPoints = state.maxPoints(zoneid);
-					g_PlayerFuncs.HudMessage(plr, params,	"Build Points:\n" + (maxPoints-state.getNumParts(zoneid)) + " / " + maxPoints);
+					if (!g_invasion_mode and !g_creative_mode)
+					{
+						params.x = 0.8;
+						params.channel = 0;
+						int maxPoints = state.maxPoints(zoneid);
+						g_PlayerFuncs.HudMessage(plr, params,	"Build Points:\n" + (maxPoints-state.getNumParts(zoneid)) + " / " + maxPoints);
+					}
 				}
-				else
+				if (g_creative_mode or g_invasion_mode)
 				{
 					params.x = 0.8;
 					params.channel = 0;
-					int total = state.getNumParts(-1337);
-					g_PlayerFuncs.HudMessage(plr, params, "Built Parts:\n" + total + " / 500");
+					int total = state.getNumParts(g_creative_mode ? zoneid : -1337);
+					g_PlayerFuncs.HudMessage(plr, params, "Built Parts:\n" + total + " / " + g_zone_info.partsPerZone);
 				}
 			}	
 			updateBuildPlaceholder();
@@ -1312,6 +1326,12 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 		if (buildEnt !is null and forbidden)
 		{
 			g_PlayerFuncs.PrintKeyBindingString(plr, "Building blocked by tool cupboard");
+			return false;
+		}
+		
+		if (g_invasion_mode and g_wave_in_progress)
+		{
+			g_PlayerFuncs.PrintKeyBindingString(plr, "Building not allowed during an invasion");
 			return false;
 		}
 		
@@ -1361,7 +1381,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 					g_PlayerFuncs.PrintKeyBindingString(plr, "Building not allowed in outskirts");
 					return false;
 				}
-				if (state.home_zone == -1)
+				if (state.home_zone == -1 and !g_invasion_mode and !g_creative_mode)
 				{
 					BuildZone@ zone = getBuildZone(zoneid);
 					int needSpace = state.team !is null ? state.team.members.size() : 1;
@@ -1388,13 +1408,14 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 						//g_PlayerFuncs.SayText(plr, "This zone has too many settlers.");
 					}
 				}
-				if (state.getNumParts(zoneid) >= state.maxPoints(zoneid))
+				int zonePartTotal = g_invasion_mode ? -1337 : zoneid;
+				if (state.getNumParts(zonePartTotal) >= state.maxPoints(zonePartTotal))
 				{
 					g_PlayerFuncs.PrintKeyBindingString(plr, "You're out of build points!\n\nFuse your parts (Hammer) for more points.");
 					return false;
 				}
 				
-				if (zoneid != state.home_zone)
+				if ((zoneid != state.home_zone and !g_invasion_mode) or g_creative_mode)
 					getBuildZone(zoneid).numRaiderParts++;
 			}
 		
@@ -1527,6 +1548,8 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 			else
 			{				
 				@ent = g_EntityFuncs.CreateEntity("func_breakable_custom", keys, true);
+				
+				build_effect(ent.pev.origin);
 				
 				g_SoundSystem.PlaySound(ent.edict(), CHAN_STATIC, fixPath(soundFile), 1.0f, 1.0f, 0, 90 + Math.RandomLong(0, 20));
 				

@@ -127,8 +127,7 @@ class Song
 				}
 				if (line.Find("!channels=") == 0)
 				{
-					string prefix = "!channels"; // do not try string("!channels").Length() - you will crash. WTF WHY?!?!?
-					line = line.SubString(prefix.Length());
+					string prefix = "!channels="; // do not try string("!channels").Length() - you will crash. WTF WHY?!?!?
 					line = line.SubString(prefix.Length());
 					array<string>@ newChans = line.Split("+");
 					use_channels.deleteAll();
@@ -139,7 +138,7 @@ class Song
 				}
 				if (line.Find("!octaves=") == 0)
 				{
-					string prefix = "!octaves";
+					string prefix = "!octaves=";
 					line = line.SubString(prefix.Length());
 					array<string>@ newOct = line.Split("+");
 					octave_offsets.deleteAll();

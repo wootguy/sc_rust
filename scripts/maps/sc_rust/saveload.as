@@ -56,11 +56,14 @@ void saveMapData()
 			{
 				func_build_zone@ zone = cast<func_build_zone@>(CastToScriptClass(g_build_zone_ents[i].GetEntity()));
 				
+				zone.DeleteNullNodes();
 				buf.Write(uint16(zone.nodes.size()));
 				println("prepare to save " + zone.nodes.size() + " nodes");
 				for (uint k = 0; k < zone.nodes.size(); k++) 
 				{
 					CBaseEntity@ node = zone.nodes[k];
+					if (@node == null)
+						continue;
 					uint8 nodeType = NODE_XEN;
 					if (node.pev.classname == "func_breakable_custom")
 					{
@@ -95,6 +98,8 @@ void saveMapData()
 	}
 	else if (g_build_parts.length() > 0)
 		println("Failed to open file: " + path);
+		
+	saveLoadInProgress = false;
 }
 
 void unlockSaveLoad()
@@ -208,9 +213,13 @@ void loadNodesPartial(ByteBuffer@ buf, int zonesLoaded, int numZones, int nodesL
 			nodesLoaded = 0;
 			numNodes = buf.ReadUInt16();
 			zonesLoaded++;
+			zone.Enable();
+			//println("Prepare to load " + numNodes + " nodes from zone " + zonesLoaded);
 		}
-		if (nodesLoaded < numNodes and zonesLoaded < numZones)
+		if (zonesLoaded < numZones)
 			g_Scheduler.SetTimeout("loadNodesPartial", 0.0, @buf, zonesLoaded, numZones, nodesLoaded, numNodes);
+		else
+			saveLoadInProgress = false;
 	}
 }
 
@@ -350,6 +359,7 @@ void loadMapPartial(ByteBuffer@ buf, int partsLoaded, int numParts)
 		{
 			uint32 numZones = buf.ReadUInt16();
 			uint32 numNodes = buf.ReadUInt16();
+			println("Loading " + numZones + " zones");
 			g_Scheduler.SetTimeout("loadNodesPartial", 0.0, @buf, 0, numZones, 0, numNodes);
 		}
 	}
@@ -371,6 +381,7 @@ void loadMapData()
 		{
 			func_build_zone@ zone = cast<func_build_zone@>(CastToScriptClass(g_build_zone_ents[i].GetEntity()));
 			zone.Clear();
+			zone.Disable();
 		}
 		
 		// load parts

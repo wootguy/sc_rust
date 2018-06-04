@@ -1,12 +1,4 @@
 
-const int CHEST_ITEM_MAX_SMALL = 14; // 2 menu pages
-const int CHEST_ITEM_MAX_LARGE = 28; // 4 menu pages
-const int CHEST_ITEM_MAX_FURNACE = 3; // slots for wood, ore, and result
-
-float COOK_TIME_WOOD = 2.0f;
-float COOK_TIME_METAL = 3.0f;
-float COOK_TIME_HQMETAL = 6.0f;
-
 class BMaterial
 {
 	array<string> hitSounds;
@@ -205,14 +197,12 @@ class func_breakable_custom : ScriptBaseEntity
 		if (!isNode and debug_mode)
 			println("CREATE PART " + id + " WITH PARENT " + parent);
 		
-		
-		
 		if (isNode)
 		{
 			self.pev.effects = EF_NODRAW;
 		}
 		else
-			self.SetClassification(CLASS_PLAYER_ALLY);
+			self.SetClassification(CLASS_PLAYER);
 		
 		g_EntityFuncs.SetModel(self, self.pev.model);
 		//g_EntityFuncs.SetSize(self.pev, self.pev.mins, self.pev.maxs);
@@ -696,10 +686,25 @@ class func_breakable_custom : ScriptBaseEntity
 	{
 		if (dead)
 			return 0;
-			
-		//println("LE DMG: " + bitsDamageType);
 		
-		if (pevInflictor.classname != "func_breakable_custom" and !isDoor and !isLadder and !isWindowBars and !isItem and parent != -1)
+		if (pevAttacker.classname == "monster_kingpin") {
+			flDamage *= 4;
+		}
+		if (g_invasion_mode and string(pevAttacker.classname).StartsWith("monster_")) {
+			flDamage *= 2;
+			if (!isItem)
+			{
+				if (g_difficulty == 0)
+					flDamage *= 4;
+				else if (g_difficulty == 1)
+					flDamage *= 8;
+				else if (g_difficulty == 2)
+					flDamage *= 16;
+			}
+		}
+		
+		
+		if (pevInflictor.classname != "func_breakable_custom" and !isDoor and !isLadder and !isWindowBars and !isItem and parent != -1 and !isAirdrop)
 		{
 			func_breakable_custom@ ent = getBuildPartByID(parent);
 			if (ent is null)
@@ -735,7 +740,7 @@ class func_breakable_custom : ScriptBaseEntity
 				int giveType = I_WOOD;
 				if (nodeType == NODE_TREE)
 				{
-					if (weaponName == "weapon_rock") giveAmount = 10;
+					if (weaponName == "weapon_rock" or weaponName == "weapon_custom_crowbar") giveAmount = 10;
 					if (weaponName == "weapon_stone_hatchet") giveAmount = 20;
 					if (weaponName == "weapon_metal_hatchet") giveAmount = 30;
 					if (weaponName == "weapon_stone_pickaxe") giveAmount = 10;
@@ -745,11 +750,11 @@ class func_breakable_custom : ScriptBaseEntity
 				}
 				if (nodeType == NODE_ROCK)
 				{
-					if (weaponName == "weapon_rock") giveAmount = 5;
+					if (weaponName == "weapon_rock" or weaponName == "weapon_custom_crowbar") giveAmount = 5;
 					if (weaponName == "weapon_stone_hatchet") giveAmount = 10;
 					if (weaponName == "weapon_metal_hatchet") giveAmount = 15;
 					if (weaponName == "weapon_stone_pickaxe") giveAmount = 20;
-					if (weaponName == "weapon_metal_pickaxe") giveAmount = 40;
+					if (weaponName == "weapon_metal_pickaxe") giveAmount = 50;
 					
 					giveType = I_STONE;
 					if (Math.RandomLong(0,5) <= 1)
@@ -838,8 +843,11 @@ class func_breakable_custom : ScriptBaseEntity
 			dead = true;
 			if (!isNode)
 			{
-				removeAllConnections();
-				part_broken(self, self, USE_TOGGLE, 0);
+				if (!isAirdrop)
+				{
+					removeAllConnections();
+					part_broken(self, self, USE_TOGGLE, 0);
+				}
 				
 				if (pev.effects & EF_NODRAW != 0)
 				{

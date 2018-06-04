@@ -36,6 +36,10 @@ void upgradeMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTex
 		hammer.Upgrade(2);
 	if (action == "armor")
 		hammer.Upgrade(3);
+		
+	if (action == "destroy") {
+		hammer.Destroy();
+	}
 	
 	menu.Unregister();
 	@menu = null;
@@ -317,6 +321,8 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 				lastHudUpdate = g_Engine.time;
 				PlayerState@ state = getPlayerState(plr);
 				zoneid = getBuildZone(plr);
+				if (g_invasion_mode)
+					zoneid = -1337;
 			
 				HUDTextParams params;
 				params.effect = 0;
@@ -611,6 +617,11 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 		state.menu.AddItem("Stone" + stoneCost, any("stone"));
 		state.menu.AddItem("Metal" + metalCost, any("metal"));
 		state.menu.AddItem("Armor" + armorCost, any("armor"));
+		state.menu.AddItem("", any(""));
+		state.menu.AddItem("", any(""));
+		state.menu.AddItem("", any(""));
+		state.menu.AddItem("", any(""));
+		state.menu.AddItem("DESTROY", any("destroy"));
 		
 		state.openMenu(plr);
 	}
@@ -671,11 +682,31 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 				buildEnt.pev.rendercolor = Vector(0, 255, 255);
 				
 			lookEnt.pev.health = lookEnt.pev.max_health = getMaterialMaxHealth(material)*getModelSizei(lookEnt);
+			
+			build_effect(lookEnt.pev.origin);
 		}
 		else
 			g_PlayerFuncs.PrintKeyBindingString(getPlayer(), "Hammer not active");
 			
 		upgrading = false;
+	}
+	
+	void Destroy()
+	{
+		if (active and upgrading)
+		{
+			CBasePlayer@ plr = getPlayer();
+			array<EHandle> parts = getPartsByOwner(plr);
+			for (uint i = 0; i < parts.size(); i++)
+			{
+				if (parts[i].GetEntity().entindex() == lookEnt.entindex())
+				{
+					lookEnt.TakeDamage(lookEnt.pev, lookEnt.pev, lookEnt.pev.health, 0);
+					return;
+				}
+			}
+			g_PlayerFuncs.PrintKeyBindingString(plr, "You can only destroy parts you built");
+		}
 	}
 	
 	void Separate(CBaseEntity@ ent)
@@ -807,6 +838,9 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 		}
 		if (state !is null)
 			state.addPartCount(parts.length() - 1, fuseZone);
+			
+		if (g_creative_mode)
+			getBuildZone(fuseZone).numRaiderParts += parts.length() - 1;
 		
 		// disconnect children
 		for (uint i = 0; i < g_build_parts.size(); i++)
@@ -1344,6 +1378,9 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 			PlayerState@ state = getPlayerStateBySteamID(part2.pev.noise1, part2.pev.noise2);
 			if (state !is null)
 				state.addPartCount(-1, fuseZone);
+				
+			if (g_creative_mode)
+				getBuildZone(fuseZone).numRaiderParts -= 1;
 			
 			func_breakable_custom@ b1 = getBuildPartByID(part1.pev.team);
 			int oldParent = b1.parent;
