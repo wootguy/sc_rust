@@ -1434,6 +1434,30 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 			string soundFile = nextSnd == 0 ? "sc_rust/build1.ogg" : "sc_rust/build2.ogg";
 			nextSnd = 1 - nextSnd;
 			
+			
+				
+			if (buildType == B_WOOD_DOOR or buildType == B_METAL_DOOR or buildType == B_LADDER_HATCH)
+				showTip(EHandle(plr), TIP_LOCK_DOOR);
+			else if (buildType == B_LADDER_HATCH)
+				showTip(EHandle(plr), TIP_LOCK_HATCH);
+			else if (buildType == B_CODE_LOCK)
+				showTip(EHandle(plr), TIP_CODE);
+			else if (buildType == B_FURNACE)
+				showTip(EHandle(plr), TIP_FURNACE);
+			else if (buildType == B_TOOL_CUPBOARD)
+				showTip(EHandle(plr), TIP_AUTH);
+			else if (buildType == B_SMALL_CHEST or buildType == B_LARGE_CHEST)
+				showTip(EHandle(plr), TIP_CHEST_ITEMS);
+			else
+			{
+				if (Math.RandomLong(0, 20) == 0)
+					showTip(EHandle(plr), TIP_HAMMER);
+				if (state.tips & TIP_HAMMER != 0 and Math.RandomLong(0, 20) == 0)
+					showTip(EHandle(plr), TIP_SLEEP);
+				if (state.tips & TIP_CUPBOARD != 0 and Math.RandomLong(0, 40) == 0)
+					showTip(EHandle(plr), TIP_CUPBOARD);
+			}
+			
 			if (buildType == B_WOOD_DOOR) soundFile = "sc_rust/door_wood_place.ogg";
 			if (buildType == B_METAL_DOOR) soundFile = "sc_rust/door_metal_place.ogg";
 			if (buildType == B_WOOD_BARS) soundFile = "sc_rust/bars_wood_place.ogg";

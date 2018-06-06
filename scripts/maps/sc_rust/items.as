@@ -44,7 +44,7 @@ void inventoryCheck()
 		if (wep !is null and wep.pev.noise3 == "")
 		{
 			CBaseEntity@ owner = g_EntityFuncs.Instance(wep.pev.owner);
-			if (owner !is null and owner.IsPlayer())
+			if (owner !is null and owner.IsPlayer() and wep.pev.effects & EF_NODRAW == 0)
 			{
 				CBasePlayer@ plr = cast<CBasePlayer@>(owner);
 				PlayerState@ state = getPlayerState(plr);
@@ -935,6 +935,7 @@ void playerMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CText
 			Item@ craftItem = g_items[itemType];
 			
 			bool canCraft = true;
+			bool tipShown = false;
 			string needMore = "";
 			if (!g_free_build)
 			{
@@ -943,6 +944,22 @@ void playerMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CText
 					int costType = craftItem.costs[i].type;
 					if (getItemCount(plr, costType, true, true) < craftItem.costs[i].amt)
 					{
+						if (!tipShown and (state.tips & TIP_METAL == 0) and (g_items[costType].type == I_METAL or g_items[costType].type == I_HQMETAL))
+						{
+							g_Scheduler.SetTimeout("showTip", 3.0f, EHandle(plr), int(TIP_METAL));
+							tipShown = true;
+						}
+						else if (!tipShown and (state.tips & TIP_FUEL == 0) and g_items[costType].type == I_FUEL)
+						{
+							g_Scheduler.SetTimeout("showTip", 3.0f, EHandle(plr), int(TIP_FUEL));
+							tipShown = true;
+						}
+						else if (!tipShown and (state.tips & TIP_SCRAP == 0) and g_items[costType].type == I_SCRAP)
+						{
+							g_Scheduler.SetTimeout("showTip", 3.0f, EHandle(plr), int(TIP_SCRAP));
+							tipShown = true;
+						}
+							
 						needMore = needMore.Length() > 0 ? needMore + " and " + g_items[costType].title : g_items[costType].title;
 						canCraft = false;
 					}
@@ -950,6 +967,11 @@ void playerMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CText
 			}
 			if (canCraft)
 			{
+				if (craftItem.type <= I_BED)
+					showTip(EHandle(plr), TIP_PLACE_ITEMS);
+				if (craftItem.type == I_FLAMETHROWER)
+					showTip(EHandle(plr), TIP_FLAMETHROWER);
+					
 				int amt = craftItem.isWeapon and craftItem.stackSize == 1 ? 0 : 1;
 				if (craftItem.type == I_9MM) amt = 5;
 				if (craftItem.type == I_556) amt = 5;
@@ -969,8 +991,9 @@ void playerMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CText
 				}
 				else
 				{
-					println("Barfed " + barf + " of " + amt);
+					//println("Barfed " + barf + " of " + amt);
 					g_PlayerFuncs.PrintKeyBindingString(plr, "Inventory is full");
+					g_Scheduler.SetTimeout("showTip", 3.0f, EHandle(plr), int(TIP_CHEST));
 					// undo cost
 					if (!g_free_build)
 					{
@@ -1587,6 +1610,7 @@ void openLootMenu(CBasePlayer@ plr, CBaseEntity@ corpse, string submenu="")
 				break;
 			case B_FURNACE:
 				title = "Furnace:";
+				break;
 			case E_SUPPLY_CRATE:
 				title = "Supply Crate:";
 				break;
@@ -1622,7 +1646,7 @@ void openLootMenu(CBasePlayer@ plr, CBaseEntity@ corpse, string submenu="")
 			}
 			
 			if (options == 0)
-				state.menu.AddItem("(no items to gives)", any(""));
+				state.menu.AddItem("(no items to give)", any(""));
 		}
 		else if (submenu.Find("givestack-") == 0)
 		{

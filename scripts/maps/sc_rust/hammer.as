@@ -684,6 +684,8 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 			lookEnt.pev.health = lookEnt.pev.max_health = getMaterialMaxHealth(material)*getModelSizei(lookEnt);
 			
 			build_effect(lookEnt.pev.origin);
+			
+			showTip(EHandle(plr), TIP_FIRE_RESIST);
 		}
 		else
 			g_PlayerFuncs.PrintKeyBindingString(getPlayer(), "Hammer not active");

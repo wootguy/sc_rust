@@ -15,8 +15,7 @@
 // lossy can't join teams?
 // restrict commands to admins
 // disable all debug prints and rever test setting overrides
-// show tips for new players
-// tutorial/help textures?
+// motd should show console commands too
 
 // Should do/fix but too lazy:
 // inventory full message not always shown
@@ -265,6 +264,32 @@ class RawItem
 	}
 }
 
+enum tips
+{
+	TIP_ACTION_MENU = 1,
+	TIP_HATCHET = 2,
+	TIP_PICKAXE = 4,
+	TIP_CUPBOARD = 8,
+	TIP_PLACE_ITEMS = 16,
+	TIP_HAMMER = 32,
+	TIP_SLEEP = 64,
+	TIP_CHEST = 128,
+	TIP_ARMOR = 256,
+	TIP_LOOT = 512,
+	TIP_LOCK_DOOR = 1024,
+	TIP_LOCK_HATCH = 2048,
+	TIP_CODE = 4096,
+	TIP_METAL = 8192,
+	TIP_FURNACE = 16384,
+	TIP_AUTH = 32768,
+	TIP_CHEST_ITEMS = 65536,
+	TIP_FIRE_RESIST = 131072,
+	TIP_FUEL = 262144,
+	TIP_FLAMETHROWER = 524288,
+	TIP_PLAN = 1048576,
+	TIP_SCRAP = 2097152,
+}
+
 class PlayerState
 {
 	EHandle plr;
@@ -285,6 +310,8 @@ class PlayerState
 	dictionary teamRequests; // outgoing requests for team members
 	bool inGame = true;
 	
+	uint64 tips = 0; // bitfield for shown tips
+	
 	// guitar vars
 	float songPosition = 0; // for guitar song
 	bool playingSong = false;
@@ -303,6 +330,50 @@ class PlayerState
 	int oldDead = DEAD_NO;
 	EHandle lastCorpse = null;
 	bool resumeOnJoin = false;
+	
+	void showTip(int tipType)
+	{
+		if (@plr.GetEntity() == null)
+			return;
+		CBasePlayer@ p = cast<CBasePlayer@>(plr.GetEntity());
+			
+		if (tips & tipType != 0)
+			return;
+		tips |= tipType;
+		
+		if (tipType == TIP_PLAN and g_creative_mode)
+			return;
+		
+		string msg = "";
+		switch(tipType)
+		{
+			case TIP_ACTION_MENU: msg = "Press +impulse to open the action menu"; break;
+			case TIP_HATCHET: msg = "Hatchets collect wood faster\n\nPress +impulse -> Craft -> Tools"; break;
+			case TIP_PICKAXE: msg = "Pickaxes collect stone/metal faster\n\nPress +impulse -> Craft -> Tools"; break;
+			case TIP_CUPBOARD: msg = "Tool Cupboards prevent griefing\n\nPress +impulse -> Craft -> Interior Items"; break;
+			case TIP_PLACE_ITEMS: msg = "Place items by selecting the\n\nBuilding Plan and pressing +reload"; break;
+			case TIP_HAMMER: msg = "Upgrade your base with the Hammer\n\nPress +impulse -> Craft -> Tools"; break;
+			case TIP_SLEEP: msg = "Place a SleepingBag to respawn here\n\nPress +impulse -> Craft -> Interior Items"; break;
+			case TIP_CHEST: msg = "Build a Chest to store excess items\n\nPress +impulse -> Craft -> Interior Items"; break;
+			case TIP_ARMOR: msg = "Equip armor to protect yourself\n\nPress +impulse -> Craft -> Medical / Armor"; break;
+			case TIP_LOOT: msg = "A corpse is spawned when you die.\n\nPress +use on corpses to loot them."; break;
+			case TIP_LOCK_DOOR: msg = "You can place Code Locks on doors\n\nPress +impulse -> Craft -> Interior Items"; break;
+			case TIP_LOCK_HATCH: msg = "You can place Code Locks on hatches\n\nPress +impulse -> Craft -> Interior Items"; break;
+			case TIP_METAL: msg = "Metal is smelted in a furnace\n\nPress +impulse -> Craft -> Interior Items"; break;
+			case TIP_FURNACE: msg = "Press +USE to open the furnace.\n\nWood and Ore is required to make metal."; break;
+			case TIP_CODE: msg = "Hold +USE on the Code Lock\n\nto open the lock menu."; break;
+			case TIP_AUTH: msg = "Press +USE to authorize yourself.\n\nHold +USE to unauthorize all users."; break;
+			case TIP_CHEST_ITEMS: msg = "Press +USE on the chest to open it"; break;
+			case TIP_FIRE_RESIST: msg = "Stone/Metal/Armor is immune to fire"; break;
+			case TIP_FUEL: msg = "Fuel is harvested from dead aliens"; break;
+			case TIP_FLAMETHROWER: msg = "Equip Fuel to load the Flamethrower\n\nPress +impulse -> Equip -> Fuel"; break;
+			case TIP_PLAN: msg = "Craft a Building Plan to build\n\nPress +impulse -> Craft -> Tools"; break;
+			case TIP_SCRAP: msg = "Collect Scrap from blue barrels"; break;
+		}
+		
+		if (msg.Length() > 0)
+			PrintKeyBindingStringXLong(p, "TIP: " + msg);
+	}
 	
 	void initMenu(CBasePlayer@ plr, TextMenuPlayerSlotCallback@ callback)
 	{
@@ -687,6 +758,7 @@ bool g_creative_mode = false;
 bool waiting_for_voters = true;
 bool finished_invasion = false;
 bool debug_mode = false;
+bool game_started = false;
 array<string> g_upgrade_suffixes = {
 	"_twig",
 	"_wood",
@@ -1003,7 +1075,8 @@ void MapActivate()
 	resetVoteBlockers();
 	
 	//setupInvasionMode();
-	setupCreativeMode();
+	//setupCreativeMode();
+	setupPvpMode();
 }
 
 void delay_say(string text)
@@ -1191,15 +1264,30 @@ void startGame()
 	g_Scheduler.SetInterval("stabilityCheck", 0.0);
 	g_Scheduler.SetInterval("inventoryCheck", 0.05);
 	g_Scheduler.SetInterval("cleanup_map", 60);
+	g_Scheduler.SetTimeout("showGameModeTip", 3);
+	game_started = true;
 	
 	g_EntityFuncs.FireTargets("vote_spawn", null, null, USE_OFF);
-	equipAllPlayers();
+	equipAllPlayers();	
 	g_PlayerFuncs.RespawnAllPlayers(true, true);
+	
 	
 	if (g_invasion_mode) {
 		g_PlayerFuncs.SayTextAll(getAnyPlayer(), "Invasion starts in " + g_invasion_initial_delay + " minutes\n");
 		updateWaveTimer();
 	}
+}
+
+void showGameModeTip()
+{
+	//PrintKeyBindingStringAllLong("TIP:\n\nPress +missionbriefing to learn how to play");
+	if (g_invasion_mode)
+	{
+		PrintKeyBindingStringAllLong("Build a base before the invasion starts.\n\nYou lose when your base is destroyed.");
+	}
+
+	g_Scheduler.SetTimeout("PrintKeyBindingStringAllLong", 20.0f, "TIP: Press +missionbriefing to learn how to do stuff");
+	g_Scheduler.SetTimeout("showTipAll", 7.0f, int(TIP_ACTION_MENU));
 }
 
 void setupInvasionMode()
@@ -1369,6 +1457,7 @@ void equipAllPlayers()
 		@ent = g_EntityFuncs.FindEntityByClassname(ent, "player");
 		if (ent !is null and ent.IsAlive()) {
 			CBasePlayer@ plr = cast<CBasePlayer@>(ent);
+			plr.RemoveAllItems(false);
 			equipPlayer(plr);
 		}
 	} while (ent !is null);
@@ -1618,6 +1707,17 @@ void player_respawn(CBaseEntity@ pActivator, CBaseEntity@ pCaller, USE_TYPE useT
 		plr.pev.origin = state.beds[i].GetEntity().pev.origin + Vector(0,0,40);
 	}
 	
+	if (game_started)
+	{
+		if (state.tips & TIP_ACTION_MENU == 0)
+			g_Scheduler.SetTimeout("showTip", 2.0f, EHandle(pCaller), int(TIP_ACTION_MENU));
+		else if (state.tips & TIP_LOOT == 0)
+			g_Scheduler.SetTimeout("showTip", 2.0f, EHandle(pCaller), int(TIP_LOOT));
+		else if (state.tips & TIP_ARMOR == 0)
+			g_Scheduler.SetTimeout("showTip", 2.0f, EHandle(pCaller), int(TIP_ARMOR));
+	}
+	
+	
 	plr.SetClassification(CLASS_HUMAN_MILITARY); // monsters will give this higher priority
 }
 
@@ -1676,7 +1776,7 @@ void cleanup_map()
 		@ent = g_EntityFuncs.FindEntityByClassname(ent, "item_inventory");
 		if (ent !is null) {
 			CBaseEntity@ owner = g_EntityFuncs.Instance( ent.pev.owner );
-			if (owner is null and ent.pev.renderfx != EF_NODRAW)
+			if (owner is null and ent.pev.effects != EF_NODRAW)
 			{
 				bool orphan = true;
 				for (uint i = 0; i < g_item_drops.size(); i++)

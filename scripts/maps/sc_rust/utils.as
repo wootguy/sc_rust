@@ -924,6 +924,53 @@ void PrintKeyBindingStringLong(CBasePlayer@ plr, string text)
 	g_Scheduler.SetTimeout("PrintKeyBindingString", 1, @plr, text);
 }
 
+void PrintKeyBindingStringXLong(CBasePlayer@ plr, string text)
+{
+	g_PlayerFuncs.PrintKeyBindingString(plr, text);
+	g_Scheduler.SetTimeout("PrintKeyBindingString", 1, @plr, text);
+	g_Scheduler.SetTimeout("PrintKeyBindingString", 2, @plr, text);
+	g_Scheduler.SetTimeout("PrintKeyBindingString", 3, @plr, text);
+	g_Scheduler.SetTimeout("PrintKeyBindingString", 4, @plr, text);
+	g_Scheduler.SetTimeout("PrintKeyBindingString", 5, @plr, text);
+	g_Scheduler.SetTimeout("PrintKeyBindingString", 6, @plr, text);
+}
+
+void PrintKeyBindingStringAll_delay(string text)
+{
+	g_PlayerFuncs.PrintKeyBindingStringAll(text);
+}
+
+void PrintKeyBindingStringAllLong(string text)
+{
+	g_PlayerFuncs.PrintKeyBindingStringAll(text);
+	g_Scheduler.SetTimeout("PrintKeyBindingStringAll_delay", 1, text);
+	g_Scheduler.SetTimeout("PrintKeyBindingStringAll_delay", 2, text);
+	g_Scheduler.SetTimeout("PrintKeyBindingStringAll_delay", 3, text);
+	g_Scheduler.SetTimeout("PrintKeyBindingStringAll_delay", 4, text);
+}
+
+void showTip(EHandle h_plr, int tipType)
+{
+	if (!h_plr.IsValid() or !h_plr.GetEntity().IsPlayer())
+		return;
+	
+	CBasePlayer@ plr = cast<CBasePlayer@>(h_plr.GetEntity());
+	PlayerState@ state = getPlayerState(plr);
+	state.showTip(tipType);
+}
+
+void showTipAll(int tipType)
+{
+	CBaseEntity@ ent = null;
+	do {
+		@ent = g_EntityFuncs.FindEntityByClassname(ent, "player");
+		if (ent !is null) {
+			CBasePlayer@ plr = cast<CBasePlayer@>(ent);
+			showTip(EHandle(plr), tipType);
+		}
+	} while (ent !is null);
+}
+
 void sayPlayer(CBasePlayer@ plr, string text)
 {
 	g_PlayerFuncs.SayText(plr, text);

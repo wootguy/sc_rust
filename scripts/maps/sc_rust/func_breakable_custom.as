@@ -740,7 +740,8 @@ class func_breakable_custom : ScriptBaseEntity
 				int giveType = I_WOOD;
 				if (nodeType == NODE_TREE)
 				{
-					if (weaponName == "weapon_rock" or weaponName == "weapon_custom_crowbar") giveAmount = 10;
+					if (weaponName == "weapon_custom_crowbar") giveAmount = 1;
+					if (weaponName == "weapon_rock") giveAmount = 10;
 					if (weaponName == "weapon_stone_hatchet") giveAmount = 20;
 					if (weaponName == "weapon_metal_hatchet") giveAmount = 30;
 					if (weaponName == "weapon_stone_pickaxe") giveAmount = 10;
@@ -750,7 +751,8 @@ class func_breakable_custom : ScriptBaseEntity
 				}
 				if (nodeType == NODE_ROCK)
 				{
-					if (weaponName == "weapon_rock" or weaponName == "weapon_custom_crowbar") giveAmount = 5;
+					if (weaponName == "weapon_custom_crowbar") giveAmount = 1;
+					if (weaponName == "weapon_rock") giveAmount = 5;
 					if (weaponName == "weapon_stone_hatchet") giveAmount = 10;
 					if (weaponName == "weapon_metal_hatchet") giveAmount = 15;
 					if (weaponName == "weapon_stone_pickaxe") giveAmount = 20;
@@ -794,6 +796,17 @@ class func_breakable_custom : ScriptBaseEntity
 					g_PlayerFuncs.HudMessage(plr, params, "+" + int(giveAmount) + " " + g_items[giveType].title);
 				
 				giveItem(plr, giveType, giveAmount, false, true);
+				
+				if (giveType == I_WOOD)
+				{
+					PlayerState@ state = getPlayerState(plr);
+					if (state.tips & TIP_PLAN == 0)
+						showTip(EHandle(plr), TIP_PLAN);
+					else if (Math.RandomLong(0,20) == 0)
+						showTip(EHandle(plr), TIP_HATCHET);
+				}
+				if (giveType == I_STONE and Math.RandomLong(0,20) == 0)
+					showTip(EHandle(plr), TIP_PICKAXE);
 				
 				if (nodeType != NODE_BARREL)
 					flDamage = giveAmount > 0 ? 10 : 0;
