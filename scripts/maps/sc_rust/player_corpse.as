@@ -42,7 +42,7 @@ class player_corpse : ScriptBaseMonsterEntity
 	
 	void Use(CBaseEntity@ pActivator, CBaseEntity@ pCaller, USE_TYPE useType, float flValue = 0.0f)
 	{
-		println("USED BY " + pCaller.pev.classname);
+		//println("USED BY " + pCaller.pev.classname);
 	}
 	
 	void Update()
@@ -110,7 +110,8 @@ class player_corpse : ScriptBaseMonsterEntity
 			
 		self.pev.movetype = MOVETYPE_TOSS;
 		
-		println("Corpse activated");
+		if (debug_mode)
+			println("Corpse activated");
 	}
 	
 	int entindex()
@@ -124,7 +125,8 @@ class player_corpse : ScriptBaseMonsterEntity
 		{
 			if (owner.GetEntity().pev.deadflag == DEAD_NO and removeCounter++ > 2)
 			{
-				println("Removed corpse because player was revived");
+				if (debug_mode)
+					println("Removed corpse because player was revived");
 				Destroy();
 			}
 		}

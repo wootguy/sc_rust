@@ -158,7 +158,8 @@ class func_build_zone : ScriptBaseEntity
 				maxMonsters += diff;
 		}
 		
-		println("Zone " + id + " maxs: " + maxTrees + " trees + " + maxRocks + " rocks + " + maxBarrels + " barrels + " + 
+		if (debug_mode)
+			println("Zone " + id + " maxs: " + maxTrees + " trees + " + maxRocks + " rocks + " + maxBarrels + " barrels + " + 
 				maxMonsters + " monsters");
 				
 		if (g_invasion_mode) {
@@ -184,10 +185,12 @@ class func_build_zone : ScriptBaseEntity
 						g_EntityFuncs.Remove(kill);
 				}
 			}
-			
 			g_EntityFuncs.Remove(node);
 		}
 		nodes.resize(0);
+		
+		spawnDelay = 0;
+		nextSpawn = g_Engine.time;
 	}
 	
 	void Use(CBaseEntity@ pActivator, CBaseEntity@ pCaller, USE_TYPE useType, float flValue = 0.0f)
@@ -566,14 +569,16 @@ class func_build_zone : ScriptBaseEntity
 					
 					if (nodes.size() >= maxNodes)
 					{
-						println("Zone " + id + " populated");
+						if (debug_mode)
+							println("Zone " + id + " populated");
 						spawnDelay = g_invasion_mode ? g_node_spawn_time_invasion : g_node_spawn_time;
 					}
 					if (spawning_wave and numMonsters >= maxMonsters-1)
 					{
 						spawning_wave = false;
 						spawnDelay = g_node_spawn_time_invasion;
-						println("Wave spawn complete");
+						if (debug_mode)
+							println("Wave spawn complete");
 					}
 					nextSpawn = g_Engine.time + spawnDelay;
 				}

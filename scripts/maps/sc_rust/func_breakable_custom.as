@@ -387,7 +387,7 @@ class func_breakable_custom : ScriptBaseEntity
 					}
 					if (!hasOutput)
 					{
-						println("TRY TO SPAWN: " + outputType);
+						//println("TRY TO SPAWN: " + outputType);
 						CBaseEntity@ newItem = spawnItem(pev.origin, outputType, 1);
 						newItem.pev.effects = EF_NODRAW;
 						depositItem(EHandle(newItem));

@@ -13,9 +13,6 @@
 
 // TODO:
 // lossy can't join teams?
-// restrict commands to admins
-// disable all debug prints and rever test setting overrides
-// motd should show console commands too
 
 // Should do/fix but too lazy:
 // inventory full message not always shown
@@ -58,6 +55,7 @@
 // cant place doors in fused doorways
 // apache spawns
 // build ents aren't always see-through/tinted
+// water effects aren't working (splashes, fog)
 
 // note: impulse 197 = show node connections
 
@@ -68,10 +66,10 @@
 int g_settler_reduction = 1; // reduces settlers per zone to increase build points
 int g_raider_points = 40; // best if multiple of zone count
 bool g_build_point_rounding = true; // rounds build points to a multiple of 10 (may reduce build points)
-bool g_disable_ents = false;
+bool g_disable_ents = false; // disable node spawns
 bool g_build_anywhere = false; // disables build zones
 bool g_free_build = true; // buildings/items don't cost any materials and build points are shared
-int g_inventory_size = 20;
+int g_inventory_size = 20; // max items in player inventories
 int g_max_item_drops = 2; // maximum item drops per player (more drops = less build points)
 float g_tool_cupboard_radius = 512;
 int g_max_corpses = 2; // max corpses per player (should be at least 2 to prevent despawning valuable loot)
@@ -83,7 +81,7 @@ float g_airdrop_min_delay = 10.0f; // time (in minutes) between airdrops
 float g_airdrop_max_delay = 20.0f; // time (in minutes) between airdrops
 float g_airdrop_first_delay = 15.0f; // time (in minutes) before the FIRST airdrop
 float g_node_spawn_time = 120.0f; // time (in seconds) between node spawns
-float g_chest_touch_dist = 96;
+float g_chest_touch_dist = 96; // maximum distance from which a chest can be opened
 float g_gather_multiplier = 2.0f; // resource gather amount multiplied by this (for faster/slower games)
 float g_monster_forget_time = 6.0f; // time it takes for a monster to calm down after not seeing any players
 int g_max_zone_monsters = 6;
@@ -95,7 +93,7 @@ float g_invasion_delay = 8.0f; // minutes between waves
 float g_invasion_initial_delay = 8.0f; // minutes before the invasion starts (first wave)
 float g_node_spawn_time_invasion = 30.0f; // time (in seconds) between node spawns when in invasion mode
 
-float g_vote_time = 5.0f; // time (in seconds) for vote to expire. Timer resets when new player joins.
+float g_vote_time = 20.0f; // time (in seconds) for vote to expire. Timer resets when new player joins.
 
 const int CHEST_ITEM_MAX_SMALL = 14; // 2 menu pages for small chests
 const int CHEST_ITEM_MAX_LARGE = 28; // 4 menu pages for large chests
@@ -1070,13 +1068,20 @@ void MapActivate()
 	
 	removeExtraEnts();
 	
-	//dropNodes();
+	dropNodes();
 	
 	resetVoteBlockers();
 	
+	@ent = null;
+	do {
+		@ent = g_EntityFuncs.FindEntityByTargetname(ent, "wawa");
+		if (ent !is null)
+			ent.pev.effects |= EF_NODRAW;
+	} while (ent !is null);
+	
 	//setupInvasionMode();
 	//setupCreativeMode();
-	setupPvpMode();
+	//setupPvpMode();
 }
 
 void delay_say(string text)
@@ -1271,6 +1276,12 @@ void startGame()
 	equipAllPlayers();	
 	g_PlayerFuncs.RespawnAllPlayers(true, true);
 	
+	CBaseEntity@ ent = null;
+	do {
+		@ent = g_EntityFuncs.FindEntityByTargetname(ent, "wawa");
+		if (ent !is null)
+			ent.pev.effects &= ~EF_NODRAW;
+	} while (ent !is null);
 	
 	if (g_invasion_mode) {
 		g_PlayerFuncs.SayTextAll(getAnyPlayer(), "Invasion starts in " + g_invasion_initial_delay + " minutes\n");
@@ -1306,7 +1317,6 @@ void setupInvasionMode()
 		g_invasion_delay = g_invasion_initial_delay = 5.0f;
 		
 	//g_invasion_delay = g_invasion_initial_delay = 0.05f;
-	g_free_build = true;
 	
 	g_zone_info.init();
 	g_EntityFuncs.FireTargets("zone_clip", null, null, USE_TOGGLE);
@@ -1547,6 +1557,7 @@ void dropNodes()
 			Vector nodePos = tr.vecEndPos + Vector(0,0,1);
 			g_EntityFuncs.SetOrigin(ent, nodePos);
 			
+			/*
 			int zone = getBuildZone(ent);
 			ent.pev.team = zone;
 			if (zone >= 0 and zone < int(g_build_zone_ents.length()))
@@ -1557,21 +1568,22 @@ void dropNodes()
 			}
 			else
 				println("Node at " + ent.pev.origin.ToString() + " not assigned to a build zone");
-			
+			*/
 			
 			dictionary keys;
 			keys["origin"] = nodePos.ToString();
 			g_EntityFuncs.CreateEntity("info_node", keys, true);
-			//g_EntityFuncs.Remove(ent);
 			
 			keys["origin"] = (nodePos + Vector(0,0,512)).ToString();
 			g_EntityFuncs.CreateEntity("info_node_air", keys, true);
+			
+			g_EntityFuncs.Remove(ent);
 			
 			count++;
 		}
 	} while (ent !is null);
 	
-	println("Dropped " + count + " nodes");
+	//println("Dropped " + count + " nodes");
 }
 
 void removeExtraEnts()
@@ -1811,31 +1823,67 @@ void cleanup_map()
 bool doRustCommand(CBasePlayer@ plr, const CCommand@ args)
 {
 	PlayerState@ state = getPlayerState(plr);
+	bool isAdmin = g_PlayerFuncs.AdminLevel(plr) >= ADMIN_YES;
 	
 	if ( args.ArgC() > 0 )
 	{
 		if (args[0] == ".save")
 		{
+			g_PlayerFuncs.SayText(plr, "Script version: v1");
+			return true;
+		}
+		if (args[0] == ".save")
+		{
+			if (!isAdmin)
+			{
+				g_PlayerFuncs.SayText(plr, "You don't have access to that command, peasent\n");
+				return true;
+			}
 			saveMapData();
 			return true;
 		}
 		if (args[0] == ".load")
 		{
+			if (!isAdmin)
+			{
+				g_PlayerFuncs.SayText(plr, "You don't have access to that command, peasent\n");
+				return true;
+			}
 			loadMapData();
 			return true;
 		}
 		if (args[0] == ".airdrop")
 		{
+			if (!isAdmin)
+			{
+				g_PlayerFuncs.SayText(plr, "You don't have access to that command, peasent\n");
+				return true;
+			}
 			spawn_airdrop();
 			return true;
 		}
 		if (args[0] == ".vis")
 		{
+			if (!isAdmin)
+			{
+				g_PlayerFuncs.SayText(plr, "You don't have access to that command, peasent\n");
+				return true;
+			}
 			printVisibleEnts(plr);
 			return true;
 		}
 		if (args[0] == ".item")
 		{
+			if (!isAdmin)
+			{
+				g_PlayerFuncs.SayText(plr, "You don't have access to that command, peasent\n");
+				return true;
+			}
+			if (!plr.IsAlive() or plr.pev.flags & FL_NOTARGET != 0)
+			{
+				g_PlayerFuncs.SayText(plr, "Can't spawn items when dead or if notarget is enabled");
+				return true;
+			}
 			if (args.ArgC() > 2)
 			{
 				string name = args[1];
@@ -1844,24 +1892,32 @@ bool doRustCommand(CBasePlayer@ plr, const CCommand@ args)
 				for (uint i = 0; i < g_items.size(); i++)
 				{
 					string title = g_items[i].title;
-					if (g_items[i].classname == name or title == name)
+					string titleLower = title.ToLowercase();
+					string nameLower = name.ToLowercase();
+					string cnameLower = string(g_items[i].classname).ToLowercase();
+					if (cnameLower == nameLower or titleLower == nameLower)
 					{
 						@item = @g_items[i];
 						break;
 					}
-					if (int(g_items[i].classname.Find(name)) != -1 or int(title.Find(name)) != -1)
+					if (int(cnameLower.Find(nameLower)) != -1 or int(titleLower.Find(nameLower)) != -1)
 						@item = @g_items[i];
 				}
 				if (item !is null)
 				{
-					giveItem(plr, item.type, amt);
-					g_PlayerFuncs.SayText(plr, "Given " + amt + " " + item.title);
+					giveItem(plr, item.type, amt, false, true, true);
+					g_PlayerFuncs.SayTextAll(plr, "" + plr.pev.netname + " gave " + amt + " " + item.title + " to self");
 				}
 			}
 			return true;
 		}
 		if (args[0] == ".clean")
 		{
+			if (!isAdmin)
+			{
+				g_PlayerFuncs.SayText(plr, "You don't have access to that command, peasent\n");
+				return true;
+			}
 			println("Cleanup started");
 			cleanup_map();
 			return true;
@@ -2092,6 +2148,7 @@ bool doRustCommand(CBasePlayer@ plr, const CCommand@ args)
 		}
 		if (args[0] == ".teams")
 		{
+			bool anyActive = false;
 			for (uint i = 0; i < g_teams.size(); i++)
 			{
 				string msg = "Team " + i + ": ";
@@ -2099,23 +2156,53 @@ bool doRustCommand(CBasePlayer@ plr, const CCommand@ args)
 				{
 					msg += g_teams[i].members[k] + ", ";
 				}
+				anyActive = true;
 				msg = msg.SubString(0, msg.Length()-2);
 				g_PlayerFuncs.SayText(plr, msg);
 			}
+			if (!anyActive)
+				g_PlayerFuncs.SayText(plr, "No active teams");
 			return true;
 		}
 		if (args[0] == ".home")
 		{
 			if (state.home_zone != -1)
-				g_PlayerFuncs.SayText(plr, "Your home is zone " + state.home_zone);
+				g_PlayerFuncs.SayText(plr, "Your home is zone " + state.home_zone + "\n");
 			else
-				g_PlayerFuncs.SayText(plr, "You don't have a home. You can settle in any zone.");
+				g_PlayerFuncs.SayText(plr, "You don't have a home. You can settle in any zone.\n");
+			return true;
+		}
+		if (args[0] == ".mode")
+		{
+			string msg = "";
+			if (g_creative_mode)
+				msg = "Game mode: Creative";
+			else if (g_invasion_mode)
+			{
+				msg = "Game mode: Co-op ( ";
+				if (g_difficulty == 0)
+					msg += "easy";
+				else if (g_difficulty == 1)
+					msg += "medium";
+				else if (g_difficulty == 2)
+					msg += "hard";
+				else
+					msg += "unknown difficulty";
+			}
+			else
+				msg = "Game mode: PvP";
+			g_PlayerFuncs.SayText(plr, msg + "\n");
 			return true;
 		}
 		if (args[0] == ".nodes")
 		{
+			if (!isAdmin)
+			{
+				g_PlayerFuncs.SayText(plr, "You don't have access to that command, peasent\n");
+				return true;
+			}
 			g_disable_ents = !g_disable_ents;
-			g_PlayerFuncs.SayText(plr, "Nodes spawns are " + (g_disable_ents ? "disabled" : "enabled"));
+			g_PlayerFuncs.SayTextAll(plr, "Nodes spawns are " + (g_disable_ents ? "disabled" : "enabled"));
 			return true;
 		}
 		if (state.codeTime > 0)

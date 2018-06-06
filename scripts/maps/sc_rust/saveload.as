@@ -58,7 +58,8 @@ void saveMapData()
 				
 				zone.DeleteNullNodes();
 				buf.Write(uint16(zone.nodes.size()));
-				println("prepare to save " + zone.nodes.size() + " nodes");
+				if (debug_mode)
+					println("prepare to save " + zone.nodes.size() + " nodes");
 				for (uint k = 0; k < zone.nodes.size(); k++) 
 				{
 					CBaseEntity@ node = zone.nodes[k];

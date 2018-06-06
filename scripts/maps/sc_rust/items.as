@@ -292,7 +292,8 @@ void item_collected(CBaseEntity@ pActivator, CBaseEntity@ pCaller, USE_TYPE useT
 				CBaseEntity@ item = spawnItem(oldOri, type, barf);
 				item.pev.noise1 = oldOwner;
 				g_item_drops.insertLast(EHandle(item));
-				println("Couldn't hold " + barf + " of that");
+				if (debug_mode)
+					println("Couldn't hold " + barf + " of that");
 				return;
 			}
 		}
@@ -615,6 +616,9 @@ int giveItem(CBasePlayer@ plr, int type, int amt, bool drop=false, bool combineS
 	keys["target_cant_collect"] = "item_cant_collect";
 	keys["holder_keep_on_death"] = "1";
 	keys["holder_keep_on_respawn"] = "1";
+	
+	if (plr is null or !plr.IsAlive() or plr.pev.flags & FL_NOTARGET != 0)
+		return amt;
 	
 	plr.SetItemPickupTimes(0);
 	
@@ -980,7 +984,8 @@ void playerMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CText
 				{
 					for (uint i = 0; i < craftItem.costs.size(); i++)
 					{
-						println("Subtract cost: " + g_items[craftItem.costs[i].type].title + " " + (-craftItem.costs[i].amt));
+						if (debug_mode)
+							println("Subtract cost: " + g_items[craftItem.costs[i].type].title + " " + (-craftItem.costs[i].amt));
 						giveItem(plr, craftItem.costs[i].type, -craftItem.costs[i].amt);
 					}
 				}
@@ -1997,7 +2002,8 @@ HookReturnCode PlayerUse( CBasePlayer@ plr, uint& out )
 					if (barf > 0)
 					{
 						lookItem.pev.button = barf;
-						println("Couldn't hold " + barf + " of that");
+						if (debug_mode)
+							println("Couldn't hold " + barf + " of that");
 					}
 					else
 					{

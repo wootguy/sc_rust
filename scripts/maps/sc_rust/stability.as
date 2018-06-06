@@ -123,7 +123,7 @@ void stabilityCheck()
 			ent.pev.framerate = 0;
 			if (ent.pev.team != ent.id)
 			{
-				println("UH OH BAD ID " + ent.id + " != " + ent.pev.team);
+				println("stabilityCheck: Bad ID! " + ent.id + " != " + ent.pev.team);
 				ent.pev.team = ent.id;
 			}
 		}
@@ -148,7 +148,7 @@ void stabilityCheck()
 		
 		if (src_part.pev.classname != "func_breakable_custom")
 		{
-			println("Not a support part!");
+			println("stabilityCheck: Not a support part!");
 			stability_ents.removeAt(0);
 			continue;
 		}

@@ -580,7 +580,8 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 		if (itemId >= 0 and itemId < int(g_part_info.length()))
 		{
 			Item@ item = getItemByClassname(g_part_info[itemId].copy_ent);
-			println("repair a " + item.title);
+			if (debug_mode)
+				println("repair a " + item.title);
 			if (item !is null and item.costs.length() > 0)
 				return item.costs[0];
 		}
@@ -1163,7 +1164,8 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 				Vector pright = g_Engine.v_right;
 				g_EngineFuncs.MakeVectors(part1.pev.angles);
 				
-				println("the d " + dist);
+				if (debug_mode)
+					println("the d " + dist);
 				
 				if ((abs(dist - 73.899) > EPSILON and abs(dist - 128) > EPSILON and abs(dist - 195.521) > EPSILON) or
 					(curSize == "_3x1" and abs(dist - 195.521) < EPSILON and DotProduct(dir, g_Engine.v_forward) > 0.4f) or 

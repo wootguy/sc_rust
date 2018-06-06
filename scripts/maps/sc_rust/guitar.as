@@ -87,7 +87,7 @@ class Song
 		
 		if( f !is null && f.IsOpen() )
 		{
-			println("Loading song: " + fname);
+			println("Loading guitar song: " + fname);
 			
 			dictionary octave_offsets;
 			dictionary use_channels;
