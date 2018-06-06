@@ -1,3 +1,33 @@
+class Color
+{ 
+	uint8 r, g, b, a;
+	Color() { r = g = b = a = 0; }
+	Color(uint8 r, uint8 g, uint8 b) { this.r = r; this.g = g; this.b = b; this.a = 255; }
+	Color(uint8 r, uint8 g, uint8 b, uint8 a) { this.r = r; this.g = g; this.b = b; this.a = a; }
+	Color(float r, float g, float b, float a) { this.r = uint8(r); this.g = uint8(g); this.b = uint8(b); this.a = uint8(a); }
+	Color (Vector v) { this.r = uint8(v.x); this.g = uint8(v.y); this.b = uint8(v.z); this.a = 255; }
+	string ToString() { return "" + r + " " + g + " " + b + " " + a; }
+	Vector getRGB() { return Vector(r, g, b); }
+}
+
+Color RED    = Color(255,0,0);
+Color GREEN  = Color(0,255,0);
+Color BLUE   = Color(0,0,255);
+Color YELLOW = Color(255,255,0);
+Color ORANGE = Color(255,127,0);
+Color PURPLE = Color(127,0,255);
+Color PINK   = Color(255,0,127);
+Color TEAL   = Color(0,255,255);
+Color WHITE  = Color(255,255,255);
+Color BLACK  = Color(0,0,0);
+Color GRAY  = Color(127,127,127);
+
+void print(string text) { g_Game.AlertMessage( at_console, text); }
+void println(string text) { print(text + "\n"); }
+
+void debug(string text) { if (debug_mode) print(text); }
+void debugln(string text) { if (debug_mode) println(text); }
+
 void te_projectile(Vector pos, Vector velocity, CBaseEntity@ owner=null, 
 	string model="models/grenade.mdl", uint8 life=1, 
 	NetworkMessageDest msgType=MSG_BROADCAST, edict_t@ dest=null)
@@ -73,6 +103,22 @@ void te_killbeam(CBaseEntity@ target,
 	m.WriteByte(TE_KILLBEAM);
 	m.WriteShort(target.entindex());
 	m.End();
+}
+void te_beampoints(Vector start, Vector end, string sprite="sprites/laserbeam.spr", uint8 frameStart=0, uint8 frameRate=100, uint8 life=20, uint8 width=2, uint8 noise=0, Color c=GREEN, uint8 scroll=32, NetworkMessageDest msgType=MSG_BROADCAST, edict_t@ dest=null) { NetworkMessage m(msgType, NetworkMessages::SVC_TEMPENTITY, dest);m.WriteByte(TE_BEAMPOINTS);m.WriteCoord(start.x);m.WriteCoord(start.y);m.WriteCoord(start.z);m.WriteCoord(end.x);m.WriteCoord(end.y);m.WriteCoord(end.z);m.WriteShort(g_EngineFuncs.ModelIndex(sprite));m.WriteByte(frameStart);m.WriteByte(frameRate);m.WriteByte(life);m.WriteByte(width);m.WriteByte(noise);m.WriteByte(c.r);m.WriteByte(c.g);m.WriteByte(c.b);m.WriteByte(c.a);m.WriteByte(scroll);m.End(); }
+void te_breakmodel(Vector pos, Vector size, Vector velocity, uint8 speedNoise=16, string model="models/hgibs.mdl", uint8 count=8, uint8 life=0, uint8 flags=20, NetworkMessageDest msgType=MSG_BROADCAST, edict_t@ dest=null) { NetworkMessage m(msgType, NetworkMessages::SVC_TEMPENTITY, dest);m.WriteByte(TE_BREAKMODEL);m.WriteCoord(pos.x);m.WriteCoord(pos.y);m.WriteCoord(pos.z);m.WriteCoord(size.x);m.WriteCoord(size.y);m.WriteCoord(size.z);m.WriteCoord(velocity.x);m.WriteCoord(velocity.y);m.WriteCoord(velocity.z);m.WriteByte(speedNoise);m.WriteShort(g_EngineFuncs.ModelIndex(model));m.WriteByte(count);m.WriteByte(life);m.WriteByte(flags);m.End(); }
+void te_bloodsprite(Vector pos, string sprite1="sprites/bloodspray.spr", string sprite2="sprites/blood.spr", uint8 color=70, uint8 scale=3, NetworkMessageDest msgType=MSG_BROADCAST, edict_t@ dest=null) { NetworkMessage m(msgType, NetworkMessages::SVC_TEMPENTITY, dest);m.WriteByte(TE_BLOODSPRITE);m.WriteCoord(pos.x);m.WriteCoord(pos.y);m.WriteCoord(pos.z);m.WriteShort(g_EngineFuncs.ModelIndex(sprite1));m.WriteShort(g_EngineFuncs.ModelIndex(sprite2));m.WriteByte(color);m.WriteByte(scale);m.End(); }
+void te_smoke(Vector pos, string sprite="sprites/steam1.spr", int scale=10, int frameRate=15, NetworkMessageDest msgType=MSG_BROADCAST, edict_t@ dest=null) { NetworkMessage m(msgType, NetworkMessages::SVC_TEMPENTITY, dest);m.WriteByte(TE_SMOKE);m.WriteCoord(pos.x);m.WriteCoord(pos.y);m.WriteCoord(pos.z);m.WriteShort(g_EngineFuncs.ModelIndex(sprite));m.WriteByte(scale);m.WriteByte(frameRate);m.End(); }
+void te_sparks(Vector pos, NetworkMessageDest msgType=MSG_BROADCAST, edict_t@ dest=null) { _te_pointeffect(pos, msgType, dest, TE_SPARKS); }
+void _te_pointeffect(Vector pos, NetworkMessageDest msgType=MSG_BROADCAST, edict_t@ dest=null, int effect=TE_SPARKS) { NetworkMessage m(msgType, NetworkMessages::SVC_TEMPENTITY, dest);m.WriteByte(effect);m.WriteCoord(pos.x);m.WriteCoord(pos.y);m.WriteCoord(pos.z);m.End(); }
+
+// convert output from Vector.ToString() back into a Vector
+Vector parseVector(string s) {
+	array<string> values = s.Split(" ");
+	Vector v(0,0,0);
+	if (values.length() > 0) v.x = atof( values[0] );
+	if (values.length() > 1) v.y = atof( values[1] );
+	if (values.length() > 2) v.z = atof( values[2] );
+	return v;
 }
 
 void build_effect(Vector origin) {
@@ -449,12 +495,12 @@ array<RawItem> getAllItemsRaw(CBasePlayer@ plr)
 	
 	// held ammo
 	dictionary stacks;
-	for (uint i = 0; i < g_ammo_types.size(); i++)
+	for (uint i = 0; i < WeaponCustom::g_ammo_types.size(); i++)
 	{
 		bool dont_show = false;
 		for (uint k = 0; k < g_items.size(); k++) // unequip as a weapon only, not as ammo
 		{
-			if (g_items[k].ammoName == g_ammo_types[i])
+			if (g_items[k].ammoName == WeaponCustom::g_ammo_types[i])
 			{
 				dont_show = true;
 				break;
@@ -463,13 +509,13 @@ array<RawItem> getAllItemsRaw(CBasePlayer@ plr)
 		if (dont_show)
 			continue;
 		
-		int ammoIdx = g_PlayerFuncs.GetAmmoIndex(g_ammo_types[i]);
+		int ammoIdx = g_PlayerFuncs.GetAmmoIndex(WeaponCustom::g_ammo_types[i]);
 		if (ammoIdx == -1)
 			continue;
 		int ammo = plr.m_rgAmmo(ammoIdx);
 		if (ammo > 0)
 		{
-			Item@ item = getItemByClassname(g_ammo_types[i]);
+			Item@ item = getItemByClassname(WeaponCustom::g_ammo_types[i]);
 			if (item !is null)
 				stacks[item.type] = ammo;
 		}

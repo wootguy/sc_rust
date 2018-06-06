@@ -48,16 +48,10 @@ void inventoryCheck()
 			{
 				CBasePlayer@ plr = cast<CBasePlayer@>(owner);
 				PlayerState@ state = getPlayerState(plr);
-				//wep.pev.noise3 = getPlayerUniqueId(plr);
 				
 				if (state.droppedItems >= g_max_item_drops)
-				{
-					//plr.SetItemPickupTimes(0);
-					//wep.pev.flags |= FL_ONGROUND;
-					
+				{					
 					wep.Touch(plr);
-					
-					//wep.pev.effects = EF_NODRAW;
 					wep.pev.movetype = MOVETYPE_NONE;
 					g_PlayerFuncs.PrintKeyBindingString(plr, "Can't drop more than " + g_max_item_drops + " item" + (g_max_item_drops > 1 ? "s" : ""));
 				}
@@ -71,6 +65,33 @@ void inventoryCheck()
 		}
 	} while(wep !is null);
 	
+	// check for dropped ammo
+	CBaseEntity@ ammo = null;
+	do {
+		@ammo = g_EntityFuncs.FindEntityByClassname(ammo, "ammo*");
+		if (ammo !is null and ammo.pev.noise3 == "")
+		{
+			CBaseEntity@ owner = g_EntityFuncs.Instance(ammo.pev.owner);
+			if (owner !is null and owner.IsPlayer())
+			{
+				CBasePlayer@ plr = cast<CBasePlayer@>(owner);
+				PlayerState@ state = getPlayerState(plr);			
+				if (state.droppedItems >= g_max_item_drops)
+				{					
+					ammo.Touch(plr);
+					ammo.pev.movetype = MOVETYPE_NONE;
+					g_PlayerFuncs.PrintKeyBindingString(plr, "Can't drop more than " + g_max_item_drops + " item" + (g_max_item_drops > 1 ? "s" : ""));
+				}
+				else
+				{
+					state.droppedItems++;
+					ammo.pev.noise3 = getPlayerUniqueId(plr);
+					state.droppedWeapons.insertLast(EHandle(ammo));
+				}
+			}
+		}
+	} while(ammo !is null);
+	
 	
 	CBaseEntity@ e_plr = null;
 	do {
@@ -82,9 +103,6 @@ void inventoryCheck()
 			if (!state.inGame)
 				continue;
 			state.updateDroppedWeapons();
-			
-			// TODO: prevent nearby players from getting the same class (or just use custom weapons)
-			//plr.SetClassification(Math.RandomLong(-1, 13));
 			
 			state.oldDead = plr.pev.deadflag;
 			

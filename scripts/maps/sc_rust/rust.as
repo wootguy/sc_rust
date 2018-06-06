@@ -13,14 +13,16 @@
 
 // TODO:
 // lossy can't join teams?
-// crash when +USE on weapon you already have
-// inventory full message not always shown
-// cant drop more thqn 2 items after mining when full
 // restrict commands to admins
-// force game mode cvar?
 // disable all debug prints and rever test setting overrides
+// show tips for new players
+// tutorial/help textures?
 
 // Should do/fix but too lazy:
+// inventory full message not always shown
+// cant drop more thqn 2 items after mining when full
+// protect creative from griefers
+// force game mode cvar?
 // base loading crashes
 // too much ammo carry capacity?
 // 20 items and u crash if look at inventory?
@@ -684,6 +686,7 @@ int g_difficulty = 0;
 bool g_creative_mode = false;
 bool waiting_for_voters = true;
 bool finished_invasion = false;
+bool debug_mode = false;
 array<string> g_upgrade_suffixes = {
 	"_twig",
 	"_wood",
@@ -805,8 +808,8 @@ void MapInit()
 	WeaponCustomMapInit();
 	
 	// add custom weapon ammos (defined in weapon_custom scripts)
-	g_ammo_types.insertLast("arrows");
-	g_ammo_types.insertLast("fuel");
+	WeaponCustom::g_ammo_types.insertLast("arrows");
+	WeaponCustom::g_ammo_types.insertLast("fuel");
 }
 
 void MapActivate()
@@ -1564,14 +1567,22 @@ void equipPlayer(CBasePlayer@ plr)
 		plr.GiveNamedItem("weapon_building_plan", 0, 0);
 		plr.GiveNamedItem("weapon_hammer", 0, 0);
 		plr.GiveNamedItem("weapon_guitar", 0, 0);
+		plr.GiveNamedItem("weapon_custom_crowbar", 0, 0);
 		plr.GiveNamedItem("weapon_custom_deagle", 0, 0);
 		plr.GiveNamedItem("weapon_bow", 0, 0);
-		giveItem(plr, I_9MM, 50, false, true, true);
-		giveItem(plr, I_556, 50, false, true, true);
-		giveItem(plr, I_ARROW, 50, false, true, true);
-		giveItem(plr, I_BUCKSHOT, 20, false, true, true);
+		plr.GiveNamedItem("weapon_metal_hatchet", 0, 0);
+		plr.GiveNamedItem("weapon_metal_pickaxe", 0, 0);
+		plr.GiveNamedItem("weapon_flamethrower", 0, 0);
+		plr.GiveNamedItem("weapon_custom_sniper", 0, 0);
+		plr.GiveNamedItem("weapon_custom_saw", 0, 100);
+		giveItem(plr, I_9MM, 250, false, true, true);
+		giveItem(plr, I_556, 600, false, true, true);
+		giveItem(plr, I_ARROW, 100, false, true, true);
+		giveItem(plr, I_BUCKSHOT, 50, false, true, true);
 		giveItem(plr, I_ROCKET, 5, false, true, true);
 		giveItem(plr, I_FUEL, 200, false, true, true);
+		giveItem(plr, I_SATCHEL, 10, false, true, true);
+		giveItem(plr, I_C4, 10, false, true, true);
 		plr.pev.armorvalue = 100;
 		plr.pev.health = 100;
 	}
