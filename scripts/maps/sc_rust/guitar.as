@@ -107,7 +107,8 @@ class Song
 				if (line.Find("!repeat=") == 0)
 				{
 					repeatStart = songPos;
-					numRepeats = atoi( line.SubString(string("!repeat=").Length()) );
+					string prefix = "!repeat=";
+					numRepeats = atoi( line.SubString(prefix.Length()) );
 				}
 				if (line.Find("!repeatend") == 0)
 				{

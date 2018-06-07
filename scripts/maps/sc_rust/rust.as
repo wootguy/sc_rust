@@ -1,4 +1,4 @@
-#include "../weapon_custom/weapon_custom"
+#include "../weapon_custom/v4/weapon_custom"
 #include "building_plan"
 #include "hammer"
 #include "func_breakable_custom"
@@ -13,6 +13,10 @@
 
 // TODO:
 // lossy can't join teams?
+// can team in lobby and creative/invasion
+// construction cost shown in creative
+// couldn't drop items cuz of limit without having dropped items
+// leaving player left unusable items instead of corpse (they were cleaned tho)
 
 // Should do/fix but too lazy:
 // inventory full message not always shown
@@ -91,7 +95,7 @@ float g_xen_agro_dist = 300.0f;
 bool g_invasion_mode = false; // monsters spawn in waves and always attack
 float g_invasion_delay = 8.0f; // minutes between waves
 float g_invasion_initial_delay = 8.0f; // minutes before the invasion starts (first wave)
-float g_node_spawn_time_invasion = 30.0f; // time (in seconds) between node spawns when in invasion mode
+float g_node_spawn_time_invasion = 20.0f; // time (in seconds) between node spawns when in invasion mode
 
 float g_vote_time = 20.0f; // time (in seconds) for vote to expire. Timer resets when new player joins.
 
@@ -1146,7 +1150,7 @@ void tallyVotes()
 		}
 		else if (selection == 1)
 		{
-			g_PlayerFuncs.SayTextAll(getAnyPlayer(), "Co-op mode selected. Now vote for difficulty.\n");
+			g_PlayerFuncs.SayTextAll(getAnyPlayer(), "Co-op mode selected. Now vote for a difficulty level.\n");
 			g_vote_state = 2;
 			waiting_for_voters = true;
 			g_PlayerFuncs.RespawnAllPlayers(true, true);
@@ -1827,7 +1831,7 @@ bool doRustCommand(CBasePlayer@ plr, const CCommand@ args)
 	
 	if ( args.ArgC() > 0 )
 	{
-		if (args[0] == ".save")
+		if (args[0] == ".version")
 		{
 			g_PlayerFuncs.SayText(plr, "Script version: v1");
 			return true;
