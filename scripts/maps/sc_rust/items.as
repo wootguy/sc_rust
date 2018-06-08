@@ -41,27 +41,26 @@ void inventoryCheck()
 	CBaseEntity@ wep = null;
 	do {
 		@wep = g_EntityFuncs.FindEntityByClassname(wep, "weapon*");
+		
 		if (wep !is null and wep.pev.noise3 == "")
 		{
-			CBaseEntity@ owner = g_EntityFuncs.Instance(wep.pev.owner);
-			if (owner !is null and owner.IsPlayer() and wep.pev.effects & EF_NODRAW == 0)
-			{
-				CBasePlayer@ plr = cast<CBasePlayer@>(owner);
-				PlayerState@ state = getPlayerState(plr);
-				
-				if (state.droppedItems >= g_max_item_drops)
-				{					
-					wep.Touch(plr);
-					wep.pev.movetype = MOVETYPE_NONE;
-					g_PlayerFuncs.PrintKeyBindingString(plr, "Can't drop more than " + g_max_item_drops + " item" + (g_max_item_drops > 1 ? "s" : ""));
-				}
-				else
-				{
-					state.droppedItems++;
-					wep.pev.noise3 = getPlayerUniqueId(plr);
-					state.droppedWeapons.insertLast(EHandle(wep));
-				}
+			if (wep.pev.effects & EF_NODRAW == 0 and wep.pev.movetype != MOVETYPE_NONE)
+			{			
+				wep.pev.noise3 = "killme";
+				g_Scheduler.SetTimeout("delay_remove_wep", g_item_time, EHandle(wep));
 			}
+		}
+	} while(wep !is null);
+	
+	// thrown weapons
+	@wep = null;
+	do {
+		@wep = g_EntityFuncs.FindEntityByClassname(wep, "custom_projectile");
+		
+		if (wep !is null and wep.pev.noise3 == "")
+		{
+			wep.pev.noise3 = "killme";
+			g_Scheduler.SetTimeout("delay_remove_wep", g_item_time, EHandle(wep));
 		}
 	} while(wep !is null);
 	
@@ -75,19 +74,11 @@ void inventoryCheck()
 			if (owner !is null and owner.IsPlayer())
 			{
 				CBasePlayer@ plr = cast<CBasePlayer@>(owner);
-				PlayerState@ state = getPlayerState(plr);			
-				if (state.droppedItems >= g_max_item_drops)
-				{					
-					ammo.Touch(plr);
-					ammo.pev.movetype = MOVETYPE_NONE;
-					g_PlayerFuncs.PrintKeyBindingString(plr, "Can't drop more than " + g_max_item_drops + " item" + (g_max_item_drops > 1 ? "s" : ""));
-				}
-				else
-				{
-					state.droppedItems++;
-					ammo.pev.noise3 = getPlayerUniqueId(plr);
-					state.droppedWeapons.insertLast(EHandle(ammo));
-				}
+				PlayerState@ state = getPlayerState(plr);
+
+				ammo.pev.noise3 = "killme";
+				g_Scheduler.SetTimeout("delay_remove_wep", g_item_time, EHandle(ammo));			
+
 			}
 		}
 	} while(ammo !is null);
@@ -219,6 +210,17 @@ void inventoryCheck()
 
 }
 
+void delay_remove_wep(EHandle wep)
+{
+	if (wep)
+	{
+		CBaseEntity@ ent = wep;
+		CBaseEntity@ owner = g_EntityFuncs.Instance( ent.pev.aiment );
+		if (owner is null)
+			g_EntityFuncs.Remove(wep);
+	}
+}
+
 void item_dropped(CBaseEntity@ pActivator, CBaseEntity@ pCaller, USE_TYPE useType, float flValue)
 {
 	if (pCaller.pev.classname != "item_inventory" and !pActivator.IsPlayer())
@@ -230,6 +232,7 @@ void item_dropped(CBaseEntity@ pActivator, CBaseEntity@ pCaller, USE_TYPE useTyp
 		return; // this was just a stackable item that was replaced with a larger stack, ignore it
 	
 	PlayerState@ state = getPlayerState(plr);
+	/*
 	if (state.droppedItems >= g_max_item_drops)
 	{
 		g_PlayerFuncs.PrintKeyBindingString(plr, "Can't drop more than " + g_max_item_drops + " item" + (g_max_item_drops > 1 ? "s" : ""));
@@ -237,11 +240,12 @@ void item_dropped(CBaseEntity@ pActivator, CBaseEntity@ pCaller, USE_TYPE useTyp
 		g_Scheduler.SetTimeout("undo_drop", 0.0f, EHandle(item), EHandle(plr)); 
 		return;
 	}
+	*/
 	state.updateItemList();
 	
 	item.pev.teleport_time = g_Engine.time + g_item_time;
 	
-	state.droppedItems++;
+	//state.droppedItems++;
 	item.pev.noise1 = getPlayerUniqueId(plr);
 	
 	g_item_drops.insertLast(EHandle(item));
@@ -257,8 +261,8 @@ void remove_item_from_drops(CBaseEntity@ item)
 			if (g_item_drops[i].IsValid())
 			{
 				CBasePlayer@ owner = getPlayerByName(null, g_item_drops[i].GetEntity().pev.noise1, true);
-				if (owner !is null)
-					getPlayerState(owner).droppedItems--;
+				//if (owner !is null)
+				//	getPlayerState(owner).droppedItems--;
 			}
 			
 			g_item_drops.removeAt(i);

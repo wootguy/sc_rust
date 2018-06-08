@@ -78,7 +78,7 @@ int g_max_item_drops = 2; // maximum item drops per player (more drops = less bu
 float g_tool_cupboard_radius = 512;
 int g_max_corpses = 2; // max corpses per player (should be at least 2 to prevent despawning valuable loot)
 float g_corpse_time = 60.0f; // time (in seconds) before corpses despawn
-float g_item_time = 60.0f; // time (in seconds) before items despawn
+float g_item_time = 30.0f; // time (in seconds) before items despawn
 float g_supply_time = 120.0f; // time (in seconds) before air drop crate disappears
 float g_revive_time = 5.0f; // time needed to revive player holding USE
 float g_airdrop_min_delay = 10.0f; // time (in minutes) between airdrops
@@ -298,11 +298,10 @@ class PlayerState
 	CTextMenu@ menu;
 	int useState = 0;
 	int codeTime = 0; // time left to input lock code
-	int droppedItems = 0; // number of item drops owned by the player
 	dictionary zoneParts; // number of unbroken build parts owned by the player (per zone)
 	int home_zone = -1; // zone the player is allowed to settle in (-1 = nomad)
 	array<EHandle> authedLocks; // locked objects the player can use
-	array<EHandle> droppedWeapons;
+	array<EHandle> droppedEnts;
 	Team@ team = null;
 	EHandle currentLock; // lock currently being interacted with
 	EHandle currentChest; // current corpse/chest being interacted with
@@ -575,12 +574,13 @@ class PlayerState
 	
 	void updateDroppedWeapons()
 	{
-		for (uint i = 0; i < droppedWeapons.size(); i++)
+		/*
+		for (uint i = 0; i < droppedEnts.size(); i++)
 		{
 			bool pickedup = true;
-			if (droppedWeapons[i].IsValid())
+			if (droppedEnts[i].IsValid())
 			{
-				CBaseEntity@ wep = droppedWeapons[i];
+				CBaseEntity@ wep = droppedEnts[i];
 				CBaseEntity@ aiment = g_EntityFuncs.Instance(wep.pev.aiment);
 				pickedup = aiment !is null;
 			}
@@ -588,12 +588,13 @@ class PlayerState
 			if (pickedup)
 			{
 				// weapon picked up
-				droppedWeapons.removeAt(i);
+				droppedEnts.removeAt(i);
 				i--;
-				droppedItems--;
+				droppedEnts--;
 				continue;
 			}
 		}
+		*/
 	}
 	
 	void addPartCount(int num, int zoneid)
@@ -1320,7 +1321,7 @@ void setupInvasionMode()
 	if (g_difficulty == 2)
 		g_invasion_delay = g_invasion_initial_delay = 5.0f;
 		
-	//g_invasion_delay = g_invasion_initial_delay = 0.05f;
+	//g_invasion_delay = g_invasion_initial_delay = 0.5f;
 	
 	g_zone_info.init();
 	g_EntityFuncs.FireTargets("zone_clip", null, null, USE_TOGGLE);
@@ -1401,7 +1402,7 @@ array<string> invasion_waves = {"babyvolt_spawner", "zombie_spawner", "pitdrone_
 								"mom_spawner", "garg_spawner", "kingpin_spawner"};
 array<string> invasion_wave_titles = {"Baby Voltigores", "Zombie Barneys", "Pit Drones", "Alien Controllers",
 								"Bullsquids", "Alien Slaves", "Houndeyes", "Gonomes", "Baby Gargs", "Shock Troopers", 
-								"Alien Grunts", "Gonarchs", "Voltigores", "Gargantuas", "Kingpins"};
+								"Alien Grunts", "Voltigores", "Gonarchs", "Gargantuas", "Kingpins"};
 
 void clearTimer()
 {
@@ -1448,14 +1449,8 @@ void updateWaveTimer()
 
 bool checkWaveStatus()
 {
-	CBaseEntity@ ent = null;
-	do {
-		@ent = g_EntityFuncs.FindEntityByClassname(ent, "*");
-		if (ent !is null and ent.IsMonster() and ent.IsAlive() and !ent.IsPlayer() and ent.pev.classname != "squadmaker") {
-			return true;
-		}
-	} while (ent !is null);
-	return false;
+	func_build_zone@ zone = cast<func_build_zone@>(CastToScriptClass(g_invasion_zone.GetEntity()));
+	return zone.monstersAreAlive();
 }
 
 void invasionLose()

@@ -170,6 +170,20 @@ class func_build_zone : ScriptBaseEntity
 		}
 	}
 	
+	bool monstersAreAlive()
+	{
+		DeleteNullNodes();
+		for (uint i = 0; i < nodes.length(); i++)
+		{
+			CBaseEntity@ node = nodes[i];
+			if (node.IsMonster() and node.IsAlive())
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+	
 	void Clear()
 	{
 		for (uint i = 0; i < nodes.length(); i++)
