@@ -719,10 +719,10 @@ class func_breakable_custom : ScriptBaseEntity
 			// harvest resources
 			CBasePlayer@ plr = cast<CBasePlayer@>( g_EntityFuncs.Instance(pevInflictor.get_pContainingEntity()) );
 			CBaseEntity@ weapon = plr.m_hActiveItem;
-			string weaponName = weapon.pev.classname;
 			
-			if (isMeleeWeapon(weapon.pev.classname))
+			if (weapon !is null and isMeleeWeapon(weapon.pev.classname))
 			{
+				string weaponName = weapon.pev.classname;
 				HUDTextParams params;
 				params.x = -1;
 				params.y = -1;

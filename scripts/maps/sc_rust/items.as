@@ -527,6 +527,19 @@ CBaseEntity@ spawnItem(Vector origin, int type, int amt)
 	}
 }
 
+int getSpawnFlagsForWeapon(string cname)
+{
+	array<string>@ keys = WeaponCustom::custom_weapons.getKeys();
+	for (uint i = 0; i < keys.length(); i++)
+	{
+		WeaponCustom::weapon_custom@ wep = cast<WeaponCustom::weapon_custom@>( WeaponCustom::custom_weapons[keys[i]] );
+		if (wep.weapon_classname == cname) {
+			return wep.pev.spawnflags & 31; // flags that are only handled in the engine
+		}
+	}
+	return 0;
+}
+
 // try to equip a weapon/item/ammo. Returns amount that couldn't be equipped
 int equipItem(CBasePlayer@ plr, int type, int amt)
 {
@@ -543,7 +556,7 @@ int equipItem(CBasePlayer@ plr, int type, int amt)
 		if (@plr.HasNamedPlayerItem(item.classname) == null)
 		{
 			plr.SetItemPickupTimes(0);
-			plr.GiveNamedItem(item.classname);
+			plr.GiveNamedItem(item.classname, getSpawnFlagsForWeapon(item.classname));
 		}
 	
 		int amtGiven = giveAmmo(plr, amt, item.ammoName);
@@ -555,7 +568,7 @@ int equipItem(CBasePlayer@ plr, int type, int amt)
 	else if (item.isWeapon and @plr.HasNamedPlayerItem(item.classname) == null)
 	{
 		plr.SetItemPickupTimes(0);
-		plr.GiveNamedItem(item.classname);
+		plr.GiveNamedItem(item.classname, getSpawnFlagsForWeapon(item.classname));
 		CBasePlayerWeapon@ wep = cast<CBasePlayerWeapon@>(@plr.HasNamedPlayerItem(item.classname));
 		if (amt != -1)
 			wep.m_iClip = amt;
@@ -1554,16 +1567,19 @@ void lootMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextMe
 		}
 	}
 	
-	g_Scheduler.SetTimeout("openLootMenu", 0.05, @plr, @chest, submenu);
+	g_Scheduler.SetTimeout("openLootMenu", 0.05, EHandle(plr), EHandle(chest), submenu);
 }
 
-void openLootMenu(CBasePlayer@ plr, CBaseEntity@ corpse, string submenu="")
+void openLootMenu(EHandle h_plr, EHandle h_corpse, string submenu="")
 {
-	if (corpse is null or plr is null)
+	if (!h_corpse.IsValid() or !h_plr.IsValid())
 	{
 		println("Null player/corpse!");
 		return;
 	}
+	
+	CBasePlayer@ plr = cast<CBasePlayer@>(h_plr.GetEntity());
+	CBaseEntity@ corpse = h_corpse;
 	
 	PlayerState@ state = getPlayerState(plr);
 	state.initMenu(plr, lootMenuCallback);
@@ -1663,7 +1679,7 @@ void openLootMenu(CBasePlayer@ plr, CBaseEntity@ corpse, string submenu="")
 			array<string> stackOptions = getStackOptions(plr, itemId);
 			if (stackOptions.size() == 0)
 			{
-				openLootMenu(plr, corpse, "give");
+				openLootMenu(EHandle(plr), EHandle(corpse), "give");
 				return;
 			}
 			
@@ -1985,7 +2001,7 @@ HookReturnCode PlayerUse( CBasePlayer@ plr, uint& out )
 				if (usedDist < getUseDistance(phit))
 				{
 					state.currentChest = phit;
-					openLootMenu(plr, phit);
+					openLootMenu(EHandle(plr), EHandle(phit));
 				}
 			}
 			else
@@ -2018,7 +2034,7 @@ HookReturnCode PlayerUse( CBasePlayer@ plr, uint& out )
 				}
 				if (lookItem.pev.classname == "player_corpse" or lookItem.IsPlayer())
 				{
-					openLootMenu(plr, lookItem);
+					openLootMenu(EHandle(plr), EHandle(lookItem));
 				}
 			}
 		}

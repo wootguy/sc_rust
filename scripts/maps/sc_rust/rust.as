@@ -28,7 +28,6 @@
 // 20 items and u crash if look at inventory?
 // collecting items is sometimes difficult
 // rejoining didn't spawn in the right place (cause i did .clean ?)
-// func_breakable_custom line 696 null pointer in takedamage
 // C4 was empty on death
 // fuse part rotated for no reason (4x1 bridge square floor)
 // part highlighting/info traces should be consistent
@@ -1828,7 +1827,7 @@ bool doRustCommand(CBasePlayer@ plr, const CCommand@ args)
 	{
 		if (args[0] == ".version")
 		{
-			g_PlayerFuncs.SayText(plr, "Script version: v1");
+			g_PlayerFuncs.SayText(plr, "Script version: v2 (June 8, 2018)");
 			return true;
 		}
 		if (args[0] == ".save")
