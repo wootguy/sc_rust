@@ -1089,7 +1089,7 @@ void MapActivate()
 	
 	removeExtraEnts();
 	
-	//dropNodes();
+	dropNodes();
 	
 	resetVoteBlockers();
 	
@@ -1101,7 +1101,7 @@ void MapActivate()
 	} while (ent !is null);
 	
 	//setupInvasionMode();
-	setupCreativeMode();
+	//setupCreativeMode();
 	//setupPvpMode();
 }
 

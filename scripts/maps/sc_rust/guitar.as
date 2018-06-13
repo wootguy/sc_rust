@@ -1,17 +1,17 @@
 
 string guitar_song_path = "scripts/maps/sc_rust/guitar_songs/";
 array<Song> g_songs = {
-	Song("kuwanger.txt", "Boomer Kuwanger", 10.0f),
 	Song("greenhill.txt", "Green Hill Zone", 11.0f),
 	Song("mysticcave.txt", "Mystic Cave Zone", 10.0f),
+	Song("endless_mine_2p.txt", "Endless Mine (2P)", 17.0f),
 	Song("starlight_zone.txt", "Starlight Zone", 8.0f),
 	Song("flyingbattery.txt", "Flying Battery Zone (Act 2)", 10.0f),
 	Song("emerald_hill_2p.txt", "Emerald Hill Zone (2P)", 7.0f),
+	Song("kuwanger.txt", "Boomer Kuwanger", 10.0f),
 	Song("storm_eagle.txt", "Storm Eagle", 12.0f),
 	Song("wily_stage_1.txt", "Dr. Wily Stage 1", 11.5f),
 	Song("puyopuyo.txt", "Final of Puyo Puyo", 11.0f),
-	Song("pokemon_battle.txt", "Pokemon Red Battle", 12.0f),
-	Song("endless_mine_2p.txt", "Endless Mine (2P)", 17.0f)
+	Song("pokemon_battle.txt", "Pokemon Red Battle", 12.0f)
 };
 
 class SongRow
