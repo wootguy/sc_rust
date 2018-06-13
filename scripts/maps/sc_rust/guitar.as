@@ -1,4 +1,19 @@
 
+string guitar_song_path = "scripts/maps/sc_rust/guitar_songs/";
+array<Song> g_songs = {
+	Song("kuwanger.txt", "Boomer Kuwanger", 10.0f),
+	Song("greenhill.txt", "Green Hill Zone", 11.0f),
+	Song("mysticcave.txt", "Mystic Cave Zone", 10.0f),
+	Song("starlight_zone.txt", "Starlight Zone", 8.0f),
+	Song("flyingbattery.txt", "Flying Battery Zone (Act 2)", 10.0f),
+	Song("emerald_hill_2p.txt", "Emerald Hill Zone (2P)", 7.0f),
+	Song("storm_eagle.txt", "Storm Eagle", 12.0f),
+	Song("wily_stage_1.txt", "Dr. Wily Stage 1", 11.5f),
+	Song("puyopuyo.txt", "Final of Puyo Puyo", 11.0f),
+	Song("pokemon_battle.txt", "Pokemon Red Battle", 12.0f),
+	Song("endless_mine_2p.txt", "Endless Mine (2P)", 17.0f)
+};
+
 class SongRow
 {
 	array<int> channels;
@@ -38,25 +53,11 @@ class SongRow
 				sample = sampleHigh;
 			}
 			playedAnything = true;
-			g_SoundSystem.PlaySound(ent.edict(), s_channels[i], sample, 1.0f, 1.0f, 0, int(pitch));
+			g_SoundSystem.PlaySound(ent.edict(), s_channels[i], sample, 1.0f, 0.5f, 0, int(pitch));
 		}
 		return playedAnything;
 	}
 }
-
-string guitar_song_path = "scripts/maps/sc_rust/guitar_songs/";
-array<Song> g_songs = {
-	
-	Song("greenhill.txt", "Green Hill Zone", 11.0f),
-	Song("mysticcave.txt", "Mystic Cave Zone", 10.0f),
-	Song("starlight_zone.txt", "Starlight Zone", 8.0f),
-	Song("flyingbattery.txt", "Flying Battery Zone (Act 2)", 10.0f),
-	Song("emerald_hill_2p.txt", "Emerald Hill Zone (2P)", 7.0f),
-	Song("storm_eagle.txt", "Storm Eagle", 12.0f),
-	Song("wily_stage_1.txt", "Dr. Wily Stage 1", 11.5f),
-	Song("puyopuyo.txt", "Final of Puyo Puyo", 11.0f),
-	Song("pokemon_battle.txt", "Pokemon Red Battle", 12.0f)
-};
 
 class Song
 {
@@ -90,6 +91,7 @@ class Song
 			println("Loading guitar song: " + fname);
 			
 			dictionary octave_offsets;
+			dictionary volumes;
 			dictionary use_channels;
 			use_channels[1] = true;
 			use_channels[2] = true;
@@ -145,6 +147,17 @@ class Song
 					octave_offsets.deleteAll();
 					for (uint i = 0; i < newOct.length(); i++)
 						octave_offsets["" + i] = atoi(newOct[i]);
+
+					continue;
+				}
+				if (line.Find("!volumes=") == 0)
+				{
+					string prefix = "!volumes=";
+					line = line.SubString(prefix.Length());
+					array<string>@ newOct = line.Split("+");
+					volumes.deleteAll();
+					for (uint i = 0; i < newOct.length(); i++)
+						volumes["" + i] = atoi(newOct[i]);
 
 					continue;
 				}
@@ -330,5 +343,5 @@ void guitar_note_play(CBaseEntity@ pActivator, CBaseEntity@ pCaller, USE_TYPE us
 		sample = fixPath("sc_rust/guitar2.ogg");
 	}
 	
-	g_SoundSystem.PlaySound(pActivator.edict(), CHAN_STATIC, sample, 1.0f, 1.0f, 0, int(pitch));
+	g_SoundSystem.PlaySound(pActivator.edict(), CHAN_STATIC, sample, 1.0f, 0.5f, 0, int(pitch));
 }

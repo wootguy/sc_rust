@@ -260,18 +260,18 @@ enum builder_status
 }
 
 array<BuildPartInfo> g_part_info = {
-	BuildPartInfo(B_FOUNDATION, "Square Foundation", "b_foundation", 200),
-	BuildPartInfo(B_FOUNDATION_TRI, "Triangle Foundation", "b_foundation_tri", 100),
-	BuildPartInfo(B_WALL, "Wall", "b_wall", 200),
-	BuildPartInfo(B_DOORWAY, "Doorway", "b_doorway", 140),
-	BuildPartInfo(B_WINDOW, "Window", "b_window", 140),
-	BuildPartInfo(B_LOW_WALL, "Low Wall", "b_low_wall", 100),
-	BuildPartInfo(B_FLOOR, "Square Floor", "b_floor", 100),
-	BuildPartInfo(B_FLOOR_TRI, "Triangle Floor", "b_floor_tri", 50),
-	BuildPartInfo(B_ROOF, "Roof", "b_roof", 200),
-	BuildPartInfo(B_STAIRS, "Stairs (U-shape)", "b_stairs", 200),
-	BuildPartInfo(B_STAIRS_L, "Stairs (L-shape)", "b_stairs_l", 200),
-	BuildPartInfo(B_FOUNDATION_STEPS, "Foundation Steps", "b_foundation_steps", 100),
+	BuildPartInfo(B_FOUNDATION, "Square Foundation", "b_foundation", 100),
+	BuildPartInfo(B_FOUNDATION_TRI, "Triangle Foundation", "b_foundation_tri", 50),
+	BuildPartInfo(B_WALL, "Wall", "b_wall", 100),
+	BuildPartInfo(B_DOORWAY, "Doorway", "b_doorway", 50),
+	BuildPartInfo(B_WINDOW, "Window", "b_window", 50),
+	BuildPartInfo(B_LOW_WALL, "Low Wall", "b_low_wall", 50),
+	BuildPartInfo(B_FLOOR, "Square Floor", "b_floor", 50),
+	BuildPartInfo(B_FLOOR_TRI, "Triangle Floor", "b_floor_tri", 30),
+	BuildPartInfo(B_ROOF, "Roof", "b_roof", 100),
+	BuildPartInfo(B_STAIRS, "Stairs (U-shape)", "b_stairs", 100),
+	BuildPartInfo(B_STAIRS_L, "Stairs (L-shape)", "b_stairs_l", 100),
+	BuildPartInfo(B_FOUNDATION_STEPS, "Foundation Steps", "b_foundation_steps", 50),
 	
 	BuildPartInfo(B_WOOD_DOOR, "Wood Door", "b_wood_door", 0),
 	BuildPartInfo(B_METAL_DOOR, "Metal Door", "b_metal_door", 0),
@@ -301,7 +301,7 @@ array<Item> g_items = {
 		"b_wood_bars"),
 	Item(I_METAL_BARS, 1, false, false, "b_metal_bars", "", "Metal Window Bars", RawItem(I_METAL, 25), null, 
 		"b_metal_bars"),
-	Item(I_WOOD_SHUTTERS, 1, false, false, "b_wood_shutters", "", "Wood Shutters", RawItem(I_WOOD, 200), null, 
+	Item(I_WOOD_SHUTTERS, 1, false, false, "b_wood_shutters", "", "Wood Shutters", RawItem(I_WOOD, 100), null, 
 		"b_wood_shutters"),
 	Item(I_CODE_LOCK, 1, false, false, "b_code_lock", "", "Code Lock", RawItem(I_METAL, 100), null, 
 		"An electronic lock. Locked and unlocked with four-digit code. Hold your USE key while looking at the lock to activate it."),
@@ -321,7 +321,7 @@ array<Item> g_items = {
 		"Keep your things in this storage box. Stores up to " + CHEST_ITEM_MAX_LARGE + " items."),
 	Item(I_FURNACE, 1, false, false, "b_furnace", "", "Furnace", RawItem(I_STONE, 300), RawItem(I_FUEL, 50),
 		"Use this to smelt mined ore."),
-	Item(I_BED, 1, false, false, "b_bed", "", "Sleeping Bag", RawItem(I_WOOD, 100), RawItem(I_SCRAP, 5),
+	Item(I_BED, 1, false, false, "b_bed", "", "Sleeping Bag", RawItem(I_WOOD, 100), null,
 		"Placing this gives you a location to respawn."),
 	
 	Item(I_WOOD, 1000, false, false, "", "", "Wood", null, null,
@@ -514,7 +514,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 		//g_EntityFuncs.FireTargets("push", null, null, USE_TOGGLE);
 		
 		string cost = "\n\n(" + g_part_info[buildType].cost + " " + g_items[BUILD_MATERIAL].title + ")";
-		if (buildType >= B_WOOD_DOOR)
+		if (buildType >= B_WOOD_DOOR or g_free_build)
 			cost = "";
 		
 		g_PlayerFuncs.PrintKeyBindingString(getPlayer(), g_part_info[buildType].title + cost);
@@ -1262,7 +1262,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 					{
 						BuildZone@ zone = getBuildZone(zoneid);
 						string status;
-						if (zoneid == state.home_zone or g_invasion_mode or g_creative_mode)
+						if (zoneid == state.home_zone or g_invasion_mode or g_creative_mode or g_shared_build_points_in_pvp_mode)
 						{
 							status = "Settler";
 							params.r1 = 48;
@@ -1277,14 +1277,14 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 							params.b1 = 48;
 						}
 						
-						if (!g_invasion_mode and !g_creative_mode)
-							g_PlayerFuncs.HudMessage(plr, params, "Build Zone: " + zoneid + 
+						if (!g_invasion_mode and !g_creative_mode and !g_shared_build_points_in_pvp_mode)
+							g_PlayerFuncs.HudMessage(plr, params, "Build Zone: " + g_zone_info.getZoneName(zoneid) + 
 													 "\nSettlers: " + zone.numSettlers + " / " + zone.maxSettlers +
 													 "\nStatus: " + status);
 													 
-						if (g_creative_mode or g_invasion_mode)
+						if (g_creative_mode or g_invasion_mode or g_shared_build_points_in_pvp_mode)
 						{
-							g_PlayerFuncs.HudMessage(plr, params, "Build Zone: " + zoneid);
+							g_PlayerFuncs.HudMessage(plr, params, "Build Zone: " + g_zone_info.getZoneName(zoneid));
 						}
 					}
 					else
@@ -1292,7 +1292,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 						g_PlayerFuncs.HudMessage(plr, params, "Build Zone: Outskirts\n(Building not allowed)");
 					}
 					
-					if (!g_invasion_mode and !g_creative_mode)
+					if (!g_invasion_mode and !g_creative_mode and !g_shared_build_points_in_pvp_mode)
 					{
 						params.x = 0.8;
 						params.channel = 0;
@@ -1300,11 +1300,11 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 						g_PlayerFuncs.HudMessage(plr, params,	"Build Points:\n" + (maxPoints-state.getNumParts(zoneid)) + " / " + maxPoints);
 					}
 				}
-				if (g_creative_mode or g_invasion_mode)
+				if (g_creative_mode or g_invasion_mode or g_shared_build_points_in_pvp_mode)
 				{
 					params.x = 0.8;
 					params.channel = 0;
-					int total = state.getNumParts(g_creative_mode ? zoneid : -1337);
+					int total = state.getNumParts((g_creative_mode or g_shared_build_points_in_pvp_mode) ? zoneid : -1337);
 					g_PlayerFuncs.HudMessage(plr, params, "Built Parts:\n" + total + " / " + g_zone_info.partsPerZone);
 				}
 			}	
@@ -1337,43 +1337,6 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 		
 		if (buildEnt !is null && validBuild) 
 		{
-			if (!g_free_build)
-			{
-				string cost = "";
-				if (alternateBuild)
-				{
-					Item@ itemCost = getItemByClassname(g_part_info[buildType].copy_ent);
-					if (getItemCount(plr, itemCost.type, false, true) > 0)
-					{
-						giveItem(plr, itemCost.type, -1);
-						cost = "-1 " + itemCost.title;
-					}
-				}
-				else
-				{
-					if (getItemCount(plr, BUILD_MATERIAL, false, true) < g_part_info[buildType].cost)
-					{
-						g_PlayerFuncs.PrintKeyBindingString(plr, "You need more " + g_items[BUILD_MATERIAL].title);
-						return false;
-					}
-					cost = "-" + g_part_info[buildType].cost + " " + g_items[BUILD_MATERIAL].title;
-				}
-				
-				HUDTextParams params;
-				params.x = -1;
-				params.y = -1;
-				params.effect = 0;
-				params.r1 = 255;
-				params.g1 = 255;
-				params.b1 = 255;
-				params.fadeinTime = 0;
-				params.fadeoutTime = 0.5f;
-				params.holdTime = 0.5f;
-				params.channel = 2;
-			
-				g_PlayerFuncs.HudMessage(plr, params, cost);
-				giveItem(plr, BUILD_MATERIAL, -g_part_info[buildType].cost, false);
-			}
 			if (!g_build_anywhere)
 			{
 				if (zoneid == -1)
@@ -1381,7 +1344,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 					g_PlayerFuncs.PrintKeyBindingString(plr, "Building not allowed in outskirts");
 					return false;
 				}
-				if (state.home_zone == -1 and !g_invasion_mode and !g_creative_mode)
+				if (state.home_zone == -1 and !g_invasion_mode and !g_creative_mode and !g_shared_build_points_in_pvp_mode)
 				{
 					BuildZone@ zone = getBuildZone(zoneid);
 					int needSpace = state.team !is null ? state.team.members.size() : 1;
@@ -1415,7 +1378,45 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 					return false;
 				}
 				
-				if ((zoneid != state.home_zone and !g_invasion_mode) or g_creative_mode)
+				if (!g_free_build)
+				{
+					string cost = "";
+					if (alternateBuild)
+					{
+						Item@ itemCost = getItemByClassname(g_part_info[buildType].copy_ent);
+						if (getItemCount(plr, itemCost.type, false, true) > 0)
+						{
+							giveItem(plr, itemCost.type, -1);
+							cost = "-1 " + itemCost.title;
+						}
+					}
+					else
+					{
+						if (getItemCount(plr, BUILD_MATERIAL, false, true) < g_part_info[buildType].cost)
+						{
+							g_PlayerFuncs.PrintKeyBindingString(plr, "You need more " + g_items[BUILD_MATERIAL].title);
+							return false;
+						}
+						cost = "-" + g_part_info[buildType].cost + " " + g_items[BUILD_MATERIAL].title;
+					}
+					
+					HUDTextParams params;
+					params.x = -1;
+					params.y = -1;
+					params.effect = 0;
+					params.r1 = 255;
+					params.g1 = 255;
+					params.b1 = 255;
+					params.fadeinTime = 0;
+					params.fadeoutTime = 0.5f;
+					params.holdTime = 0.5f;
+					params.channel = 2;
+				
+					g_PlayerFuncs.HudMessage(plr, params, cost);
+					giveItem(plr, BUILD_MATERIAL, -g_part_info[buildType].cost, false);
+				}
+				
+				if ((zoneid != state.home_zone and !g_invasion_mode) or g_creative_mode or g_shared_build_points_in_pvp_mode)
 					getBuildZone(zoneid).numRaiderParts++;
 			}
 		

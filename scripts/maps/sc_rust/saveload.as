@@ -140,11 +140,12 @@ void loadNodesPartial(ByteBuffer@ buf, int zonesLoaded, int numZones, int nodesL
 			keys["origin"] = ori.ToString();
 			keys["angles"] = angles.ToString();
 			keys["health"] = "" + health;
-			
-			CBaseEntity@ ent = g_EntityFuncs.CreateEntity(classname, keys, true);
-			ent.pev.armortype = g_Engine.time + 10.0f;
+			if (g_max_zone_monsters != 0) {
+				CBaseEntity@ ent = g_EntityFuncs.CreateEntity(classname, keys, true);
+				ent.pev.armortype = g_Engine.time + 10.0f;
 
-			zone.nodes.insertLast(EHandle(ent));
+				zone.nodes.insertLast(EHandle(ent));
+			}
 		}
 		else
 		{
@@ -329,7 +330,8 @@ void loadMapPartial(ByteBuffer@ buf, int partsLoaded, int numParts)
 		for (int i = 0; i < authCount; i++) {
 			string authid = buf.ReadString();
 			PlayerState@ state = getPlayerStateBySteamID(authid, authid);
-			state.authedLocks.insertLast(EHandle(ent));
+			if (state !is null)
+				state.authedLocks.insertLast(EHandle(ent));
 		}
 		
 		

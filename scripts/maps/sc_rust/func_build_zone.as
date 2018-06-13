@@ -184,6 +184,20 @@ class func_build_zone : ScriptBaseEntity
 		return false;
 	}
 	
+	int ClearMonsters()
+	{
+		int numRemoved = 0;
+		for (uint i = 0; i < nodes.length(); i++)
+		{
+			CBaseEntity@ node = nodes[i];
+			if (node.IsMonster()) {
+				g_EntityFuncs.Remove(node);
+				numRemoved++;
+			}
+		}
+		return numRemoved;
+	}
+	
 	void Clear()
 	{
 		for (uint i = 0; i < nodes.length(); i++)

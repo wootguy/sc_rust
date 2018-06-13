@@ -12,13 +12,13 @@
 #include "airdrop"
 
 // TODO:
-// lossy can't join teams?
-// can team in lobby and creative/invasion
-// construction cost shown in creative
-// couldn't drop items cuz of limit without having dropped items
 // leaving player left unusable items instead of corpse (they were cleaned tho)
+// voting broken (nobody voted + second round of votes had least votes winning)
+// window shutters have different hp each half
 
 // Should do/fix but too lazy:
+// lossy can't join teams?
+// merging not working in teams
 // inventory full message not always shown
 // cant drop more thqn 2 items after mining when full
 // protect creative from griefers
@@ -87,9 +87,11 @@ float g_node_spawn_time = 120.0f; // time (in seconds) between node spawns
 float g_chest_touch_dist = 96; // maximum distance from which a chest can be opened
 float g_gather_multiplier = 2.0f; // resource gather amount multiplied by this (for faster/slower games)
 float g_monster_forget_time = 6.0f; // time it takes for a monster to calm down after not seeing any players
-int g_max_zone_monsters = 6;
+int g_max_zone_monsters = 3;
 uint NODES_PER_ZONE = 64;
 float g_xen_agro_dist = 300.0f;
+
+bool g_shared_build_points_in_pvp_mode = true; // cool var name
 
 bool g_invasion_mode = false; // monsters spawn in waves and always attack
 float g_invasion_delay = 8.0f; // minutes between waves
@@ -109,7 +111,6 @@ float COOK_TIME_HQMETAL = 4.0f;
 //
 // End game settings
 //
-
 
 void dummyCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextMenuItem@ item) {}
 
@@ -145,7 +146,7 @@ class ZoneInfo
 		}
 		
 		int raider_points = g_raider_points;
-		if (g_invasion_mode or g_creative_mode)
+		if (g_invasion_mode or g_creative_mode or g_shared_build_points_in_pvp_mode)
 			raider_points = 0;
 		
 		int maxSettlerParts = MAX_VISIBLE_ENTS - (reservedParts+raider_points);
@@ -173,6 +174,21 @@ class ZoneInfo
 		int maxExpectedEnts = (NODES_PER_ZONE*2 + (partsPerPlayer + raiderParts))*numZones;
 		maxExpectedEnts += 10 + g_Engine.maxClients*(3+g_max_item_drops+g_inventory_size);
 		println("Max expected ents: " + maxExpectedEnts);
+	}
+	
+	string getZoneName(int zoneid)
+	{
+		switch(zoneid) {
+			case 1: return "Bay";
+			case 2: return "Flat";
+			case 3: return "Lake";
+			case 4: return "Hills";
+			case 5: return "Snow";
+			case 6: return "Slopes";
+			case 7: return "River";
+			case 8: return "Beach";
+		}
+		return zoneid;
 	}
 }
 
@@ -678,7 +694,7 @@ class PlayerState
 			return total;
 		}
 	
-		if (zoneid != home_zone or g_creative_mode)
+		if (zoneid != home_zone or g_creative_mode or g_shared_build_points_in_pvp_mode)
 		{
 			// use shared part count
 			BuildZone@ zone = getBuildZone(zoneid);
@@ -701,7 +717,7 @@ class PlayerState
 	// number of points available in the current build zone
 	int maxPoints(int zoneid)
 	{
-		if (g_invasion_mode or g_creative_mode)
+		if (g_invasion_mode or g_creative_mode or g_shared_build_points_in_pvp_mode)
 			return g_zone_info.partsPerZone;
 		if (zoneid == -1)
 			return 0;
@@ -783,7 +799,8 @@ ZoneInfo g_zone_info;
 EHandle g_invasion_zone;
 
 int MAX_SAVE_DATA_LENGTH = 1015; // Maximum length of a value saved with trigger_save. Discovered through testing
-int MAX_VISIBLE_ENTS = 510;
+//int MAX_VISIBLE_ENTS = 510;
+int MAX_VISIBLE_ENTS = 480; // slightly reduced since I still got max vis ents error
 
 string beta_dir = "beta/"; // set to blank before release, or change when assets need updating
 
@@ -1072,7 +1089,7 @@ void MapActivate()
 	
 	removeExtraEnts();
 	
-	dropNodes();
+	//dropNodes();
 	
 	resetVoteBlockers();
 	
@@ -1084,7 +1101,7 @@ void MapActivate()
 	} while (ent !is null);
 	
 	//setupInvasionMode();
-	//setupCreativeMode();
+	setupCreativeMode();
 	//setupPvpMode();
 }
 
@@ -1192,7 +1209,7 @@ int getVoteSelection(int votes1, int votes2, int votes3, string op1, string op2,
 		g_PlayerFuncs.SayTextAll(getAnyPlayer(), "Nobody voted. Stand in a green room to vote.\n");
 		return -1;
 	}
-	if (votes1 == votes2 and votes2 == votes3)
+	else if (votes1 == votes2 and votes2 == votes3)
 	{
 		g_PlayerFuncs.SayTextAll(getAnyPlayer(), "The vote was evenly split. A random mode will be chosen.\n");
 		return Math.RandomLong(0, 2);
@@ -1935,7 +1952,7 @@ bool doRustCommand(CBasePlayer@ plr, const CCommand@ args)
 			
 			return true;
 		}
-		if (args[0] == ".breakhome")
+		if (args[0] == ".breakall")
 		{
 			float delta = (state.lastBreakAll + 1.0f) - g_Engine.time;
 			if (delta > 0)
@@ -1949,7 +1966,7 @@ bool doRustCommand(CBasePlayer@ plr, const CCommand@ args)
 			for (uint i = 0; i < parts.size(); i++)
 			{
 				func_breakable_custom@ bpart = castToPart(parts[i]);
-				if (bpart.zoneid == state.home_zone)
+				//if (bpart.zoneid == state.home_zone)
 				{
 					g_Scheduler.SetTimeout("breakPart", delay, parts[i]);
 					delay += 0.1f;
@@ -1958,13 +1975,15 @@ bool doRustCommand(CBasePlayer@ plr, const CCommand@ args)
 			}
 			
 			if (count > 0)
-				g_PlayerFuncs.SayText(plr, "Destroying parts built by you in your home zone\n");
+				g_PlayerFuncs.SayText(plr, "Destroying parts built by you\n");
 			else
-				g_PlayerFuncs.SayText(plr, "You haven't built any parts in your home zone\n");
+				g_PlayerFuncs.SayText(plr, "You haven't built any parts\n");
+			
 			
 			state.lastBreakAll = g_Engine.time + delay;
 			return true;
 		}
+		/*
 		if (args[0] == ".team")
 		{
 			Team@ team = getPlayerTeam(plr);
@@ -2170,6 +2189,7 @@ bool doRustCommand(CBasePlayer@ plr, const CCommand@ args)
 				g_PlayerFuncs.SayText(plr, "You don't have a home. You can settle in any zone.\n");
 			return true;
 		}
+		*/
 		if (args[0] == ".mode")
 		{
 			string msg = "";
@@ -2201,6 +2221,24 @@ bool doRustCommand(CBasePlayer@ plr, const CCommand@ args)
 			}
 			g_disable_ents = !g_disable_ents;
 			g_PlayerFuncs.SayTextAll(plr, "Nodes spawns are " + (g_disable_ents ? "disabled" : "enabled"));
+			return true;
+		}
+		if (args[0] == ".lag")
+		{
+			if (!isAdmin)
+			{
+				g_PlayerFuncs.SayText(plr, "You don't have access to that command, peasent\n");
+				return true;
+			}
+			
+			int cleared = 0;
+			for (uint i = 0; i < g_build_zone_ents.size(); i++)
+			{
+				func_build_zone@ zone = cast<func_build_zone@>(CastToScriptClass(g_build_zone_ents[i].GetEntity()));
+				cleared += zone.ClearMonsters();
+			}
+			
+			g_PlayerFuncs.SayTextAll(plr, "Removed " + cleared + " monsters to fix lag caused by AI navigation");
 			return true;
 		}
 		if (state.codeTime > 0)

@@ -842,7 +842,7 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 		if (state !is null)
 			state.addPartCount(parts.length() - 1, fuseZone);
 			
-		if (g_creative_mode)
+		if (g_creative_mode or g_shared_build_points_in_pvp_mode)
 			getBuildZone(fuseZone).numRaiderParts += parts.length() - 1;
 		
 		// disconnect children
@@ -1383,7 +1383,7 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 			if (state !is null)
 				state.addPartCount(-1, fuseZone);
 				
-			if (g_creative_mode)
+			if (g_creative_mode or g_shared_build_points_in_pvp_mode)
 				getBuildZone(fuseZone).numRaiderParts -= 1;
 			
 			func_breakable_custom@ b1 = getBuildPartByID(part1.pev.team);

@@ -808,7 +808,7 @@ bool isUpgradable(CBaseEntity@ ent)
 	int type = ent.pev.colormap;
 	int socket = socketType(type);
 	return ent.pev.classname == "func_breakable_custom" and socket != SOCKET_WINDOW and type != B_LADDER_HATCH and
-			type != B_LADDER and socket != SOCKET_HIGH_WALL and !isFloorItem(ent) and type != -1;
+			type != B_LADDER and type != E_SUPPLY_CRATE and socket != SOCKET_HIGH_WALL and !isFloorItem(ent) and type != -1;
 }
 
 bool canPlaceOnTerrain(int partType)
