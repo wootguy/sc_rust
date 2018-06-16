@@ -403,9 +403,9 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 {
 	float m_flNextAnimTime;
 	bool canShootAgain = false;
-	CBaseEntity@ buildEnt = null;
-	CBaseEntity@ buildEnt2 = null;
-	CBaseEntity@ attachEnt = null;
+	EHandle h_buildEnt = null;
+	EHandle h_buildEnt2 = null;
+	EHandle h_attachEnt = null;
 	bool active = false;
 	bool validBuild = false;
 	bool forbidden = false;
@@ -480,13 +480,15 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 	
 	void createBuildEnts()
 	{
-		if (buildEnt !is null) {
-			g_EntityFuncs.Remove(buildEnt);
-			@buildEnt = null;
+		CBaseEntity@ buildEnt = h_buildEnt;
+		CBaseEntity@ buildEnt2 = h_buildEnt2;
+		if (h_buildEnt) {
+			g_EntityFuncs.Remove(h_buildEnt);
+			h_buildEnt = null;
 		}
-		if (buildEnt2 !is null) {
-			g_EntityFuncs.Remove(buildEnt2);
-			@buildEnt2 = null;
+		if (h_buildEnt2) {
+			g_EntityFuncs.Remove(h_buildEnt2);
+			h_buildEnt2 = null;
 		}
 		
 		TraceResult look = TraceLook(getPlayer(), 280);
@@ -510,6 +512,9 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 		buildEnt.pev.solid = SOLID_TRIGGER;
 		//g_EntityFuncs.SetOrigin(buildEnt, buildEnt.pev.origin);
 		
+		h_buildEnt = buildEnt;
+		h_buildEnt2 = buildEnt2;
+		
 		// increment force_retouch
 		//g_EntityFuncs.FireTargets("push", null, null, USE_TOGGLE);
 		
@@ -523,13 +528,13 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 	void Holster(int iSkipLocal = 0) 
 	{
 		active = false;
-		if (buildEnt !is null) {
-			g_EntityFuncs.Remove(buildEnt);
-			@buildEnt = null;
+		if (h_buildEnt) {
+			g_EntityFuncs.Remove(h_buildEnt);
+			h_buildEnt = null;
 		}
-		if (buildEnt2 !is null) {
-			g_EntityFuncs.Remove(buildEnt2);
-			@buildEnt2 = null;
+		if (h_buildEnt2) {
+			g_EntityFuncs.Remove(h_buildEnt2);
+			h_buildEnt2 = null;
 		}
 	}
 	
@@ -542,7 +547,11 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 	{
 		CBasePlayer@ plr = getPlayer();
 		
-		@attachEnt = null;
+		h_attachEnt = null;
+		
+		CBaseEntity@ buildEnt = h_buildEnt;
+		CBaseEntity@ buildEnt2 = h_buildEnt2;
+		CBaseEntity@ attachEnt = h_attachEnt;
 		
 		// show building placeholder
 		if (buildEnt is null)
@@ -1150,7 +1159,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 		}
 		
 		if (attaching)
-			@attachEnt = phit;
+			h_attachEnt = @attachEnt = phit;
 		
 		buildEnt.pev.origin = buildEnt2.pev.origin = newOri;
 		buildEnt.pev.angles.y = buildEnt2.pev.angles.y = newYaw;
@@ -1321,6 +1330,9 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 	
 	bool Build()
 	{
+		CBaseEntity@ buildEnt = h_buildEnt;
+		CBaseEntity@ buildEnt2 = h_buildEnt2;
+		CBaseEntity@ attachEnt = h_attachEnt;
 		CBasePlayer@ plr = getPlayer();
 		PlayerState@ state = getPlayerState(plr);
 		if (buildEnt !is null and forbidden)
@@ -1337,6 +1349,15 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 		
 		if (buildEnt !is null && validBuild) 
 		{
+			if (g_invasion_mode)
+			{
+				func_build_zone@ zone = cast<func_build_zone@>(CastToScriptClass(g_invasion_zone.GetEntity()));
+				if (zone.id != zoneid)
+				{
+					g_PlayerFuncs.PrintKeyBindingString(plr, "Can't build outside of start zone");
+					return false;
+				}
+			}
 			if (!g_build_anywhere)
 			{
 				if (zoneid == -1)

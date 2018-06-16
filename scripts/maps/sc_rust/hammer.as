@@ -63,9 +63,9 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 	bool fusing = false;
 	float lastHudUpdate = 0;
 	bool validTarget = false;
-	CBaseEntity@ buildEnt = null;
-	CBaseEntity@ buildEnt2 = null;
-	CBaseEntity@ lookEnt = null;
+	EHandle h_buildEnt = null;
+	EHandle h_buildEnt2 = null;
+	EHandle h_lookEnt = null;
 	int lastSequence = -1;
 	int zoneid = -1;
 	float attackDamage = 5.0f;
@@ -174,13 +174,16 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 	
 	void createBuildEnts()
 	{
-		if (buildEnt !is null) {
+		CBaseEntity@ buildEnt = h_buildEnt;
+		CBaseEntity@ buildEnt2 = h_buildEnt2;
+		
+		if (h_buildEnt) {
 			g_EntityFuncs.Remove(buildEnt);
-			@buildEnt = null;
+			h_buildEnt = null;
 		}
-		if (buildEnt2 !is null) {
+		if (h_buildEnt2) {
 			g_EntityFuncs.Remove(buildEnt2);
-			@buildEnt2 = null;
+			h_buildEnt2 = null;
 		}
 		
 		dictionary keys;
@@ -195,16 +198,21 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 		@buildEnt2 = g_EntityFuncs.CreateEntity("func_illusionary", keys, true);	
 		buildEnt2.pev.rendercolor = Vector(0,200,0);
 		buildEnt2.pev.effects |= EF_NODRAW;
+		
+		h_buildEnt = buildEnt;
+		h_buildEnt2 = buildEnt2;
 	}
 	
 	void updateBuildPlaceholder()
 	{
+		CBaseEntity@ buildEnt = h_buildEnt;
+		CBaseEntity@ buildEnt2 = h_buildEnt2;
 		CBasePlayer@ plr = getPlayer();
 		validTarget = false;
-		@lookEnt = null;
+		h_lookEnt = null;
 		
 		// show building placeholder
-		if (buildEnt is null)
+		if (!h_buildEnt.IsValid())
 			return;
 		
 		TraceResult tr = TraceLook(getPlayer(), 160);
@@ -239,7 +247,7 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 			}
 		}
 		
-		@lookEnt = @phit;
+		h_lookEnt = @phit;
 		buildEnt.pev.origin = phit.pev.origin;
 		buildEnt.pev.angles = phit.pev.angles;
 		g_EntityFuncs.SetModel(buildEnt, phit.pev.model);
@@ -262,13 +270,13 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 		cancelFuse();
 		active = false;
 		upgrading = false;
-		if (buildEnt !is null) {
-			g_EntityFuncs.Remove(buildEnt);
-			@buildEnt = null;
+		if (h_buildEnt) {
+			g_EntityFuncs.Remove(h_buildEnt);
+			h_buildEnt = null;
 		}
-		if (buildEnt2 !is null) {
-			g_EntityFuncs.Remove(buildEnt2);
-			@buildEnt2 = null;
+		if (h_buildEnt2) {
+			g_EntityFuncs.Remove(h_buildEnt2);
+			h_buildEnt2 = null;
 		}
 	}
 	
@@ -285,8 +293,8 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 			g_PlayerFuncs.PrintKeyBindingString(getPlayer(), reason);
 		getPlayerState(getPlayer()).closeMenus();
 		upgrading = false;
-		if (buildEnt !is null)
-			buildEnt.pev.rendercolor = Vector(0, 255, 255);
+		if (h_buildEnt)
+			h_buildEnt.GetEntity().pev.rendercolor = Vector(0, 255, 255);
 	}
 	
 	void cancelFuse(string reason="")
@@ -296,10 +304,10 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 		if (reason.Length() > 0)
 			g_PlayerFuncs.PrintKeyBindingString(getPlayer(), reason);
 		fusing = false;
-		if (buildEnt !is null)
-			buildEnt.pev.rendercolor = Vector(0, 255, 255);
-		if (buildEnt2 !is null)
-			buildEnt2.pev.effects |= EF_NODRAW;
+		if (h_buildEnt)
+			h_buildEnt.GetEntity().pev.rendercolor = Vector(0, 255, 255);
+		if (h_buildEnt2)
+			h_buildEnt2.GetEntity().pev.effects |= EF_NODRAW;
 	}
 	
 	void WeaponThink()
@@ -311,9 +319,9 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 			if (!upgrading)
 				updateBuildPlaceholder();
 				
-			if (upgrading and (getCentroid(lookEnt) - plr.pev.origin).Length() > upgradeDist)
+			if (upgrading and (getCentroid(h_lookEnt) - plr.pev.origin).Length() > upgradeDist)
 				cancelUpgrade("Part went out of range");
-			if (fusing and (getCentroid(buildEnt2) - plr.pev.origin).Length() > fuseDist)
+			if (fusing and (getCentroid(h_buildEnt2) - plr.pev.origin).Length() > fuseDist)
 				cancelFuse("Part went out of range");
 			
 			if (lastHudUpdate < g_Engine.time + 0.05f)
@@ -608,10 +616,10 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 		state.initMenu(plr, upgradeMenuCallback);
 
 		state.menu.SetTitle("Upgrade to:\n");
-		string woodCost = " (" + getUpgradeCost(0, lookEnt).amt + " " + getUpgradeItem(0).title + ")";
-		string stoneCost = " (" + getUpgradeCost(1, lookEnt).amt + " " + getUpgradeItem(1).title + ")";
-		string metalCost = " (" + getUpgradeCost(2, lookEnt).amt + " " + getUpgradeItem(2).title + ")";
-		string armorCost = " (" + getUpgradeCost(3, lookEnt).amt + " " + getUpgradeItem(3).title + ")";
+		string woodCost = " (" + getUpgradeCost(0, h_lookEnt).amt + " " + getUpgradeItem(0).title + ")";
+		string stoneCost = " (" + getUpgradeCost(1, h_lookEnt).amt + " " + getUpgradeItem(1).title + ")";
+		string metalCost = " (" + getUpgradeCost(2, h_lookEnt).amt + " " + getUpgradeItem(2).title + ")";
+		string armorCost = " (" + getUpgradeCost(3, h_lookEnt).amt + " " + getUpgradeItem(3).title + ")";
 		if (g_free_build)
 			woodCost = stoneCost = metalCost = armorCost = "";
 		state.menu.AddItem("Wood" + woodCost, any("wood"));
@@ -629,6 +637,10 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 	
 	void Upgrade(int material)
 	{
+		CBaseEntity@ buildEnt = h_buildEnt;
+		CBaseEntity@ buildEnt2 = h_buildEnt2;
+		CBaseEntity@ lookEnt = h_lookEnt;
+		
 		CBasePlayer@ plr = getPlayer();
 		if (active and upgrading)
 		{
@@ -644,6 +656,12 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 			{
 				array<string> material_names = {"Wood", "Stone", "Metal", "Armor"};
 				g_PlayerFuncs.PrintKeyBindingString(plr, "This part is already made of " + material_names[mat]);
+				upgrading = false;
+				return;
+			}
+			if (mat > material)
+			{
+				g_PlayerFuncs.PrintKeyBindingString(plr, "Downgrading not allowed");
 				upgrading = false;
 				return;
 			}
@@ -696,6 +714,11 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 	
 	void Destroy()
 	{
+		CBaseEntity@ lookEnt = h_lookEnt;
+		
+		if (false and !h_lookEnt.IsValid()) {
+			return;
+		}
 		if (active and upgrading)
 		{
 			CBasePlayer@ plr = getPlayer();
@@ -883,8 +906,8 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 	
 	void Fuse()
 	{
-		CBaseEntity@ part1 = getPartAtPos(buildEnt2.pev.origin);
-		CBaseEntity@ part2 = getPartAtPos(buildEnt.pev.origin);
+		CBaseEntity@ part1 = getPartAtPos(h_buildEnt2.GetEntity().pev.origin);
+		CBaseEntity@ part2 = getPartAtPos(h_buildEnt.GetEntity().pev.origin);
 			
 		if (part1.pev.colormap != part2.pev.colormap)
 		{
@@ -912,7 +935,7 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 		
 		if (state1.plr.GetEntity() != state2.plr.GetEntity())
 		{
-			cancelFuse("Can't fuse parts owned by other players");
+			cancelFuse("Parts must be owned by the same player");
 			return;
 		}
 		
@@ -1429,6 +1452,7 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 	
 	void SecondaryAttack() 
 	{
+		CBaseEntity@ buildEnt = h_buildEnt;
 		CBasePlayer@ plr = getPlayer();
 		if (nextUpgrade < g_Engine.time) {
 			nextUpgrade = g_Engine.time + 0.6f;
@@ -1461,6 +1485,8 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 	
 	void TertiaryAttack()
 	{ 
+		CBaseEntity@ buildEnt = h_buildEnt;
+		CBaseEntity@ buildEnt2 = h_buildEnt2;
 		CBasePlayer@ plr = getPlayer();
 		if (nextFuse < g_Engine.time) {
 			nextFuse = g_Engine.time + 0.6f;
@@ -1501,6 +1527,9 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 	
 	void Reload()
 	{
+		CBaseEntity@ buildEnt = h_buildEnt;
+		CBaseEntity@ buildEnt2 = h_buildEnt2;
+		CBaseEntity@ lookEnt = h_lookEnt;
 		CBasePlayer@ plr = getPlayer();
 		if (nextRotate < g_Engine.time) {
 			nextRotate = g_Engine.time + 0.6f;
@@ -1536,6 +1565,8 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 								
 								// can't just turn on solidity or else the part will become semi-solid (game bug)
 								@right = respawnPart(right.pev.team);
+								right.pev.health = lookEnt.pev.health;
+								right.pev.max_health = lookEnt.pev.max_health;
 								
 								
 								for (uint i = 0; i < g_build_parts.size(); i++)

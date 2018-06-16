@@ -1326,7 +1326,17 @@ PlayerState@ getPlayerState(CBasePlayer@ plr)
 		state.plr = plr;
 		player_states[steamId] = state;
 	}
-	return cast<PlayerState@>( player_states[steamId] );
+	
+	PlayerState@ state = cast<PlayerState@>( player_states[steamId] );
+	
+	bool isConnected = g_EngineFuncs.GetPlayerUserId(plr.edict()) != -1;
+	if (state.inGame and !isConnected) {
+		println("Player crashed or something. Setting inGame state to false");
+		state.inGame = false;
+		g_Scheduler.SetTimeout("cleanup_map", 1);
+	}
+	
+	return state;
 }
 
 PlayerState@ getPlayerStateBySteamID(string steamId, string netname)

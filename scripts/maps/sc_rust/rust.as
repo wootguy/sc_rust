@@ -12,11 +12,16 @@
 #include "airdrop"
 
 // TODO:
-// leaving player left unusable items instead of corpse (they were cleaned tho)
-// voting broken (nobody voted + second round of votes had least votes winning)
-// window shutters have different hp each half
+// recompile for new wood texture?
+// nobody voted shown when people voted
+// 400+ built parts on twlz
 
 // Should do/fix but too lazy:
+// crashing/leaving players leave unusable items and sometimes duplicate player states
+// supply crate not disappearing on lossy server
+// window shutters have different hp each half
+// crash when farming with inv open
+// can't disable decals on airdrops
 // lossy can't join teams?
 // merging not working in teams
 // inventory full message not always shown
@@ -96,7 +101,7 @@ bool g_shared_build_points_in_pvp_mode = true; // cool var name
 bool g_invasion_mode = false; // monsters spawn in waves and always attack
 float g_invasion_delay = 8.0f; // minutes between waves
 float g_invasion_initial_delay = 8.0f; // minutes before the invasion starts (first wave)
-float g_node_spawn_time_invasion = 20.0f; // time (in seconds) between node spawns when in invasion mode
+float g_node_spawn_time_invasion = 15.0f; // time (in seconds) between node spawns when in invasion mode
 
 float g_vote_time = 20.0f; // time (in seconds) for vote to expire. Timer resets when new player joins.
 
@@ -157,7 +162,11 @@ class ZoneInfo
 		settlersPerZone = Math.max(1, (slots / g_build_zones.length()) - g_settler_reduction);		
 		wastedSettlers = g_Engine.maxClients - (settlersPerZone*g_build_zones.length());
 		partsPerPlayer = maxSettlerParts / settlersPerZone;
-		partsPerZone = maxSettlerParts;
+		
+		if (true) {
+			// should work for 32 players. Client crashes more common after this(?)
+			partsPerZone = 300; 
+		}
 		
 		for (uint i = 0; i < g_build_zones.length(); i++)
 			g_build_zones[i].maxSettlers = settlersPerZone;
@@ -180,11 +189,11 @@ class ZoneInfo
 	{
 		switch(zoneid) {
 			case 1: return "Bay";
-			case 2: return "Flat";
+			case 2: return "Forest";
 			case 3: return "Lake";
-			case 4: return "Hills";
+			case 4: return "Dunes";
 			case 5: return "Snow";
-			case 6: return "Slopes";
+			case 6: return "Hill";
 			case 7: return "River";
 			case 8: return "Beach";
 		}
@@ -1121,6 +1130,9 @@ void resetVoteBlockers()
 
 void tallyVotes()
 {
+	if (waiting_for_voters)
+		return;
+		
 	if (g_next_invasion_wave == 0 or g_next_invasion_wave > g_Engine.time)
 	{
 		g_Scheduler.SetTimeout("tallyVotes", 0.1f);
@@ -1183,7 +1195,7 @@ void tallyVotes()
 	}
 	else if (g_vote_state == 2)
 	{
-		int selection = getVoteSelection(op1_votes, op2_votes, op3_votes, "PvP", "Co-op", "Creative");
+		int selection = getVoteSelection(op1_votes, op2_votes, op3_votes, "Easy", "Medium", "Hard");
 		if (selection == -1)
 		{
 			waiting_for_voters = true;
@@ -1256,9 +1268,9 @@ int getVoteSelection(int votes1, int votes2, int votes3, string op1, string op2,
 			return Math.RandomLong(2, 3);
 		}
 	}
-	else if (votes1 > votes2)
+	else if (votes1 > votes2 and votes1 > votes3)
 		return 0;
-	else if (votes2 > votes3)
+	else if (votes2 > votes3 and votes2 > votes1)
 		return 1;
 	else
 		return 2;
@@ -1844,7 +1856,7 @@ bool doRustCommand(CBasePlayer@ plr, const CCommand@ args)
 	{
 		if (args[0] == ".version")
 		{
-			g_PlayerFuncs.SayText(plr, "Script version: v2 (June 8, 2018)");
+			g_PlayerFuncs.SayText(plr, "Script version: v4 (June 15, 2018)");
 			return true;
 		}
 		if (args[0] == ".save")
@@ -2320,6 +2332,8 @@ HookReturnCode ClientLeave(CBasePlayer@ plr)
 	{
 		activateCorpses(plr);
 	}
+	
+	g_Scheduler.SetTimeout("cleanup_map", 1);
 	
 	return HOOK_CONTINUE;
 }
