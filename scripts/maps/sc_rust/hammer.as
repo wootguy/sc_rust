@@ -319,9 +319,9 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 			if (!upgrading)
 				updateBuildPlaceholder();
 				
-			if (upgrading and (getCentroid(h_lookEnt) - plr.pev.origin).Length() > upgradeDist)
+			if (upgrading and (!h_lookEnt.IsValid() or (getCentroid(h_lookEnt) - plr.pev.origin).Length() > upgradeDist))
 				cancelUpgrade("Part went out of range");
-			if (fusing and (getCentroid(h_buildEnt2) - plr.pev.origin).Length() > fuseDist)
+			if (fusing and (!h_buildEnt2.IsValid() or (getCentroid(h_buildEnt2) - plr.pev.origin).Length() > fuseDist))
 				cancelFuse("Part went out of range");
 			
 			if (lastHudUpdate < g_Engine.time + 0.05f)
