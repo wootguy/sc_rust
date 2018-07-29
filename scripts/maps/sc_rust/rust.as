@@ -12,9 +12,21 @@
 #include "airdrop"
 
 // TODO:
-// recompile for new wood texture?
 // nobody voted shown when people voted
 // 400+ built parts on twlz
+// auto save plz
+// co-op mode/difficulty selected 3 times - possibly why it sets up wrong
+// wave defeated message would be nice
+// show save messages
+// null checks around MSG_ONE
+// getting frozen in certain areas
+// prevent stacking high walls
+// explosives too pricey
+// break items with hammer
+// throwing weps gives u infinite ammo
+// remove ladders cuz freezing :'<
+// reduce poll freq
+// get rid of big momma stage and make garg/kingpin stage way easier
 
 // Should do/fix but too lazy:
 // crashing/leaving players leave unusable items and sometimes duplicate player states
@@ -1169,7 +1181,6 @@ void tallyVotes()
 			return;
 		}
 		
-		resetVoteBlockers();
 		g_mode_select = selection;
 		if (selection == 0)
 		{
@@ -1192,6 +1203,7 @@ void tallyVotes()
 			g_vote_state = 0;
 			g_Scheduler.SetTimeout("setupCreativeMode", 3.0f);
 		}
+		resetVoteBlockers();
 	}
 	else if (g_vote_state == 2)
 	{
@@ -1336,6 +1348,9 @@ void showGameModeTip()
 
 void setupInvasionMode()
 {
+	if (g_invasion_mode) {
+		return;
+	}
 	g_invasion_mode = true;
 	g_free_build = false;
 	g_build_anywhere = false;
@@ -1856,7 +1871,7 @@ bool doRustCommand(CBasePlayer@ plr, const CCommand@ args)
 	{
 		if (args[0] == ".version")
 		{
-			g_PlayerFuncs.SayText(plr, "Script version: v4 (June 15, 2018)");
+			g_PlayerFuncs.SayText(plr, "Script version: v5 (June 16, 2018)");
 			return true;
 		}
 		if (args[0] == ".save")

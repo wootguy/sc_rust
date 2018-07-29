@@ -390,8 +390,6 @@ void loadMapData()
 		// load parts
 		ByteBuffer buf(f);
 		uint32 numParts = buf.ReadUInt32();
-		if (numParts > 900)
-			numParts = 900;
 		
 		println("Loading " + numParts + " parts from " + path);
 		

@@ -186,6 +186,7 @@ class func_build_zone : ScriptBaseEntity
 	
 	int ClearMonsters()
 	{
+		DeleteNullNodes();
 		int numRemoved = 0;
 		for (uint i = 0; i < nodes.length(); i++)
 		{

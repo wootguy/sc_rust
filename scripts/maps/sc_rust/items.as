@@ -1435,10 +1435,12 @@ void lootMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextMe
 		if (chest.IsPlayer() and chest.pev.deadflag > 0)
 		{
 			Item@ gItem = getItemByClassname(itemDesc);
+			if (gItem is null)
+				println("No loot item exists for classname: " + itemDesc);
 			CBasePlayer@ corpse = cast<CBasePlayer@>(chest);
 			
 			InventoryList@ inv = corpse.get_m_pInventory();
-			while (inv !is null)
+			while (inv !is null and gItem !is null)
 			{
 				CItemInventory@ item = cast<CItemInventory@>(inv.hItem.GetEntity());
 				@inv = inv.pNext;

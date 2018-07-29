@@ -510,6 +510,8 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 	
 	RawItem getUpgradeCostBase(int materialType, CBaseEntity@ part)
 	{
+		if (part is null)
+			return RawItem(0,0);
 		int partType = part.pev.colormap;
 		if (materialType == 0 or materialType == -1)
 		{	
@@ -640,6 +642,8 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 		CBaseEntity@ buildEnt = h_buildEnt;
 		CBaseEntity@ buildEnt2 = h_buildEnt2;
 		CBaseEntity@ lookEnt = h_lookEnt;
+		if (lookEnt is null)
+			return;
 		
 		CBasePlayer@ plr = getPlayer();
 		if (active and upgrading)
@@ -883,13 +887,13 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 		
 		for (uint i = 0; i < parts.length(); i++)
 		{
-			parts[i].pev.max_health = getMaterialMaxHealth(imat);
-			parts[i].pev.health = partHealth;
 			if (parts[i] is null)
 			{
 				println("Failed to get adjacent square during separation");
 				continue;
 			}
+			parts[i].pev.max_health = getMaterialMaxHealth(imat);
+			parts[i].pev.health = partHealth;
 			parts[i].pev.model = getModelFromName(prefix + material);
 			if (socket == SOCKET_WALL)
 				parts[i].pev.angles.y = ent.pev.angles.y;

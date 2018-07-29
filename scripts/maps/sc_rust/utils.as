@@ -180,7 +180,7 @@ func_breakable_custom@ getBuildPartByID(int id)
 	for (uint i = 0; i < g_build_parts.size(); i++)
 	{
 		func_breakable_custom@ part = cast<func_breakable_custom@>(CastToScriptClass(g_build_parts[i].GetEntity()));
-		if (part.id == id)
+		if (part !is null and part.id == id)
 		{
 			return @part;
 		}
