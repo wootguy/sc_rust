@@ -1440,7 +1440,7 @@ void lootMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextMe
 			CBasePlayer@ corpse = cast<CBasePlayer@>(chest);
 			
 			InventoryList@ inv = corpse.get_m_pInventory();
-			while (inv !is null and gItem !is null)
+			while (inv !is null and gItem !is null and inv.hItem.IsValid())
 			{
 				CItemInventory@ item = cast<CItemInventory@>(inv.hItem.GetEntity());
 				@inv = inv.pNext;

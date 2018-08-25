@@ -293,9 +293,9 @@ array<BuildPartInfo> g_part_info = {
 };
 
 array<Item> g_items = {	
-	Item(I_WOOD_DOOR, 1, false, false, "b_wood_door", "", "Wood Door", RawItem(I_WOOD, 300), null, 
+	Item(I_WOOD_DOOR, 1, false, false, "b_wood_door", "", "Wood Door", RawItem(I_WOOD, 200), null, 
 		"A hinged door which is made out of wood."),
-	Item(I_METAL_DOOR, 1, false, false, "b_metal_door", "", "Metal Door", RawItem(I_WOOD, 300), RawItem(I_METAL, 150), 
+	Item(I_METAL_DOOR, 1, false, false, "b_metal_door", "", "Metal Door", RawItem(I_WOOD, 200), RawItem(I_METAL, 150), 
 		"A hinged door which is made out of metal."),
 	Item(I_WOOD_BARS, 1, false, false, "b_wood_bars", "", "Wood Window Bars", RawItem(I_WOOD, 50), null, 
 		"b_wood_bars"),
@@ -355,31 +355,31 @@ array<Item> g_items = {
 		"Effective rock miner melee weapon"),
 	Item(I_CROWBAR, 1, true, false, "weapon_custom_crowbar", "", "Crowbar", RawItem(I_METAL, 50), null,
 		"TING TING TING"),
-	Item(I_BOW, 1, true, false, "weapon_bow", "", "Hunting Bow", RawItem(I_WOOD, 300), null,
+	Item(I_BOW, 1, true, false, "weapon_bow", "", "Hunting Bow", RawItem(I_WOOD, 200), null,
 		"Hard to use with lag. Right-click to load and aim, left-click to fire."),
-	Item(I_SYRINGE, 100, true, false, "weapon_syringe", "health", "Syringe", RawItem(I_FUEL, 10), RawItem(I_SCRAP, 5),
+	Item(I_SYRINGE, 100, true, false, "weapon_syringe", "health", "Syringe", RawItem(I_FUEL, 10), RawItem(I_SCRAP, 2),
 		"Right-click heals you, left-click heals a target."),
-	Item(I_ARMOR, 10, false, false, "item_battery", "", "Armor Piece", RawItem(I_HQMETAL, 10), RawItem(I_SCRAP, 10),
+	Item(I_ARMOR, 10, false, false, "item_battery", "", "Armor Piece", RawItem(I_HQMETAL, 10), RawItem(I_SCRAP, 5),
 		"Equip this to increase your current armor by " + ARMOR_VALUE + "."),
-	Item(I_FLAMETHROWER, 1, true, false, "weapon_flamethrower", "", "Flame Thrower", RawItem(I_HQMETAL, 20), RawItem(I_SCRAP, 25),
+	Item(I_FLAMETHROWER, 1, true, false, "weapon_flamethrower", "", "Flame Thrower", RawItem(I_HQMETAL, 20), RawItem(I_SCRAP, 20),
 		"Effective against wood and flesh. Does not damage stone or metal. Uses Fuel as ammo."),
-	Item(I_RPG, 1, true, false, "weapon_custom_rpg", "", "RPG", RawItem(I_HQMETAL, 100), RawItem(I_SCRAP, 30),
+	Item(I_RPG, 1, true, false, "weapon_custom_rpg", "", "RPG", RawItem(I_HQMETAL, 100), RawItem(I_SCRAP, 10),
 		"Rocket launcher. Effective against buildings. Uses rockets as ammo."),
-	Item(I_GRENADE, 10, true, false, "weapon_custom_grenade", "hand grenade", "Hand Grenade", RawItem(I_METAL, 25), RawItem(I_SCRAP, 5),
+	Item(I_GRENADE, 10, true, false, "weapon_custom_grenade", "hand grenade", "Hand Grenade", RawItem(I_METAL, 100), null,
 		"Effective against people, but doesn't do much damage to buildings."),
-	Item(I_SATCHEL, 10, true, false, "weapon_satchel_charge", "satchel", "Satchel Charge", RawItem(I_METAL, 50), RawItem(I_SCRAP, 15),
+	Item(I_SATCHEL, 10, true, false, "weapon_satchel_charge", "satchel", "Satchel Charge", RawItem(I_METAL, 50), RawItem(I_SCRAP, 10),
 		"Attaches to a surface and explodes in 5 seconds. Effective against doors and buildings."),
-	Item(I_C4, 10, true, false, "weapon_custom_c4", "c4", "C4", RawItem(I_METAL, 200), RawItem(I_SCRAP, 60),
+	Item(I_C4, 10, true, false, "weapon_custom_c4", "c4", "C4", RawItem(I_METAL, 200), RawItem(I_SCRAP, 25),
 		"Attaches to a surface and explodes in 10 seconds. Effective against doors and buildings."),
 	Item(I_DEAGLE, 1, true, false, "weapon_custom_deagle", "", "Desert Eagle", RawItem(I_HQMETAL, 10), RawItem(I_SCRAP, 10),
 		"Powerful pistol with a laser sight. Uses 3.57 ammo."),
 	Item(I_SHOTGUN, 1, true, false, "weapon_custom_shotgun", "", "Shotgun", RawItem(I_HQMETAL, 15), RawItem(I_SCRAP, 15),
 		"Most effective at close range. Uses buckshot ammo."),
-	Item(I_SNIPER, 1, true, false, "weapon_custom_sniper", "", "Sniper Rifle", RawItem(I_HQMETAL, 30), RawItem(I_SCRAP, 25),
+	Item(I_SNIPER, 1, true, false, "weapon_custom_sniper", "", "Sniper Rifle", RawItem(I_HQMETAL, 30), RawItem(I_SCRAP, 15),
 		"Camp in your base with this. Uses rifle ammo."),
-	Item(I_UZI, 1, true, false, "weapon_custom_uzi", "", "Uzi", RawItem(I_HQMETAL, 40), RawItem(I_SCRAP, 10),
+	Item(I_UZI, 1, true, false, "weapon_custom_uzi", "", "Uzi", RawItem(I_HQMETAL, 40), RawItem(I_SCRAP, 5),
 		"Rapid-fire weapon. Uses pistol ammo."),
-	Item(I_SAW, 1, true, false, "weapon_custom_saw", "", "M249 SAW", RawItem(I_HQMETAL, 50), RawItem(I_SCRAP, 50),
+	Item(I_SAW, 1, true, false, "weapon_custom_saw", "", "M249 SAW", RawItem(I_HQMETAL, 50), RawItem(I_SCRAP, 10),
 		"Powerful machine gun with a high firing rate and damage. Uses rifle ammo."),
 	Item(I_GUITAR, 1, true, false, "weapon_guitar", "", "Guitar", RawItem(I_WOOD, 50), RawItem(I_SCRAP, 1),
 		"Play notes with primary fire, songs with secondary. Tertiary fire selects a song."),
@@ -394,7 +394,7 @@ array<Item> g_items = {
 		"Used with the uzi."),
 	Item(I_BUCKSHOT, 50, false, true, "buckshot", "", "Shotgun Shell", RawItem(I_METAL, 20), RawItem(I_HQMETAL, 10),
 		"Used with the shotgun."),
-	Item(I_ROCKET, 5, false, true, "rockets", "", "Rocket", RawItem(I_HQMETAL, 50), RawItem(I_SCRAP, 15),
+	Item(I_ROCKET, 5, false, true, "rockets", "", "Rocket", RawItem(I_HQMETAL, 40), RawItem(I_SCRAP, 10),
 		"Used with the RPG."),
 };
 
@@ -455,7 +455,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 	
 	bool AddToPlayer( CBasePlayer@ pPlayer )
 	{
-		if( BaseClass.AddToPlayer( pPlayer ) == true )
+		if( BaseClass.AddToPlayer( pPlayer ) == true and pPlayer !is null )
 		{
 			NetworkMessage message( MSG_ONE, NetworkMessages::WeapPickup, pPlayer.edict() );
 				message.WriteLong( self.m_iId );
@@ -650,7 +650,11 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 					
 					if (dot > -0.55f)
 					{
-						validBuild = true;
+						TraceResult tr2;
+						g_Utility.TraceLine( newOri, newOri + Vector(0,0,-16), dont_ignore_monsters, null, tr2 );
+						CBaseEntity@ phit2 = g_EntityFuncs.Instance( tr2.pHit );
+						
+						validBuild = tr2.flFraction < 1.0f and phit2 !is null and phit2.pev.classname == "worldspawn";
 						@phit = @part;
 					}
 					else
@@ -812,7 +816,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 						}
 					}
 				}
-				else if (attachSocket == SOCKET_WALL and (buildType == B_FLOOR or buildType == B_LADDER_HATCH or buildType == B_FLOOR_TRI))
+				else if ((attachSocket == SOCKET_WALL and attachType != B_LOW_WALL) and (buildType == B_FLOOR or buildType == B_LADDER_HATCH or buildType == B_FLOOR_TRI))
 				{
 					Vector front = part.pev.origin + g_Engine.v_forward*4 + Vector(0,0,128);
 					Vector back = part.pev.origin + g_Engine.v_forward*-4 + Vector(0,0,128);

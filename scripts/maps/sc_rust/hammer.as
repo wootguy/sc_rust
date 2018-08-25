@@ -150,7 +150,7 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 	
 	bool AddToPlayer( CBasePlayer@ pPlayer )
 	{
-		if( BaseClass.AddToPlayer( pPlayer ) == true )
+		if( BaseClass.AddToPlayer( pPlayer ) == true and pPlayer !is null )
 		{
 			NetworkMessage message( MSG_ONE, NetworkMessages::WeapPickup, pPlayer.edict() );
 				message.WriteLong( self.m_iId );
@@ -220,32 +220,12 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 		
 		
 		buildEnt.pev.effects |= EF_NODRAW;
-		if (phit is null or phit.pev.classname == "worldspawn" or !isUpgradable(phit) or 
-			(getCentroid(phit) - plr.pev.origin).Length() > upgradeDist)
+		if (phit is null or phit.pev.classname == "worldspawn" or (getCentroid(phit) - plr.pev.origin).Length() > upgradeDist)
 			return;
 			
 		buildEnt.pev.effects &= ~EF_NODRAW;
 		
 		validTarget = true;
-		
-		//println("ID: " + phit.pev.team);
-		for (uint i = 0; i < g_build_parts.size(); i++)
-		{	
-			func_breakable_custom@ part = cast<func_breakable_custom@>(CastToScriptClass(g_build_parts[i].GetEntity()));
-			if (part !is null and part.entindex() == phit.entindex())
-			{
-				//println("PARENT " + g_build_parts[i].parent);
-				if (part.parent != -1)
-				{
-					array<EHandle> parents = getPartsByID(part.parent);
-					if (parents.length() > 0)
-						@phit = parents[0];
-					else
-						println("Couldn't find parent!");
-				}
-				break;
-			}
-		}
 		
 		h_lookEnt = @phit;
 		buildEnt.pev.origin = phit.pev.origin;
@@ -615,6 +595,9 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 	{
 		CBasePlayer@ plr = getPlayer();
 		PlayerState@ state = getPlayerState(getPlayer());
+		if (plr is null or state is null)
+			return;
+		
 		state.initMenu(plr, upgradeMenuCallback);
 
 		state.menu.SetTitle("Upgrade to:\n");
@@ -624,10 +607,21 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 		string armorCost = " (" + getUpgradeCost(3, h_lookEnt).amt + " " + getUpgradeItem(3).title + ")";
 		if (g_free_build)
 			woodCost = stoneCost = metalCost = armorCost = "";
-		state.menu.AddItem("Wood" + woodCost, any("wood"));
-		state.menu.AddItem("Stone" + stoneCost, any("stone"));
-		state.menu.AddItem("Metal" + metalCost, any("metal"));
-		state.menu.AddItem("Armor" + armorCost, any("armor"));
+			
+		if (isUpgradable(h_lookEnt))
+		{
+			state.menu.AddItem("Wood" + woodCost, any("wood"));
+			state.menu.AddItem("Stone" + stoneCost, any("stone"));
+			state.menu.AddItem("Metal" + metalCost, any("metal"));
+			state.menu.AddItem("Armor" + armorCost, any("armor"));
+		}
+		else
+		{
+			state.menu.AddItem("", any(""));
+			state.menu.AddItem("", any(""));
+			state.menu.AddItem("", any(""));
+			state.menu.AddItem("", any(""));
+		}
 		state.menu.AddItem("", any(""));
 		state.menu.AddItem("", any(""));
 		state.menu.AddItem("", any(""));

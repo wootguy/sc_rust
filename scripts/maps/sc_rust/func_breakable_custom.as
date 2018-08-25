@@ -674,6 +674,10 @@ class func_breakable_custom : ScriptBaseEntity
 			{
 				func_breakable_custom@ bpart = cast<func_breakable_custom@>(CastToScriptClass(part));
 				
+				if (bpart.pev.colormap == B_LOW_WALL and checks[i].z < 0) {
+					continue;
+				}
+				
 				bpart.addConnection(self);
 				connections.insertLast(EHandle(part));
 			}
@@ -687,22 +691,23 @@ class func_breakable_custom : ScriptBaseEntity
 		if (dead)
 			return 0;
 		
-		if (pevAttacker.classname == "monster_kingpin") {
-			flDamage *= 4;
-		}
-		if (g_invasion_mode and string(pevAttacker.classname).StartsWith("monster_")) {
+		if (string(pevAttacker.classname).StartsWith("monster_")) {
 			flDamage *= 2;
-			if (!isItem)
-			{
-				if (g_difficulty == 0)
-					flDamage *= 4;
-				else if (g_difficulty == 1)
-					flDamage *= 8;
-				else if (g_difficulty == 2)
-					flDamage *= 16;
+			if (pevAttacker.classname == "monster_kingpin") {
+				flDamage *= 2;
+			}
+			if (g_invasion_mode) {
+				if (!isItem)
+				{
+					if (g_difficulty == 0)
+						flDamage *= 4;
+					else if (g_difficulty == 1)
+						flDamage *= 8;
+					else if (g_difficulty == 2)
+						flDamage *= 16;
+				}
 			}
 		}
-		
 		
 		if (pevInflictor.classname != "func_breakable_custom" and !isDoor and !isLadder and !isWindowBars and !isItem and parent != -1 and !isAirdrop)
 		{
@@ -831,7 +836,7 @@ class func_breakable_custom : ScriptBaseEntity
 			}
 			else if (bitsDamageType & DMG_SONIC != 0)
 			{
-				flDamage *= 5;
+				flDamage *= 2;
 			}
 			else if (bitsDamageType & DMG_BURN != 0)
 			{

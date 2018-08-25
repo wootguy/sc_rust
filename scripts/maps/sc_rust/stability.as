@@ -1,4 +1,5 @@
 
+bool g_running_stability = false;
 int numSkip = 0;
 int numChecks = 0;
 dictionary visited_parts; // used to mark positions as already visited when doing the stability search
@@ -100,10 +101,16 @@ void propogate_part_destruction(CBaseEntity@ ent)
 			}
 		}
 	}
+	
+	if (!g_running_stability)
+		stabilityCheck();
 }
+
 
 void stabilityCheck()
 {
+	println("Stability check time!");
+	g_running_stability = true;
 	int numIter = 0;
 	
 	// check for destroyed ents
@@ -128,6 +135,7 @@ void stabilityCheck()
 	}
 	
 	float check_delay = 0.5f; // default to infrequent checks to reduce CPU usage
+	bool any_broken = false;
 	
 	while(stability_ents.length() > 0)
 	{		
@@ -170,18 +178,21 @@ void stabilityCheck()
 		//println("Stability for part " + src_part.pev.team + " finished in " + numChecks + " checks (" + numSkip + " skipped). Result is " + supported);
 		
 		if (!supported) {
+			any_broken = true;
+			check_delay = 0.05; // do fast checks while stuff is breaking
+			
 			propogate_part_destruction(src_part);
 			src_part.TakeDamage(src_part.pev, src_part.pev, src_part.pev.health, 0);
 			if (src_part.pev.classname == "func_ladder")
 			{
 				g_EntityFuncs.Remove(src_part);
 			}
-			check_delay = 0.05; // do fast checks while stuff is breaking
 		}
-
 		stability_ents.removeAt(0);
 		break;
 	}
-	
-	g_Scheduler.SetTimeout("stabilityCheck", check_delay);
+	if (any_broken)
+		g_Scheduler.SetTimeout("stabilityCheck", check_delay);
+	else
+		g_running_stability = false;
 }

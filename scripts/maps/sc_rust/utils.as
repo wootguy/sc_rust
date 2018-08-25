@@ -179,6 +179,8 @@ func_breakable_custom@ getBuildPartByID(int id)
 {
 	for (uint i = 0; i < g_build_parts.size(); i++)
 	{
+		if (!g_build_parts[i].IsValid())
+			continue;
 		func_breakable_custom@ part = cast<func_breakable_custom@>(CastToScriptClass(g_build_parts[i].GetEntity()));
 		if (part !is null and part.id == id)
 		{
@@ -331,14 +333,13 @@ string prettyPartName(CBaseEntity@ part)
 		bestTitle = g_part_info[B_WOOD_SHUTTERS].title;
 	
 	string owner = "";
-	/* not sure we want to let people know owners
+
 	if (part.pev.colormap == B_BED)
 	{
 		PlayerState@ state = getPlayerStateBySteamID(part.pev.noise1, part.pev.noise2);
 		if (state !is null and state.plr.IsValid())
 			owner = " (" + state.plr.GetEntity().pev.netname + ")";
 	}
-	*/
 	
 	return bestTitle + size + owner;
 }
@@ -808,6 +809,7 @@ bool isUpgradable(CBaseEntity@ ent)
 	int type = ent.pev.colormap;
 	int socket = socketType(type);
 	return ent.pev.classname == "func_breakable_custom" and socket != SOCKET_WINDOW and type != B_LADDER_HATCH and
+			socket != SOCKET_DOORWAY and
 			type != B_LADDER and type != E_SUPPLY_CRATE and socket != SOCKET_HIGH_WALL and !isFloorItem(ent) and type != -1;
 }
 

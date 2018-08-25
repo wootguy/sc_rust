@@ -101,6 +101,8 @@ void saveMapData()
 		println("Failed to open file: " + path);
 		
 	saveLoadInProgress = false;
+	
+	g_PlayerFuncs.SayTextAll(getAnyPlayer(), "Save complete\n");
 }
 
 void unlockSaveLoad()
@@ -221,7 +223,15 @@ void loadNodesPartial(ByteBuffer@ buf, int zonesLoaded, int numZones, int nodesL
 		if (zonesLoaded < numZones)
 			g_Scheduler.SetTimeout("loadNodesPartial", 0.0, @buf, zonesLoaded, numZones, nodesLoaded, numNodes);
 		else
+		{
 			saveLoadInProgress = false;
+			g_PlayerFuncs.SayTextAll(getAnyPlayer(), "Load complete\n");
+		}
+	}
+	else
+	{
+		saveLoadInProgress = false;
+		g_PlayerFuncs.SayTextAll(getAnyPlayer(), "Load complete\n");
 	}
 }
 

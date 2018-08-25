@@ -16,15 +16,9 @@
 // 400+ built parts on twlz
 // auto save plz
 // co-op mode/difficulty selected 3 times - possibly why it sets up wrong
-// wave defeated message would be nice
-// show save messages
-// null checks around MSG_ONE
-// getting frozen in certain areas
-// prevent stacking high walls
-// explosives too pricey
-// break items with hammer
+// getting frozen in certain areas (only seen this in twlz so far)
 // remove ladders cuz freezing :'<
-// get rid of big momma stage and make garg/kingpin stage way easier
+// make garg/kingpin stage way easier (ripent or recompile)
 
 // Should do/fix but too lazy:
 // crashing/leaving players leave unusable items and sometimes duplicate player states
@@ -1120,7 +1114,7 @@ void MapActivate()
 	} while (ent !is null);
 	
 	//setupInvasionMode();
-	setupCreativeMode();
+	//setupCreativeMode();
 	//setupPvpMode();
 }
 
@@ -1309,7 +1303,6 @@ void startGame()
 	waiting_for_voters = false;
 	
 	g_Scheduler.SetTimeout("spawn_airdrop", g_airdrop_first_delay*60);
-	g_Scheduler.SetTimeout("stabilityCheck", 0.5);
 	g_Scheduler.SetInterval("inventoryCheck", 0.1);
 	g_Scheduler.SetInterval("cleanup_map", 60);
 	g_Scheduler.SetTimeout("showGameModeTip", 3);
@@ -1440,10 +1433,10 @@ void setupCreativeMode()
 array<string> invasion_waves = {"babyvolt_spawner", "zombie_spawner", "pitdrone_spawner", "controller_spawner",
 								"bullsquid_spawner", "slave_spawner", "houndeye_spawner", "gonome_spawner", 
 								"babygarg_spawner", "trooper_spawner", "agrunt_spawner", "volt_spawner", 
-								"mom_spawner", "garg_spawner", "kingpin_spawner"};
+								"garg_spawner", "kingpin_spawner"};
 array<string> invasion_wave_titles = {"Baby Voltigores", "Zombie Barneys", "Pit Drones", "Alien Controllers",
 								"Bullsquids", "Alien Slaves", "Houndeyes", "Gonomes", "Baby Gargs", "Shock Troopers", 
-								"Alien Grunts", "Voltigores", "Gonarchs", "Gargantuas", "Kingpins"};
+								"Alien Grunts", "Voltigores", "Gargantuas", "Kingpins"};
 
 void clearTimer()
 {
@@ -1515,7 +1508,12 @@ void equipAllPlayers()
 
 void updateWaveStatus()
 {
+	bool old_state = g_wave_in_progress;
 	g_wave_in_progress = checkWaveStatus();
+	if (!g_wave_in_progress and old_state)
+	{
+		g_PlayerFuncs.SayTextAll(getAnyPlayer(), "Wave defeated. " + invasion_wave_titles[g_invasion_round] + " are coming next.");
+	}
 	
 	if (g_wave_in_progress and g_build_parts.length() == 0)
 	{
@@ -1869,7 +1867,7 @@ bool doRustCommand(CBasePlayer@ plr, const CCommand@ args)
 	{
 		if (args[0] == ".version")
 		{
-			g_PlayerFuncs.SayText(plr, "Script version: v5 (June 16, 2018)");
+			g_PlayerFuncs.SayText(plr, "Script version: v6 (August 24, 2018)");
 			return true;
 		}
 		if (args[0] == ".save")
@@ -1879,7 +1877,8 @@ bool doRustCommand(CBasePlayer@ plr, const CCommand@ args)
 				g_PlayerFuncs.SayText(plr, "You don't have access to that command, peasent\n");
 				return true;
 			}
-			saveMapData();
+			g_PlayerFuncs.SayTextAll(plr, "Saving map state (expect server lag)\n");
+			g_Scheduler.SetTimeout("saveMapData", 0.5f);
 			return true;
 		}
 		if (args[0] == ".load")
@@ -1889,6 +1888,7 @@ bool doRustCommand(CBasePlayer@ plr, const CCommand@ args)
 				g_PlayerFuncs.SayText(plr, "You don't have access to that command, peasent\n");
 				return true;
 			}
+			g_PlayerFuncs.SayTextAll(plr, "Loading map state\n");
 			loadMapData();
 			return true;
 		}
