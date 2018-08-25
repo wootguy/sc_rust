@@ -23,9 +23,7 @@
 // prevent stacking high walls
 // explosives too pricey
 // break items with hammer
-// throwing weps gives u infinite ammo
 // remove ladders cuz freezing :'<
-// reduce poll freq
 // get rid of big momma stage and make garg/kingpin stage way easier
 
 // Should do/fix but too lazy:
@@ -1122,7 +1120,7 @@ void MapActivate()
 	} while (ent !is null);
 	
 	//setupInvasionMode();
-	//setupCreativeMode();
+	setupCreativeMode();
 	//setupPvpMode();
 }
 
@@ -1311,8 +1309,8 @@ void startGame()
 	waiting_for_voters = false;
 	
 	g_Scheduler.SetTimeout("spawn_airdrop", g_airdrop_first_delay*60);
-	g_Scheduler.SetInterval("stabilityCheck", 0.0);
-	g_Scheduler.SetInterval("inventoryCheck", 0.05);
+	g_Scheduler.SetTimeout("stabilityCheck", 0.5);
+	g_Scheduler.SetInterval("inventoryCheck", 0.1);
 	g_Scheduler.SetInterval("cleanup_map", 60);
 	g_Scheduler.SetTimeout("showGameModeTip", 3);
 	game_started = true;

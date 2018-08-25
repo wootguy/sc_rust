@@ -3,7 +3,6 @@ int numSkip = 0;
 int numChecks = 0;
 dictionary visited_parts; // used to mark positions as already visited when doing the stability search
 array<EHandle> stability_ents; // list of ents to check for stability
-int wait_stable_check = 0; // frames to wait before next stability check (so broken parts aren't detected)
 
 void checkStabilityEnt(EHandle ent)
 {
@@ -101,7 +100,6 @@ void propogate_part_destruction(CBaseEntity@ ent)
 			}
 		}
 	}
-	wait_stable_check = 1;
 }
 
 void stabilityCheck()
@@ -129,11 +127,7 @@ void stabilityCheck()
 		}
 	}
 	
-	if (wait_stable_check > 0)
-	{
-		wait_stable_check--;
-		return;
-	}
+	float check_delay = 0.5f; // default to infrequent checks to reduce CPU usage
 	
 	while(stability_ents.length() > 0)
 	{		
@@ -182,9 +176,12 @@ void stabilityCheck()
 			{
 				g_EntityFuncs.Remove(src_part);
 			}
+			check_delay = 0.05; // do fast checks while stuff is breaking
 		}
 
 		stability_ents.removeAt(0);
 		break;
 	}
+	
+	g_Scheduler.SetTimeout("stabilityCheck", check_delay);
 }
