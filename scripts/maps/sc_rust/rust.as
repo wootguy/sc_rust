@@ -10,6 +10,7 @@
 #include "stability"
 #include "monster_c4"
 #include "airdrop"
+#include "DayNightCycle"
 
 // TODO:
 // nobody voted shown when people voted
@@ -18,7 +19,11 @@
 // co-op mode/difficulty selected 3 times - possibly why it sets up wrong
 // getting frozen in certain areas (only seen this in twlz so far)
 // remove ladders cuz freezing :'<
-// make garg/kingpin stage way easier (ripent or recompile)
+// disable weapon throwing for guns
+// monsters don't agro you when out of range even if no target
+// info text blinks on laggy server
+// flamethrower doesn't create light
+// update model light values sv_sky something
 
 // Should do/fix but too lazy:
 // crashing/leaving players leave unusable items and sometimes duplicate player states
@@ -87,18 +92,24 @@ float g_tool_cupboard_radius = 512;
 int g_max_corpses = 2; // max corpses per player (should be at least 2 to prevent despawning valuable loot)
 float g_corpse_time = 60.0f; // time (in seconds) before corpses despawn
 float g_item_time = 30.0f; // time (in seconds) before items despawn
-float g_supply_time = 120.0f; // time (in seconds) before air drop crate disappears
+float g_supply_time = 150.0f; // time (in seconds) before air drop crate disappears
 float g_revive_time = 5.0f; // time needed to revive player holding USE
 float g_airdrop_min_delay = 10.0f; // time (in minutes) between airdrops
 float g_airdrop_max_delay = 20.0f; // time (in minutes) between airdrops
 float g_airdrop_first_delay = 15.0f; // time (in minutes) before the FIRST airdrop
-float g_node_spawn_time = 120.0f; // time (in seconds) between node spawns
+float g_node_spawn_time = 60.0f; // time (in seconds) between node spawns
 float g_chest_touch_dist = 96; // maximum distance from which a chest can be opened
 float g_gather_multiplier = 2.0f; // resource gather amount multiplied by this (for faster/slower games)
 float g_monster_forget_time = 6.0f; // time it takes for a monster to calm down after not seeing any players
 int g_max_zone_monsters = 3;
 uint NODES_PER_ZONE = 64;
 float g_xen_agro_dist = 300.0f;
+
+float g_apache_forget_time = 30.0f; // seconds it takes for an apache to forget a player had guns
+float g_apache_roam_time = 10.0f; // minutes until the apache flies back out to sea
+float g_apache_min_delay = 10.0f; // time (in minutes) between apache spawns
+float g_apache_max_delay = 20.0f; // time (in minutes) between apache spawns
+float g_apache_first_delay = 20.0f; // time (in minutes) between apache spawns
 
 bool g_shared_build_points_in_pvp_mode = true; // cool var name
 
@@ -145,7 +156,7 @@ class ZoneInfo
 		}
 		// each player entity counts towards limit, x2 is so each player can drop an item or spawn an effect or something.
 		int maxNodes = NODES_PER_ZONE;
-		maxNodes += 10; // airdops (plane + box + chute) + 6 water func_conveyors + worldspawn
+		maxNodes += 16; // airdops (plane + box + chute) + 6 water func_conveyors + worldspawn + sun/moon + skyboxes + heli + 1
 		// players + corpses + player item drops + trees/stones/animals
 		reservedParts = g_Engine.maxClients*2 + maxNodes; // minimum reserved (assumes half of players won't have a corpse/dropped item)
 		
@@ -338,6 +349,7 @@ class PlayerState
 	float lastBreakAll = 0; // last time the player used the breakall command
 	dictionary teamRequests; // outgoing requests for team members
 	bool inGame = true;
+	float lastDangerous = 0; // last time this player was dangerous (had guns)
 	
 	uint64 tips = 0; // bitfield for shown tips
 	
@@ -779,6 +791,7 @@ array<EHandle> g_corpses; // these disappear when they're picked up
 Vector g_dead_zone; // where dead players go until they respawn
 Vector g_void_spawn; // place where you can spawn items outside the play area
 float g_airdrop_height = 2048; // height where planes spawn
+float g_apache_height = 2000; // height where apaches roam between zones
 int g_invasion_round = 0;
 float g_next_invasion_wave = 0;
 bool g_wave_in_progress = false;
@@ -790,6 +803,7 @@ bool waiting_for_voters = true;
 bool finished_invasion = false;
 bool debug_mode = false;
 bool game_started = false;
+
 array<string> g_upgrade_suffixes = {
 	"_twig",
 	"_wood",
@@ -881,10 +895,11 @@ void MapInit()
 	PrecacheModel("models/skeleton.mdl");
 	PrecacheModel("sprites/xbeam4.spr");
 	
+	g_Game.PrecacheMonster("monster_apache", false);
+	PrecacheModel("models/sc_rust/apache.mdl");
+	
 	for (uint i = 0; i < g_puff_sprites.size(); i++)
 		PrecacheModel(g_puff_sprites[i]);
-		
-		
 	
 	PrecacheSound("sc_rust/flesh1.ogg");
 	PrecacheSound("sc_rust/flesh2.ogg");
@@ -895,6 +910,7 @@ void MapInit()
 	PrecacheSound("sc_rust/fuse.ogg");
 	PrecacheSound("sc_rust/b17.ogg");
 	PrecacheSound("sc_rust/b17_far.ogg");
+	PrecacheSound("sc_rust/heli_far.ogg");
 	PrecacheModel("models/sc_rust/pine_tree.mdl");
 	PrecacheModel("models/sc_rust/rock.mdl");
 	PrecacheModel("models/sc_rust/tr_barrel.mdl");
@@ -1097,6 +1113,8 @@ void MapActivate()
 	} 
 	else 
 		println("ERROR: air_drop_height entity is missing. Planes will spawn at the wrong height.");
+	
+	day_night_cycle = DayNightCycle("sun", "sun2", "moon", "sky_mid", "sky_dawn", "sky_night");
 	
 	WeaponCustomMapActivate();
 	
@@ -1303,10 +1321,13 @@ void startGame()
 	waiting_for_voters = false;
 	
 	g_Scheduler.SetTimeout("spawn_airdrop", g_airdrop_first_delay*60);
+	g_Scheduler.SetTimeout("spawn_heli", g_apache_first_delay*60);
 	g_Scheduler.SetInterval("inventoryCheck", 0.1);
 	g_Scheduler.SetInterval("cleanup_map", 60);
 	g_Scheduler.SetTimeout("showGameModeTip", 3);
 	game_started = true;
+	
+	day_night_cycle.start();
 	
 	g_EntityFuncs.FireTargets("vote_spawn", null, null, USE_OFF);
 	equipAllPlayers();	
@@ -1690,7 +1711,12 @@ void monster_spawned(CBaseEntity@ pActivator, CBaseEntity@ pCaller, USE_TYPE use
 
 void monster_killed(CBaseEntity@ pActivator, CBaseEntity@ pCaller, USE_TYPE useType, float flValue)
 {	
-	monster_node(EHandle(pCaller));
+	if (pCaller.pev.classname == "monster_apache")
+	{
+		CBaseEntity@ target = g_EntityFuncs.FindEntityByTargetname(null, pCaller.pev.target);
+		g_EntityFuncs.Remove(target);
+		g_SoundSystem.StopSound(pCaller.edict(), CHAN_ITEM, fixPath("sc_rust/heli_far.ogg"));
+	}
 }
 
 void equipPlayer(CBasePlayer@ plr)
@@ -1714,14 +1740,14 @@ void equipPlayer(CBasePlayer@ plr)
 		plr.GiveNamedItem("weapon_flamethrower", 0, 0);
 		plr.GiveNamedItem("weapon_custom_sniper", 0, 0);
 		plr.GiveNamedItem("weapon_custom_saw", 0, 100);
+		plr.GiveNamedItem("weapon_custom_grenade", 0, 5);
 		giveItem(plr, I_9MM, 250, false, true, true);
 		giveItem(plr, I_556, 600, false, true, true);
 		giveItem(plr, I_ARROW, 100, false, true, true);
 		giveItem(plr, I_BUCKSHOT, 50, false, true, true);
 		giveItem(plr, I_ROCKET, 5, false, true, true);
 		giveItem(plr, I_FUEL, 200, false, true, true);
-		giveItem(plr, I_SATCHEL, 10, false, true, true);
-		giveItem(plr, I_C4, 10, false, true, true);
+		giveItem(plr, I_GRENADE, 10, false, true, true);
 		plr.pev.armorvalue = 100;
 		plr.pev.health = 100;
 	}
@@ -1767,8 +1793,9 @@ void player_respawn(CBaseEntity@ pActivator, CBaseEntity@ pCaller, USE_TYPE useT
 			g_Scheduler.SetTimeout("showTip", 2.0f, EHandle(pCaller), int(TIP_ARMOR));
 	}
 	
-	
-	plr.SetClassification(CLASS_HUMAN_MILITARY); // monsters will give this higher priority
+	// Monster angry -> hate player, dislike bases
+	// apache -> dislike player, ignore bases, ignore unarmed players
+	plr.SetClassification(CLASS_PLAYER); // monsters will give this higher priority
 }
 
 EHandle createCorpse(CBasePlayer@ plr)
@@ -1789,6 +1816,190 @@ EHandle createCorpse(CBasePlayer@ plr)
 	g_corpses.insertLast(EHandle(ent));
 	
 	return EHandle(ent);
+}
+
+void heli_think(EHandle h_heli)
+{
+	if (!h_heli.IsValid())
+		return;
+		
+	CBaseMonster@ heli = cast<CBaseMonster@>(h_heli.GetEntity());
+	CBaseEntity@ target = g_EntityFuncs.FindEntityByTargetname(null, heli.pev.target);
+	CBaseEntity@ enemy = heli.m_hEnemy;
+	
+	float dist = (heli.pev.origin - target.pev.origin).Length();
+	bool readyToMove = dist < 400.0f;
+	
+	float aliveTime = g_Engine.time - heli.pev.teleport_time;
+	if (aliveTime > g_apache_roam_time*60)
+	{
+		if (heli.pev.origin.z < g_apache_height)
+			target.pev.origin.z = g_apache_height;
+		else
+		{
+			if (heli.pev.fixangle != 1337) // magic go-home number
+			{
+				heli.pev.fixangle = 1337;
+				
+				// search for neareset sky
+				Vector oldOri = target.pev.origin;
+				float bestDist = 9e99;
+				Vector bestPos;
+				for (int r = -180; r < 180; r += 10)
+				{
+					g_EngineFuncs.MakeVectors(Vector(0,r,0));
+					
+					TraceResult tr;
+					string tex = g_Utility.TraceTexture( null, oldOri, oldOri + g_Engine.v_forward*65535 );
+					if (tex.ToLowercase() != "sky")
+						continue;
+					g_Utility.TraceHull( oldOri, oldOri + g_Engine.v_forward*65535, ignore_monsters, large_hull, null, tr );
+					float skyDist = (tr.vecEndPos - oldOri).Length();
+					if (skyDist < bestDist)
+					{
+						bestDist = skyDist;
+						bestPos = tr.vecEndPos;
+					}
+				}
+				target.pev.origin = bestPos;
+			}
+			else
+			{
+				if (dist < 512.0f)
+				{
+					g_SoundSystem.StopSound(heli.edict(), CHAN_ITEM, fixPath("sc_rust/heli_far.ogg"));
+					g_EntityFuncs.Remove(target);
+					g_EntityFuncs.Remove(heli);
+					g_Scheduler.SetTimeout("spawn_heli", Math.RandomFloat(g_apache_min_delay, g_apache_max_delay)*60);
+					return;
+				}
+			}
+		}
+		readyToMove = false;
+	}
+	
+	if (readyToMove)
+	{
+		Vector oldOri = target.pev.origin;
+		bool canMove = false;
+		
+		if (enemy !is null)
+		{			
+			for (uint i = 0; i < 64; i++)
+			{
+				float horiDist = 1024;
+				float vertDist = 768;
+				float r = Math.RandomFloat(0, 2*Math.PI);
+				target.pev.origin = enemy.pev.origin + Vector(horiDist*cos(r), horiDist*sin(r), vertDist);
+				
+				TraceResult tr;
+				g_Utility.TraceLine( oldOri, target.pev.origin, ignore_monsters, heli.edict(), tr );
+				if (tr.flFraction >= 1.0f)
+				{
+					canMove = true;
+					break;
+				}
+			}
+		}
+		else
+		{		
+			for (uint i = 0; i < 64; i++)
+			{
+				target.pev.origin = getRandomPosition();
+				target.pev.origin.z = g_apache_height;
+				
+				TraceResult tr;
+				g_Utility.TraceLine( oldOri, target.pev.origin, ignore_monsters, heli.edict(), tr );
+				if (tr.flFraction >= 1.0f)
+				{
+					canMove = true;
+					break;
+				}
+			}
+		}
+		
+		if (!canMove)
+		{
+			target.pev.origin = oldOri;
+			//println("Apache failed to move!");
+		}		
+	}
+	
+	// break things with helicopter blades
+	g_EngineFuncs.MakeVectors(heli.pev.angles);
+	float bladeLength = 300.0f;
+	array<Vector> blades = {
+		g_Engine.v_forward, 
+		g_Engine.v_forward*-1,
+		g_Engine.v_right, 
+		g_Engine.v_right*-1,
+		g_Engine.v_forward*0.707f + g_Engine.v_right*0.707f,
+		g_Engine.v_forward*-0.707f + g_Engine.v_right*-0.707f,
+		g_Engine.v_forward*-0.707f + g_Engine.v_right*0.707f,
+		g_Engine.v_forward*0.707f + g_Engine.v_right*-0.707f
+	};
+	
+	for (uint i = 0; i < blades.length()-1; i+=2)
+	{
+		Vector bladeStart = heli.pev.origin + blades[i]*bladeLength;
+		Vector bladeEnd = heli.pev.origin + blades[i+1]*bladeLength;
+		//te_beampoints(bladeStart, bladeEnd);
+		
+		TraceResult tr;
+		g_Utility.TraceHull( bladeStart, bladeEnd, ignore_monsters, head_hull, heli.edict(), tr );
+		if (tr.fStartSolid != 0) {
+			g_Utility.TraceHull( bladeEnd, bladeStart, ignore_monsters, head_hull, heli.edict(), tr );
+		}
+		CBaseEntity@ phit = g_EntityFuncs.Instance( tr.pHit );
+		if (phit !is null)
+		{
+			println("Blocked by " + phit.pev.classname);
+			if (phit.pev.classname != "worldspawn")
+			{
+				float dmg = Math.min(phit.pev.health, 2000.0f);
+				phit.TakeDamage(heli.pev, heli.pev, dmg, DMG_SLASH);
+				heli.TakeDamage(phit.pev, phit.pev, (dmg/2000.0f)*100.0f, DMG_CLUB);
+			}
+			else
+				heli.TakeDamage(phit.pev, phit.pev, 1.0f, DMG_CLUB); // prevent getting stuck forever
+		}
+	}
+	
+	//te_beampoints(heli.pev.origin, target.pev.origin);
+	
+	g_Scheduler.SetTimeout("heli_think", 0.1f, h_heli);
+}
+
+int g_heli_idx = 0;
+void spawn_heli()
+{	
+	Vector spawnPos = Vector(0,0,g_airdrop_height);
+	g_EngineFuncs.MakeVectors(Vector(0,Math.RandomFloat(-180,180),0));
+	TraceResult tr;
+	g_Utility.TraceHull( spawnPos, spawnPos + g_Engine.v_forward*65536, ignore_monsters, large_hull, null, tr );
+	spawnPos = tr.vecEndPos - g_Engine.v_forward*256;
+	spawnPos.z = g_apache_height;
+	
+	dictionary keys;
+	keys["targetname"] = "heli_path" + g_heli_idx++;
+	keys["origin"] = spawnPos.ToString();
+	CBaseEntity@ path = g_EntityFuncs.CreateEntity("path_corner", keys, true);
+	
+	keys["targetname"] = "heli";
+	keys["model"] = fixPath("models/sc_rust/apache.mdl");
+	keys["origin"] = spawnPos.ToString();
+	keys["health"] = "1000";
+	keys["target"] = string(path.pev.targetname);
+	keys["TriggerTarget"] = "monster_killed";
+	keys["TriggerCondition"] = "4"; // Death
+	CBaseEntity@ ent = g_EntityFuncs.CreateEntity("monster_apache", keys, true);
+	ent.pev.teleport_time = g_Engine.time;
+	
+	g_SoundSystem.PlaySound(ent.edict(), CHAN_ITEM, fixPath("sc_rust/heli_far.ogg"), 1.0f, 0.07f, SND_FORCE_LOOP, 100);
+	
+	ent.SetClassification(CLASS_XRACE_PITDRONE);
+	
+	g_Scheduler.SetTimeout("heli_think", 1.0f, EHandle(ent));
 }
 
 void player_killed(CBaseEntity@ pActivator, CBaseEntity@ pCaller, USE_TYPE useType, float flValue)

@@ -242,6 +242,14 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 			g_EngineFuncs.MakeVectors(buildEnt2.pev.angles);
 			te_beampoints(buildEnt2.pev.origin + Vector(0,0,64), buildEnt2.pev.origin + Vector(0,0,64) + g_Engine.v_forward*32);
 		}
+		
+		int c = 64 + int(g_brightness*191.0f);
+		Vector color = buildEnt.pev.rendercolor;
+		color.x = color.x > 0 ? c : 0;
+		color.y = color.y > 0 ? c : 0;
+		color.z = color.z > 0 ? c : 0;
+		buildEnt.pev.rendercolor = color;
+		buildEnt2.pev.rendercolor = color;
 	}
 	
 	void Holster(int iSkipLocal = 0) 
@@ -906,6 +914,12 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 	{
 		CBaseEntity@ part1 = getPartAtPos(h_buildEnt2.GetEntity().pev.origin);
 		CBaseEntity@ part2 = getPartAtPos(h_buildEnt.GetEntity().pev.origin);
+		
+		if (part1 is null or part2 is null)
+		{
+			cancelFuse("One of the selected parts was destroyed");
+			return;
+		}
 			
 		if (part1.pev.colormap != part2.pev.colormap)
 		{

@@ -83,7 +83,6 @@ void inventoryCheck()
 		}
 	} while(ammo !is null);
 	
-	
 	CBaseEntity@ e_plr = null;
 	do {
 		@e_plr = g_EntityFuncs.FindEntityByClassname(e_plr, "player");
@@ -103,6 +102,38 @@ void inventoryCheck()
 			if (plr.FlashlightIsOn()) {
 				openPlayerMenu(plr, "");
 				plr.FlashlightTurnOff();
+			}
+			
+			if (g_Engine.time - state.lastDangerous > g_apache_forget_time)
+				plr.SetClassification(CLASS_XRACE_PITDRONE);
+				
+			// check if player has armor or weapons (apache should target this player)
+			if (plr.pev.armorvalue > 10)
+			{
+				plr.SetClassification(CLASS_ALIEN_MILITARY);
+				state.lastDangerous = g_Engine.time;
+			}
+			else
+			{
+				for (uint i = 0; i < MAX_ITEM_TYPES; i++)
+				{
+					CBasePlayerItem@ item = plr.m_rgpPlayerItems(i);
+					while (item !is null)
+					{
+						string cname = item.pev.classname;
+						if (cname != "weapon_rock" and cname != "weapon_syringe" and cname != "weapon_stone_pickaxe" and
+							cname != "weapon_stone_hatchet" and cname != "weapon_metal_hatchet" and
+							cname != "weapon_metal_pickaxe" and cname != "weapon_custom_crowbar" and cname != "weapon_guitar"
+							and cname != "weapon_hammer" and cname != "weapon_building_plan")	
+						{
+							//println("YOU ARE DANGEROUS BECAUSE " + cname);
+							plr.SetClassification(CLASS_ALIEN_MILITARY);
+							state.lastDangerous = g_Engine.time;
+							break;
+						}
+						@item = cast<CBasePlayerItem@>(item.m_hNextItem.GetEntity());	
+					}
+				}
 			}
 			
 			TraceResult tr = TraceLook(plr, 96, true);

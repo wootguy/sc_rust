@@ -1231,13 +1231,16 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 		bool isCupboard = buildEnt.pev.colormap == B_TOOL_CUPBOARD;
 		forbidden = forbiddenByCupboard(plr, buildEnt.pev.origin, isCupboard);	
 		
+		int c = 64 + int(g_brightness*191.0f);
+		int c2 = 32 + int(g_brightness*96.0f);
 		if (forbidden and validBuild) {
-			buildEnt.pev.rendercolor = Vector(255, 255, 0);
+			buildEnt.pev.rendercolor = Vector(c, c, 0);
 		} else if (validBuild) {
-			buildEnt.pev.rendercolor = Vector(0, 255, 255);
+			buildEnt.pev.rendercolor = Vector(0, c, c);
 		} else {
-			buildEnt.pev.rendercolor = Vector(255, 0, 0);
+			buildEnt.pev.rendercolor = Vector(c, 0, 0);
 		}
+		buildEnt2.pev.renderamt = c2;
 		//println(phit.pev.classname);
 	}
 	

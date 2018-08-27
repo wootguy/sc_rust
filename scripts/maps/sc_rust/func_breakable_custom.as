@@ -202,7 +202,7 @@ class func_breakable_custom : ScriptBaseEntity
 			self.pev.effects = EF_NODRAW;
 		}
 		else
-			self.SetClassification(CLASS_PLAYER);
+			self.SetClassification(CLASS_ALIEN_MONSTER);
 		
 		g_EntityFuncs.SetModel(self, self.pev.model);
 		//g_EntityFuncs.SetSize(self.pev, self.pev.mins, self.pev.maxs);
@@ -691,7 +691,8 @@ class func_breakable_custom : ScriptBaseEntity
 		if (dead)
 			return 0;
 		
-		if (string(pevAttacker.classname).StartsWith("monster_")) {
+		string cname = pevAttacker.classname;
+		if (cname.StartsWith("monster_") and cname != "monster_c4" and cname != "monster_satchel") {
 			flDamage *= 2;
 			if (pevAttacker.classname == "monster_kingpin") {
 				flDamage *= 2;

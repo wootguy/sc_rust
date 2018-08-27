@@ -44,9 +44,16 @@ void saveMapData()
 		if (g_build_parts.length() > 0 or g_build_zone_ents.length() > 0)
 		{
 			ByteBuffer buf;
-			buf.Write(uint32(g_build_parts.length()));
+			
+			uint32 goodCount = 0;
+			for (uint i = 0; i < g_build_parts.length(); i++)
+				goodCount += g_build_parts[i].IsValid() ? 1 : 0;
+				
+			buf.Write(goodCount);
 			for (uint i = 0; i < g_build_parts.length(); i++)
 			{
+				if (!g_build_parts[i].IsValid())
+					continue;
 				func_breakable_custom@ ent = cast<func_breakable_custom@>(CastToScriptClass(g_build_parts[i].GetEntity()));
 				buf.Write(ent.serialize());
 			}

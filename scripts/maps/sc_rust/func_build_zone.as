@@ -395,7 +395,7 @@ class func_build_zone : ScriptBaseEntity
 							{
 								if (!isAgro)
 								{
-									mon.SetClassification(CLASS_ALIEN_MILITARY); // Hate players, dislike player allies
+									mon.SetClassification(CLASS_HUMAN_MILITARY); // Hate players, dislike player allies
 									mon.pev.noise3 = mon.m_FormattedName;
 									mon.m_FormattedName = "" + mon.m_FormattedName + " (angry)";
 									mon.MonsterUse(ent, ent, USE_TOGGLE, 0);
@@ -426,7 +426,7 @@ class func_build_zone : ScriptBaseEntity
 					mon.SetClassification(CLASS_FORCE_NONE);
 					mon.ClearEnemyList();
 					mon.ClearSchedule();
-					if (mon.GetClassification(0) != CLASS_NONE)
+					if (string(mon.pev.noise3).Length() > 0)
 						mon.m_FormattedName = mon.pev.noise3;
 				}
 				/*
@@ -562,6 +562,14 @@ class func_build_zone : ScriptBaseEntity
 									nodes.insertLast(EHandle(ent));
 									if (spawning_wave)
 									{
+										if (ent.pev.classname == "monster_alien_voltigore")
+											ent.pev.health = 250;
+										if (ent.pev.classname == "monster_shocktrooper")
+											ent.pev.health = 150;
+										if (ent.pev.classname == "monster_gargantua")
+											ent.pev.health = 200;
+										if (ent.pev.classname == "monster_kingpin")
+											ent.pev.health = 2;
 										ent.pev.health += wave_extra_health;
 										ent.SetClassification(CLASS_ALIEN_MILITARY);
 									}

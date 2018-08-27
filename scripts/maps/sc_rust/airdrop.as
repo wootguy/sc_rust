@@ -87,9 +87,9 @@ class monster_b17 : ScriptBaseAnimating
 	Vector airDropPos;
 	float lastDist = 0;
 	bool dropped = false;
-	float moveSpeed = 600;
+	float moveSpeed = 1200;
 	//float moveSpeed = 4000;
-	float dropSpeed = 64;
+	float dropSpeed = 200;
 	Vector v_forward;
 	dictionary nearPlayers;
 	
@@ -107,7 +107,7 @@ class monster_b17 : ScriptBaseAnimating
 		
 		pev.frame = 0;
 		pev.sequence = 0;
-		pev.scale = 0.50f;
+		pev.scale = 1.0f;
 		self.ResetSequenceInfo();
 		
 		//pev.velocity = g_Engine.v_forward*600;
@@ -126,10 +126,10 @@ class monster_b17 : ScriptBaseAnimating
 		//te_beampoints(airDropPos, tr.vecEndPos);
 		
 		
-		g_SoundSystem.PlaySound(self.edict(), CHAN_WEAPON, fixPath("sc_rust/b17.ogg"), 1.0f, 0.1f, SND_FORCE_LOOP, 102);
-		g_SoundSystem.PlaySound(self.edict(), CHAN_STATIC, fixPath("sc_rust/b17.ogg"), 1.0f, 0.1f, SND_FORCE_LOOP, 98);
-		g_SoundSystem.PlaySound(self.edict(), CHAN_BODY, fixPath("sc_rust/b17.ogg"), 1.0f, 0.1f, SND_FORCE_LOOP, 100);
-		g_SoundSystem.PlaySound(self.edict(), CHAN_ITEM, fixPath("sc_rust/b17_far.ogg"), 1.0f, 0.08f, SND_FORCE_LOOP, 95);
+		g_SoundSystem.PlaySound(self.edict(), CHAN_WEAPON, fixPath("sc_rust/b17.ogg"), 1.0f, 0.04f, SND_FORCE_LOOP, 102);
+		g_SoundSystem.PlaySound(self.edict(), CHAN_STATIC, fixPath("sc_rust/b17.ogg"), 1.0f, 0.04f, SND_FORCE_LOOP, 98);
+		g_SoundSystem.PlaySound(self.edict(), CHAN_BODY, fixPath("sc_rust/b17.ogg"), 1.0f, 0.04f, SND_FORCE_LOOP, 100);
+		g_SoundSystem.PlaySound(self.edict(), CHAN_ITEM, fixPath("sc_rust/b17_far.ogg"), 0.7f, 0.02f, SND_FORCE_LOOP, 95);
 		
 		lastDist = (airDropPos - pev.origin).Length();
 		SetThink( ThinkFunction( Think ) );
@@ -163,7 +163,7 @@ class monster_b17 : ScriptBaseAnimating
 				if (!nearPlayers.exists(id))
 				{
 					nearPlayers[id] = true;
-					te_trail(self, "sprites/xbeam4.spr", 255, 32, Color(255, 255, 255, 128), MSG_ONE, @plr.edict());
+					te_trail(self, "sprites/xbeam4.spr", 255, 64, Color(255, 255, 255, 128), MSG_ONE, @plr.edict());
 				}
 				@edt = @plr.pev.chain;
 			}
