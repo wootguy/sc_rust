@@ -109,7 +109,6 @@ void propogate_part_destruction(CBaseEntity@ ent)
 
 void stabilityCheck()
 {
-	println("Stability check time!");
 	g_running_stability = true;
 	int numIter = 0;
 	

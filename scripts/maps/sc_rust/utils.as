@@ -110,6 +110,39 @@ void te_bloodsprite(Vector pos, string sprite1="sprites/bloodspray.spr", string 
 void te_smoke(Vector pos, string sprite="sprites/steam1.spr", int scale=10, int frameRate=15, NetworkMessageDest msgType=MSG_BROADCAST, edict_t@ dest=null) { NetworkMessage m(msgType, NetworkMessages::SVC_TEMPENTITY, dest);m.WriteByte(TE_SMOKE);m.WriteCoord(pos.x);m.WriteCoord(pos.y);m.WriteCoord(pos.z);m.WriteShort(g_EngineFuncs.ModelIndex(sprite));m.WriteByte(scale);m.WriteByte(frameRate);m.End(); }
 void te_sparks(Vector pos, NetworkMessageDest msgType=MSG_BROADCAST, edict_t@ dest=null) { _te_pointeffect(pos, msgType, dest, TE_SPARKS); }
 void _te_pointeffect(Vector pos, NetworkMessageDest msgType=MSG_BROADCAST, edict_t@ dest=null, int effect=TE_SPARKS) { NetworkMessage m(msgType, NetworkMessages::SVC_TEMPENTITY, dest);m.WriteByte(effect);m.WriteCoord(pos.x);m.WriteCoord(pos.y);m.WriteCoord(pos.z);m.End(); }
+void te_sprite(Vector pos, string sprite="sprites/zerogxplode.spr", 
+	uint8 scale=10, uint8 alpha=200, 
+	NetworkMessageDest msgType=MSG_BROADCAST, edict_t@ dest=null)
+{
+	NetworkMessage m(msgType, NetworkMessages::SVC_TEMPENTITY, dest);
+	m.WriteByte(TE_SPRITE);
+	m.WriteCoord(pos.x);
+	m.WriteCoord(pos.y);
+	m.WriteCoord(pos.z);
+	m.WriteShort(g_EngineFuncs.ModelIndex(sprite));
+	m.WriteByte(scale);
+	m.WriteByte(alpha);
+	m.End();
+}
+void te_dlight(Vector pos, uint8 radius=16, Color c=PURPLE, uint8 life=255, uint8 decayRate=4, NetworkMessageDest msgType=MSG_BROADCAST, edict_t@ dest=null) { NetworkMessage m(msgType, NetworkMessages::SVC_TEMPENTITY, dest);m.WriteByte(TE_DLIGHT);m.WriteCoord(pos.x);m.WriteCoord(pos.y);m.WriteCoord(pos.z);m.WriteByte(radius);m.WriteByte(c.r);m.WriteByte(c.g);m.WriteByte(c.b);m.WriteByte(life);m.WriteByte(decayRate);m.End(); }
+void te_elight(CBaseEntity@ target, Vector pos, float radius=1024.0f, 
+	Color c=PURPLE, uint8 life=16, float decayRate=2000.0f, 
+	NetworkMessageDest msgType=MSG_BROADCAST, edict_t@ dest=null)
+{
+	NetworkMessage m(msgType, NetworkMessages::SVC_TEMPENTITY, dest);
+	m.WriteByte(TE_ELIGHT);
+	m.WriteShort(target.entindex());
+	m.WriteCoord(pos.x);
+	m.WriteCoord(pos.y);
+	m.WriteCoord(pos.z);
+	m.WriteCoord(radius);
+	m.WriteByte(c.r);
+	m.WriteByte(c.g);
+	m.WriteByte(c.b);
+	m.WriteByte(life);
+	m.WriteCoord(decayRate);
+	m.End();
+}
 
 // convert output from Vector.ToString() back into a Vector
 Vector parseVector(string s) {
@@ -809,7 +842,7 @@ bool isUpgradable(CBaseEntity@ ent)
 	int type = ent.pev.colormap;
 	int socket = socketType(type);
 	return ent.pev.classname == "func_breakable_custom" and socket != SOCKET_WINDOW and type != B_LADDER_HATCH and
-			socket != SOCKET_DOORWAY and
+			socket != SOCKET_DOORWAY and type != B_FIRE and
 			type != B_LADDER and type != E_SUPPLY_CRATE and socket != SOCKET_HIGH_WALL and !isFloorItem(ent) and type != -1;
 }
 

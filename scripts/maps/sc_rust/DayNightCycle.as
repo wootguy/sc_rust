@@ -11,6 +11,8 @@ class DayNightCycle {
 
 	EHandle h_sun, h_sun_dusk, h_moon;
 	EHandle h_skybox_day, h_skybox_dusk, h_skybox_moon;
+	EHandle h_light_env;
+	int state = 0;
 	
 	// a is pitch black
 	string light_levels = "abcdefghijklmnopqrstuvwxyz";
@@ -29,6 +31,7 @@ class DayNightCycle {
 		h_skybox_day = g_EntityFuncs.FindEntityByTargetname(null, skybox_day_tname);
 		h_skybox_dusk = g_EntityFuncs.FindEntityByTargetname(null, skybox_dusk_tname);
 		h_skybox_moon = g_EntityFuncs.FindEntityByTargetname(null, skybox_moon_tname);
+		h_light_env = g_EntityFuncs.FindEntityByTargetname(null, "light_day");
 	}
 	
 	void test()
@@ -51,7 +54,6 @@ class DayNightCycle {
 	
 	void start()
 	{
-		//if (1==1) return;
 		CBaseEntity@ sun = h_sun;
 		CBaseEntity@ sun_dusk = h_sun_dusk;
 		CBaseEntity@ moon = h_moon;
@@ -59,7 +61,7 @@ class DayNightCycle {
 		sun.pev.movetype = sun_dusk.pev.movetype = moon.pev.movetype = MOVETYPE_NOCLIP;
 		
 		sun.pev.angles.z = sun_dusk.pev.angles.z = moon.pev.angles.z = 45;
-		sun.pev.avelocity.z = sun_dusk.pev.avelocity.z = moon.pev.avelocity.z = -1;
+		sun.pev.avelocity.z = sun_dusk.pev.avelocity.z = moon.pev.avelocity.z = -5;
 		
 		moon.pev.renderamt = 255;
 		
@@ -72,6 +74,15 @@ class DayNightCycle {
 		//g_EntityFuncs.FireTargets("light_day", null, null, USE_OFF);
 		
 		println("Day Night Cycle started");
+	}
+	
+	void pause()
+	{
+		CBaseEntity@ sun = h_sun;
+		CBaseEntity@ sun_dusk = h_sun_dusk;
+		CBaseEntity@ moon = h_moon;
+		
+		sun.pev.avelocity.z = sun_dusk.pev.avelocity.z = moon.pev.avelocity.z = 0;
 	}
 	
 	void wrapAngle(CBaseEntity@ ent)
@@ -90,6 +101,8 @@ class DayNightCycle {
 		CBaseEntity@ skybox_day = h_skybox_day;
 		CBaseEntity@ skybox_dusk = h_skybox_dusk;
 		CBaseEntity@ skybox_night = h_skybox_moon;
+		
+		CBaseEntity@ light_env = h_light_env;
 		
 		//sun.pev.effects = sun_dusk.pev.effects = moon.pev.effects = skybox_day.pev.effects = skybox_dusk.pev.effects = skybox_night.pev.effects =  EF_NODRAW;
 		
@@ -152,11 +165,13 @@ class DayNightCycle {
 			g_brightness = 1.0f;
 		
 		float bright = 0;
+		Vector color;
 		if (g_brightness > 0.7f)
 		{
 			g_EntityFuncs.FireTargets("light_dusk", null, null, USE_OFF);
 			g_EntityFuncs.FireTargets("light_night", null, null, USE_OFF);
 			g_EntityFuncs.FireTargets("light_day", null, null, USE_ON);
+			color = Vector(255, 255, 250);
 			bright = ((g_brightness-0.7f)/0.3f)*0.95f + 0.05f;
 		}
 		else if (g_brightness > 0.4f)
@@ -164,6 +179,7 @@ class DayNightCycle {
 			g_EntityFuncs.FireTargets("light_dusk", null, null, USE_ON);
 			g_EntityFuncs.FireTargets("light_night", null, null, USE_OFF);
 			g_EntityFuncs.FireTargets("light_day", null, null, USE_OFF);
+			color = Vector(255, 160, 32);
 			bright = ((g_brightness-0.4f)/0.3f)*0.95f + 0.05f;
 		}
 		else
@@ -171,8 +187,12 @@ class DayNightCycle {
 			g_EntityFuncs.FireTargets("light_dusk", null, null, USE_OFF);
 			g_EntityFuncs.FireTargets("light_night", null, null, USE_ON);
 			g_EntityFuncs.FireTargets("light_day", null, null, USE_OFF);
+			color = Vector(64, 107, 255);
 			bright = Math.max(0.35f, (g_brightness/0.4f)*1.0f);
 		}
+		
+		color = color*(g_brightness*0.94f + 0.06f);
+		light_env.KeyValue("_light", color.ToString()); // This updates the sv_skylight_* cvars (can't do this in map scripts directly)
 		
 		int styleidx = int(bright * (light_levels.Length()-1) + 0.5f);
 		g_EngineFuncs.LightStyle(0, string(light_levels[styleidx]));

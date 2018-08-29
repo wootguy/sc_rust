@@ -377,7 +377,27 @@ class func_build_zone : ScriptBaseEntity
 			{
 				numMonsters++;
 				CBaseMonster@ mon = cast<CBaseMonster@>(node);
+				
 				bool isAgro = mon.GetClassification(0) != CLASS_NONE or mon.m_hEnemy.IsValid();
+				
+				if (!isAgro and mon.HasConditions(bits_COND_LIGHT_DAMAGE | bits_COND_HEAVY_DAMAGE) and @mon.m_hEnemy.GetEntity() == null)
+				{
+					CBaseEntity@ ent = null;
+					do {
+						@ent = g_EntityFuncs.FindEntityInSphere(ent, mon.m_vecEnemyLKP, 32.0f, "player", "classname");
+						if (ent !is null)
+						{
+							mon.PushEnemy(ent, ent.pev.origin);
+							mon.SetClassification(CLASS_HUMAN_MILITARY); // Hate players, dislike player allies
+							mon.pev.noise3 = mon.m_FormattedName;
+							mon.m_FormattedName = "" + mon.m_FormattedName + " (angry)";
+							mon.pev.teleport_time = g_Engine.time;
+							isAgro = true;
+							break;
+						}
+					} while (ent !is null);
+				}
+				
 				if (mon.pev.armorvalue < g_Engine.time)
 				{
 					mon.pev.armorvalue = g_Engine.time + 1.0f;

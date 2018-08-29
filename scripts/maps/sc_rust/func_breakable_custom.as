@@ -54,6 +54,14 @@ void weird_think_bug_workaround(EHandle h_ent)
 	{
 		ent.MonsterThink();
 	}
+	else if (ent.isAirdrop)
+	{
+		ent.AirdropThink();
+	}
+	else if (ent.isFire)
+	{
+		ent.FireThink();
+	}
 }
 
 class func_breakable_custom : ScriptBaseEntity
@@ -71,12 +79,17 @@ class func_breakable_custom : ScriptBaseEntity
 	bool isAirdrop = false;
 	bool isHatch = false;
 	bool isItem = false;
+	bool isFire = false;
 	bool supported = false; // is connected to a foundation somehow?
 	bool smelting = false; // true if this is a furnace with wood and ore inside
 	float lastSmelt = 0;
 	float lastWoodBurn = 0;
 	float lastThink = 0;
 	float deathTime = 0;
+	Vector fireDir;
+	bool fireOn = false;
+	int fireSkipEffects = 3;
+	float lastToggle = 0;
 	string killtarget;
 	Vector mins;
 	Vector maxs;
@@ -193,6 +206,7 @@ class func_breakable_custom : ScriptBaseEntity
 		isWindowBars = self.pev.colormap == B_WOOD_BARS or self.pev.colormap == B_METAL_BARS;
 		isAirdrop = self.pev.colormap == E_SUPPLY_CRATE;
 		isHatch = self.pev.colormap == B_LADDER_HATCH and isDoor;
+		isFire = self.pev.colormap == B_FIRE;
 		isItem = isFloorItem(self);
 		if (!isNode and debug_mode)
 			println("CREATE PART " + id + " WITH PARENT " + parent);
@@ -226,17 +240,22 @@ class func_breakable_custom : ScriptBaseEntity
 		}
 		else if (isAirdrop)
 		{
-			deathTime = g_Engine.time + g_supply_time;
-			SetThink( ThinkFunction( AirdropThink ) );
-			pev.nextthink = g_Engine.time;
+			g_Scheduler.SetTimeout("weird_think_bug_workaround", 0.0f, EHandle(self));
+		}
+		else if (isFire)
+		{
+			g_EngineFuncs.MakeVectors(self.pev.angles);
+			fireDir = g_Engine.v_up;
+			//FireToggle();
+			g_Scheduler.SetTimeout("weird_think_bug_workaround", 0.0f, EHandle(self));
 		}
 		else if (isFurnace)
 		{
-			FurnaceThink();
+			g_Scheduler.SetTimeout("weird_think_bug_workaround", 0.0f, EHandle(self));
 		}
 		else if (nodeType == NODE_XEN)
 		{
-			MonsterThink();
+			g_Scheduler.SetTimeout("weird_think_bug_workaround", 0.0f, EHandle(self));
 		}
 	}
 	
@@ -433,7 +452,76 @@ class func_breakable_custom : ScriptBaseEntity
 		//pev.origin = pev.origin + pev.velocity;
 		if (g_Engine.time > deathTime)
 			Destroy();
-		pev.nextthink = g_Engine.time;
+		
+		g_Scheduler.SetTimeout("weird_think_bug_workaround", 0.1, EHandle(self));
+	}
+	
+	void FireToggle()
+	{
+		if (g_Engine.time - lastToggle < 1.0f)
+			return;
+		lastToggle = g_Engine.time;
+		fireOn = !fireOn;
+		fireSkipEffects = 0;
+		if (fireOn)
+			g_SoundSystem.PlaySound(self.edict(), CHAN_BODY, fixPath("ambience/burning3.wav"), 0.5f, 1.0f, SND_FORCE_LOOP, 100);
+		else
+		{
+			g_SoundSystem.StopSound(self.edict(), CHAN_BODY, fixPath("ambience/burning3.wav"));
+			g_SoundSystem.PlaySound(self.edict(), CHAN_BODY, fixPath("sc_rust/sizzle.ogg"), 0.3f, 1.0f, 0, 70);
+			
+		}
+	}
+	
+	void FireThink()
+	{		
+		if (fireOn)
+		{
+			Vector firePos = pev.origin + fireDir*24;
+			
+			if (fireSkipEffects == 0)
+			{
+				float bright = Math.min(1.0f, Math.max(0.1f, (pev.health / pev.max_health)*4.0f));
+				Color color = Color(int(255*bright), int(200*bright), 0);
+				int sz = int(bright*5.0 + 2);
+				te_sprite(firePos, "sprites/fire.spr", sz, 200.0f);
+				te_dlight(firePos, 8, color, 12, 0);
+				te_elight(self, firePos, 128.0f, color, 16, 0);
+				g_SoundSystem.PlaySound(self.edict(), CHAN_BODY, fixPath("ambience/burning3.wav"), 0.4f*bright + 0.1f, 1.0f, SND_CHANGE_VOL, 100);
+				fireSkipEffects = 3;
+			}
+			fireSkipEffects -= 1;
+			
+			TakeDamage(pev, pev, 0.25f, DMG_BURN);
+			
+			CBaseEntity@ ent = null;
+			do {
+				@ent = g_EntityFuncs.FindEntityInSphere(ent, firePos, 96.0f, "player", "classname");
+				if (ent !is null)
+				{
+					float dist = ((ent.pev.origin - Vector(0,0,12)) - firePos).Length();
+					if (dist < 24)
+					{
+						g_SoundSystem.PlaySound(ent.edict(), CHAN_BODY, fixPath("sc_rust/sizzle.ogg"), 0.5f, 1.0f, 0, Math.RandomLong(95, 105));
+						ent.TakeDamage(pev, pev, 5.0f, DMG_BURN);
+					}
+					else
+					{
+						CBasePlayer@ plr = cast<CBasePlayer@>(ent);
+						PlayerState@ state = getPlayerState(plr);
+						if (plr.pev.health < 50 and g_Engine.time - state.lastFireHeal > 0.7f)
+						{
+							state.lastFireHeal = g_Engine.time;
+							plr.pev.health += 1;
+						}
+					}
+					
+					
+				}
+			} while (ent !is null);
+		}
+		
+		g_Scheduler.SetTimeout("weird_think_bug_workaround", 0.375f, EHandle(self));
 	}
 	
 	void DoorThink()
@@ -900,7 +988,7 @@ class func_breakable_custom : ScriptBaseEntity
 				g_SoundSystem.PlaySound(self.edict(), CHAN_STATIC, fixPath("sc_rust/stone_tree.ogg"), 1.0f, attn, 0, 90 + Math.RandomLong(0, 20));
 			}
 
-			g_EntityFuncs.Remove(self);
+			Destroy();
 			
 			if (killtarget.Length() > 0)
 			{
@@ -933,6 +1021,7 @@ class func_breakable_custom : ScriptBaseEntity
 
 	void Destroy()
 	{
+		g_SoundSystem.StopSound(self.edict(), CHAN_BODY, fixPath("ambience/burning3.wav"));
 		g_EntityFuncs.Remove(monster);
 		g_EntityFuncs.Remove(chute);
 		g_EntityFuncs.Remove(self);

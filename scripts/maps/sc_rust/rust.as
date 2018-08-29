@@ -19,11 +19,9 @@
 // co-op mode/difficulty selected 3 times - possibly why it sets up wrong
 // getting frozen in certain areas (only seen this in twlz so far)
 // remove ladders cuz freezing :'<
-// disable weapon throwing for guns
-// monsters don't agro you when out of range even if no target
-// info text blinks on laggy server
-// flamethrower doesn't create light
-// update model light values sv_sky something
+// c4/satchel should blow if attached ent moves
+// disable friendly fire for explosives
+// melee weps should move player
 
 // Should do/fix but too lazy:
 // crashing/leaving players leave unusable items and sometimes duplicate player states
@@ -75,6 +73,7 @@
 // water effects aren't working (splashes, fog)
 
 // note: impulse 197 = show node connections
+// RAD settings: Default bounce, Direct Scale 1, Scale 1.2, Min light 16
 
 //
 // Game settings
@@ -106,7 +105,7 @@ uint NODES_PER_ZONE = 64;
 float g_xen_agro_dist = 300.0f;
 
 float g_apache_forget_time = 30.0f; // seconds it takes for an apache to forget a player had guns
-float g_apache_roam_time = 10.0f; // minutes until the apache flies back out to sea
+float g_apache_roam_time = 15.0f; // minutes until the apache flies back out to sea
 float g_apache_min_delay = 10.0f; // time (in minutes) between apache spawns
 float g_apache_max_delay = 20.0f; // time (in minutes) between apache spawns
 float g_apache_first_delay = 20.0f; // time (in minutes) between apache spawns
@@ -116,7 +115,7 @@ bool g_shared_build_points_in_pvp_mode = true; // cool var name
 bool g_invasion_mode = false; // monsters spawn in waves and always attack
 float g_invasion_delay = 8.0f; // minutes between waves
 float g_invasion_initial_delay = 8.0f; // minutes before the invasion starts (first wave)
-float g_node_spawn_time_invasion = 15.0f; // time (in seconds) between node spawns when in invasion mode
+float g_node_spawn_time_invasion = 10.0f; // time (in seconds) between node spawns when in invasion mode
 
 float g_vote_time = 20.0f; // time (in seconds) for vote to expire. Timer resets when new player joins.
 
@@ -350,6 +349,7 @@ class PlayerState
 	dictionary teamRequests; // outgoing requests for team members
 	bool inGame = true;
 	float lastDangerous = 0; // last time this player was dangerous (had guns)
+	float lastFireHeal = 0; // prevent fire heal stacking
 	
 	uint64 tips = 0; // bitfield for shown tips
 	
@@ -894,6 +894,7 @@ void MapInit()
 	PrecacheModel("models/metalplategibs.mdl");
 	PrecacheModel("models/skeleton.mdl");
 	PrecacheModel("sprites/xbeam4.spr");
+	PrecacheModel("sprites/fire.spr");
 	
 	g_Game.PrecacheMonster("monster_apache", false);
 	PrecacheModel("models/sc_rust/apache.mdl");
@@ -911,6 +912,8 @@ void MapInit()
 	PrecacheSound("sc_rust/b17.ogg");
 	PrecacheSound("sc_rust/b17_far.ogg");
 	PrecacheSound("sc_rust/heli_far.ogg");
+	PrecacheSound("sc_rust/sizzle.ogg");
+	PrecacheSound("ambience/burning1.wav");
 	PrecacheModel("models/sc_rust/pine_tree.mdl");
 	PrecacheModel("models/sc_rust/rock.mdl");
 	PrecacheModel("models/sc_rust/tr_barrel.mdl");
@@ -1010,6 +1013,7 @@ void MapActivate()
 		"b_large_chest",
 		"b_furnace",
 		"b_bed",
+		"b_fire",
 		
 		"b_wood_shutter_r",
 		"b_wood_shutter_l",
@@ -1708,7 +1712,6 @@ void monster_spawned(CBaseEntity@ pActivator, CBaseEntity@ pCaller, USE_TYPE use
 	
 }
 
-
 void monster_killed(CBaseEntity@ pActivator, CBaseEntity@ pCaller, USE_TYPE useType, float flValue)
 {	
 	if (pCaller.pev.classname == "monster_apache")
@@ -1820,11 +1823,12 @@ EHandle createCorpse(CBasePlayer@ plr)
 
 void heli_think(EHandle h_heli)
 {
-	if (!h_heli.IsValid())
-		return;
-		
 	CBaseMonster@ heli = cast<CBaseMonster@>(h_heli.GetEntity());
 	CBaseEntity@ target = g_EntityFuncs.FindEntityByTargetname(null, heli.pev.target);
+	
+	if (heli is null or target is null)
+		return;
+	
 	CBaseEntity@ enemy = heli.m_hEnemy;
 	
 	float dist = (heli.pev.origin - target.pev.origin).Length();
@@ -1977,7 +1981,7 @@ void spawn_heli()
 	g_EngineFuncs.MakeVectors(Vector(0,Math.RandomFloat(-180,180),0));
 	TraceResult tr;
 	g_Utility.TraceHull( spawnPos, spawnPos + g_Engine.v_forward*65536, ignore_monsters, large_hull, null, tr );
-	spawnPos = tr.vecEndPos - g_Engine.v_forward*256;
+	spawnPos = tr.vecEndPos - g_Engine.v_forward*512;
 	spawnPos.z = g_apache_height;
 	
 	dictionary keys;
@@ -2433,7 +2437,7 @@ bool doRustCommand(CBasePlayer@ plr, const CCommand@ args)
 				msg = "Game mode: Creative";
 			else if (g_invasion_mode)
 			{
-				msg = "Game mode: Co-op ( ";
+				msg = "Game mode: Co-op (";
 				if (g_difficulty == 0)
 					msg += "easy";
 				else if (g_difficulty == 1)
@@ -2442,6 +2446,7 @@ bool doRustCommand(CBasePlayer@ plr, const CCommand@ args)
 					msg += "hard";
 				else
 					msg += "unknown difficulty";
+				msg += ")";
 			}
 			else
 				msg = "Game mode: PvP";

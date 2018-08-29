@@ -168,7 +168,7 @@ void inventoryCheck()
 			params.effect = 0;
 			params.fadeinTime = 0;
 			params.fadeoutTime = 0;
-			params.holdTime = 0.2f;
+			params.holdTime = 0.3f;
 			params.r1 = 255;
 			params.g1 = 255;
 			params.b1 = 255;
@@ -1094,7 +1094,8 @@ void openPlayerMenu(CBasePlayer@ plr, string subMenu)
 		state.menu.AddItem(g_items[I_METAL_BARS].getCraftText(), any("craft-0-" + I_METAL_BARS));
 		state.menu.AddItem(g_items[I_WOOD_SHUTTERS].getCraftText(), any("craft-0-" + I_WOOD_SHUTTERS));
 		state.menu.AddItem(g_items[I_HIGH_WOOD_WALL].getCraftText(), any("craft-0-" + I_HIGH_WOOD_WALL));
-		state.menu.AddItem(g_items[I_HIGH_STONE_WALL].getCraftText() +"\n", any("craft-0-" + I_HIGH_STONE_WALL));
+		state.menu.AddItem(g_items[I_HIGH_STONE_WALL].getCraftText(), any("craft-0-" + I_HIGH_STONE_WALL));
+		state.menu.AddItem(g_items[I_FIRE].getCraftText() +"\n", any("craft-0-" + I_FIRE));
 	}
 	else if (subMenu == "item-menu") 
 	{
@@ -1982,6 +1983,11 @@ HookReturnCode PlayerUse( CBasePlayer@ plr, uint& out )
 					if (locked and !authed)
 						g_SoundSystem.PlaySound(phit.edict(), CHAN_WEAPON, fixPath("sc_rust/code_lock_denied.ogg"), 1.0f, 1.0f, 0, 100);
 				}
+			}
+			else if (phit.pev.colormap == B_FIRE)
+			{
+				func_breakable_custom@ fire = cast<func_breakable_custom@>(CastToScriptClass(phit));
+				fire.FireToggle();
 			}
 			else if (phit.pev.colormap == B_WOOD_SHUTTERS)
 			{

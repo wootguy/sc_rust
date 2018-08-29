@@ -169,6 +169,7 @@ enum build_types
 	B_LARGE_CHEST,
 	B_FURNACE,
 	B_BED,
+	B_FIRE,
 	
 	B_ITEM_TYPES,
 	
@@ -200,6 +201,7 @@ enum item_types
 	I_LARGE_CHEST,
 	I_FURNACE,
 	I_BED,
+	I_FIRE,
 	
 	I_WOOD,
 	I_STONE,
@@ -288,6 +290,7 @@ array<BuildPartInfo> g_part_info = {
 	BuildPartInfo(B_LARGE_CHEST, "Large Chest", "b_large_chest", 0),
 	BuildPartInfo(B_FURNACE, "Furnace", "b_furnace", 0),
 	BuildPartInfo(B_BED, "Sleeping Bag", "b_bed", 0),
+	BuildPartInfo(B_FIRE, "Camp Fire", "b_fire", 0),
 	
 	BuildPartInfo(E_SUPPLY_CRATE, "Supply Crate", "e_supply_crate", 0),
 };
@@ -323,6 +326,8 @@ array<Item> g_items = {
 		"Use this to smelt mined ore."),
 	Item(I_BED, 1, false, false, "b_bed", "", "Sleeping Bag", RawItem(I_WOOD, 100), null,
 		"Placing this gives you a location to respawn."),
+	Item(I_FIRE, 1, false, false, "b_fire", "", "Camp Fire", RawItem(I_WOOD, 100), null,
+		"Provides light and health regeneration up to 50 HP. Press USE to toggle the fire on/off."),
 	
 	Item(I_WOOD, 1000, false, false, "", "", "Wood", null, null,
 		"Collected from trees and used to build bases and craft items."),
@@ -561,7 +566,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 		if (buildType >= B_WOOD_DOOR and buildType != B_HIGH_STONE_WALL and buildType != B_HIGH_WOOD_WALL
 			and buildType != B_LADDER_HATCH)
 			buildDist = 96.0f;
-		if (isFloorItem(buildEnt))
+		if (isFloorItem(buildEnt) or buildType == B_FIRE)
 			buildDist = 128.0f;
 		float maxSnapDist = buildDist + 32.0f;
 		TraceResult tr = TraceLook(plr, buildDist);
@@ -569,6 +574,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 		Vector newOri = tr.vecEndPos;
 		float newYaw = plr.pev.angles.y;
 		float newPitch = buildEnt.pev.angles.x;
+		float newRot = buildEnt.pev.angles.z;
 		CBaseEntity@ phit = g_EntityFuncs.Instance( tr.pHit );
 		
 		int partSocket = socketType(buildType);
@@ -576,7 +582,21 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 		CBaseEntity@ skipCollide = null;
 		
 		validBuild = false;
-					
+		if (partSocket == -1)
+		{
+			// place anywhere
+			if (tr.flFraction < 1.0f and (phit.pev.classname == "worldspawn" or isFloorPiece(phit))) {
+				if (tr.vecPlaneNormal.z > 0.7f and g_EngineFuncs.PointContents(tr.vecEndPos) == CONTENTS_EMPTY)
+				{
+					validBuild = true;
+					Vector outAngles;
+					g_EngineFuncs.VecToAngles(tr.vecPlaneNormal, outAngles);
+					newYaw = outAngles.y;
+					newPitch = -outAngles.x + 90;
+					newRot = outAngles.z;
+				}
+			}
+		}
 		if (partSocket == SOCKET_HIGH_WALL)
 		{
 			if (phit.pev.classname == "worldspawn" and tr.flFraction < 1.0f) {
@@ -1168,6 +1188,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 		buildEnt.pev.origin = buildEnt2.pev.origin = newOri;
 		buildEnt.pev.angles.y = buildEnt2.pev.angles.y = newYaw;
 		buildEnt.pev.angles.x = buildEnt2.pev.angles.x = newPitch;
+		buildEnt.pev.angles.z = buildEnt2.pev.angles.z = newRot;
 		g_EntityFuncs.SetOrigin(buildEnt, buildEnt.pev.origin); // fix collision
 		
 		// check collision
@@ -1523,6 +1544,8 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 			float health = 100;			
 			switch(buildType)
 			{
+				case B_FIRE: 
+					health = 100; break;
 				case B_BED: 
 				case B_SMALL_CHEST: 
 				case B_WOOD_SHUTTERS:
