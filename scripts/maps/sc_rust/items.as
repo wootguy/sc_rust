@@ -502,7 +502,7 @@ int combineItemStacks(CBasePlayer@ plr, int addedType)
 	return 0;
 }
 
-CBaseEntity@ spawnItem(Vector origin, int type, int amt)
+CBaseEntity@ spawnItem(Vector origin, int type, int amt, bool isDrop=false)
 {
 	dictionary keys;
 	keys["origin"] = origin.ToString();
@@ -517,6 +517,8 @@ CBaseEntity@ spawnItem(Vector origin, int type, int amt)
 	keys["target_on_drop"] = "item_dropped";
 	keys["target_on_collect"] = "item_collected";
 	keys["target_cant_collect"] = "item_cant_collect";
+	keys["holder_keep_on_death"] = "1";
+	keys["holder_keep_on_respawn"] = "1";
 	
 	if (type < 0 or type > ITEM_TYPES)
 	{
@@ -530,8 +532,9 @@ CBaseEntity@ spawnItem(Vector origin, int type, int amt)
 	keys["team"] = "0"; // so we ignore this in the item_collected callback
 	
 	keys["display_name"] = item.title;
-	keys["description"] =  item.desc;
+	keys["description"] = item.desc;
 	
+	CBaseEntity@ lastSpawn = null;
 	if (item.stackSize == 1)
 	{
 		if (item.isWeapon)
@@ -541,21 +544,28 @@ CBaseEntity@ spawnItem(Vector origin, int type, int amt)
 			amt = 1;
 			
 		}
-		CBaseEntity@ lastSpawn = null;
 		for (int i = 0; i < amt; i++)
 		{
 			@lastSpawn = g_EntityFuncs.CreateEntity("item_inventory", keys, true);
 			lastSpawn.pev.origin = origin;
 		}
-		return lastSpawn;
 	}
 	else
 	{
 		keys["button"] = "" + amt;
 		keys["display_name"] = g_items[type].title + "  (" + prettyNumber(amt) + ")";
 		
-		return g_EntityFuncs.CreateEntity("item_inventory", keys, true);
+		@lastSpawn = g_EntityFuncs.CreateEntity("item_inventory", keys, true);
 	}
+	
+	if (isDrop)
+	{
+		// prevent cleanup on this item (TODO: don't use random player)
+		CBasePlayer@ plr = getAnyPlayer();
+		@lastSpawn.pev.owner = @plr.edict();
+		item_dropped(plr, lastSpawn, USE_TOGGLE, 0);
+	}
+	return lastSpawn;
 }
 
 int getSpawnFlagsForWeapon(string cname)

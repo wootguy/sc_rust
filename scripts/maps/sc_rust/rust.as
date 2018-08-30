@@ -17,12 +17,9 @@
 // nobody voted shown when people voted
 // 400+ built parts on twlz
 // auto save plz
-// co-op mode/difficulty selected 3 times - possibly why it sets up wrong
 // getting frozen in certain areas (only seen this in twlz so far)
 // remove ladders cuz freezing :'<
-// c4/satchel should blow if attached ent moves
-// disable friendly fire for explosives
-// melee weps should move player
+// mp_decals 2 message :<
 
 // Should do/fix but too lazy:
 // crashing/leaving players leave unusable items and sometimes duplicate player states
@@ -804,6 +801,7 @@ bool waiting_for_voters = true;
 bool finished_invasion = false;
 bool debug_mode = false;
 bool game_started = false;
+bool g_friendly_fire = true;
 
 array<string> g_upgrade_suffixes = {
 	"_twig",
@@ -1326,7 +1324,8 @@ void startGame()
 	waiting_for_voters = false;
 	
 	g_Scheduler.SetTimeout("spawn_airdrop", g_airdrop_first_delay*60);
-	g_Scheduler.SetTimeout("spawn_heli", g_apache_first_delay*60);
+	if (!g_invasion_mode)
+		g_Scheduler.SetTimeout("spawn_heli", g_apache_first_delay*60);
 	g_Scheduler.SetInterval("inventoryCheck", 0.1);
 	g_Scheduler.SetInterval("cleanup_map", 60);
 	g_Scheduler.SetTimeout("showGameModeTip", 3);
@@ -1433,6 +1432,7 @@ void setupPvpMode()
 
 void disableFriendlyFire()
 {
+	g_friendly_fire = false;
 	CBaseEntity@ ent = null;
 	do {
 		@ent = g_EntityFuncs.FindEntityByClassname(ent, "*");
@@ -1456,12 +1456,12 @@ void setupCreativeMode()
 	g_Scheduler.SetTimeout("startGame", 3.0f);
 }
 
-array<string> invasion_waves = {"babyvolt_spawner", "zombie_spawner", "pitdrone_spawner", "controller_spawner",
-								"bullsquid_spawner", "slave_spawner", "houndeye_spawner", "gonome_spawner", 
+array<string> invasion_waves = {"babyvolt_spawner", "zombie_spawner", "pitdrone_spawner", "slave_spawner",
+								"bullsquid_spawner", "controller_spawner", "houndeye_spawner", "gonome_spawner", 
 								"babygarg_spawner", "trooper_spawner", "agrunt_spawner", "volt_spawner", 
 								"garg_spawner", "kingpin_spawner"};
-array<string> invasion_wave_titles = {"Baby Voltigores", "Zombie Barneys", "Pit Drones", "Alien Controllers",
-								"Bullsquids", "Alien Slaves", "Houndeyes", "Gonomes", "Baby Gargs", "Shock Troopers", 
+array<string> invasion_wave_titles = {"Baby Voltigores", "Zombie Barneys", "Pit Drones", "Alien Slaves",
+								"Bullsquids", "Alien Controllers", "Houndeyes", "Gonomes", "Baby Gargs", "Shock Troopers", 
 								"Alien Grunts", "Voltigores", "Gargantuas", "Kingpins"};
 
 void clearTimer()
@@ -1716,11 +1716,7 @@ void monster_spawned(CBaseEntity@ pActivator, CBaseEntity@ pCaller, USE_TYPE use
 void monster_killed(CBaseEntity@ pActivator, CBaseEntity@ pCaller, USE_TYPE useType, float flValue)
 {	
 	if (pCaller.pev.classname == "monster_apache")
-	{
-		CBaseEntity@ target = g_EntityFuncs.FindEntityByTargetname(null, pCaller.pev.target);
-		g_EntityFuncs.Remove(target);
-		g_SoundSystem.StopSound(pCaller.edict(), CHAN_ITEM, fixPath("sc_rust/heli_far.ogg"));
-	}
+		heli_die(pCaller);
 }
 
 void equipPlayer(CBasePlayer@ plr)

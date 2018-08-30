@@ -83,6 +83,11 @@ void heli_think(EHandle h_heli)
 					break;
 				}
 			}
+			
+			// prevent running into the ground when moving across cliffs
+			TraceResult tr;
+			g_Utility.TraceLine( oldOri, oldOri + Vector(0,0,-65536), ignore_monsters, heli.edict(), tr );
+			target.pev.origin.z = Math.max(target.pev.origin.z, tr.vecEndPos.z);
 		}
 		else
 		{		
@@ -136,7 +141,7 @@ void heli_think(EHandle h_heli)
 		CBaseEntity@ phit = g_EntityFuncs.Instance( tr.pHit );
 		if (phit !is null)
 		{
-			println("Blocked by " + phit.pev.classname);
+			//println("Blocked by " + phit.pev.classname);
 			if (phit.pev.classname != "worldspawn")
 			{
 				float dmg = Math.min(phit.pev.health, 2000.0f);
@@ -151,6 +156,26 @@ void heli_think(EHandle h_heli)
 	//te_beampoints(heli.pev.origin, target.pev.origin);
 	
 	g_Scheduler.SetTimeout("heli_think", 0.1f, h_heli);
+}
+
+void heli_die(CBaseEntity@ heli)
+{
+	CBaseEntity@ target = g_EntityFuncs.FindEntityByTargetname(null, heli.pev.target);
+	g_EntityFuncs.Remove(target);
+	g_SoundSystem.StopSound(heli.edict(), CHAN_ITEM, fixPath("sc_rust/heli_far.ogg"));
+	
+	Vector itemPos = heli.pev.origin;
+	CBaseEntity@ item = null;
+	switch(Math.RandomLong(0,5))
+	{
+		case 0: @item = spawnItem(itemPos, I_METAL, 1000, true); break;
+		case 1: @item = spawnItem(itemPos, I_HQMETAL, 100, true); break;
+		case 2: @item = spawnItem(itemPos, I_SAW, 1, true); break;
+		case 3: @item = spawnItem(itemPos, I_556, 100, true); break;
+		case 4: @item = spawnItem(itemPos, I_ROCKET, 5, true); break;
+	}
+	if (item !is null)
+		item.pev.movetype = MOVETYPE_TOSS;
 }
 
 void spawn_heli()
