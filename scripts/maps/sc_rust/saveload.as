@@ -363,6 +363,10 @@ void loadMapPartial(ByteBuffer@ buf, int partsLoaded, int numParts)
 			PlayerState@ state = getPlayerStateBySteamID(steamid, netname);
 			if (state !is null)
 				state.addPart(ent, zoneid);
+				
+			BuildZone@ zone = getBuildZone(zoneid);
+			if (zone !is null)
+				zone.addRaiderParts(1);
 		}
 		
 		g_build_parts.insertLast(EHandle(ent));
@@ -389,6 +393,9 @@ void loadMapData()
 {	
 	string path = rust_save_path + g_Engine.mapname + ".dat";
 	File@ f = g_FileSystem.OpenFile( path, OpenFile::READ);
+	
+	for (uint i = 0; i < g_build_zones.length(); i++)
+		g_build_zones[i].numRaiderParts = 0;
 	
 	if( f !is null && f.IsOpen() )
 	{

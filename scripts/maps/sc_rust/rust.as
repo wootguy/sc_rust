@@ -12,6 +12,7 @@
 #include "airdrop"
 #include "DayNightCycle"
 #include "apache"
+#include "func_boat"
 
 // TODO:
 // nobody voted shown when people voted
@@ -20,6 +21,10 @@
 // getting frozen in certain areas (only seen this in twlz so far)
 // remove ladders cuz freezing :'<
 // mp_decals 2 message :<
+// can place roof on ground
+// HUD map would be nice
+// update zone names
+// prevent repairing when recently attacked
 
 // Should do/fix but too lazy:
 // crashing/leaving players leave unusable items and sometimes duplicate player states
@@ -66,11 +71,11 @@
 // hatchet and other tools mb are still too loud
 // sniper doesn't zoom in after 
 // cant place doors in fused doorways
-// apache spawns
 // build ents aren't always see-through/tinted
-// water effects aren't working (splashes, fog)
+// "cryokeen succ my ween. notice me senpai" -Faith4Dead
 
 // note: impulse 197 = show node connections
+// BSP Settings: Max node size 65536
 // RAD settings: Default bounce, Direct Scale 1, Scale 1.2, Min light 16
 
 //
@@ -109,6 +114,8 @@ float g_apache_max_delay = 20.0f; // time (in minutes) between apache spawns
 float g_apache_first_delay = 20.0f; // time (in minutes) between apache spawns
 
 bool g_shared_build_points_in_pvp_mode = true; // cool var name
+int g_global_solids = 0;
+int MAX_SOLIDS = 512-(NODES_PER_ZONE*8); // any more than this causes glitchy movement or getting stuck. Much more than this causes server crashes
 
 bool g_invasion_mode = false; // monsters spawn in waves and always attack
 float g_invasion_delay = 8.0f; // minutes between waves
@@ -541,7 +548,7 @@ class PlayerState
 		if (part.zoneid != home_zone)
 		{
 			BuildZone@ zone = getBuildZone(part.zoneid);
-			zone.numRaiderParts--;
+			zone.addRaiderParts(-1);
 		}
 		
 		if (zoneParts.exists(part.zoneid))
@@ -786,6 +793,7 @@ array<Team> g_teams;
 array<EHandle> g_item_drops; // items that are currently sitting around
 array<EHandle> g_weapon_drops; // these disappear when they're picked up
 array<EHandle> g_corpses; // these disappear when they're picked up
+array<EHandle> g_boats; // max 1 per player!
 Vector g_dead_zone; // where dead players go until they respawn
 Vector g_void_spawn; // place where you can spawn items outside the play area
 float g_airdrop_height = 2048; // height where planes spawn
@@ -932,6 +940,8 @@ void MapInit()
 	// add custom weapon ammos (defined in weapon_custom scripts)
 	WeaponCustom::g_ammo_types.insertLast("arrows");
 	WeaponCustom::g_ammo_types.insertLast("fuel");
+	
+	VehicleMapInit( true, false );
 }
 
 void MapActivate()
@@ -1031,6 +1041,8 @@ void MapActivate()
 		"e_rock",
 		"e_barrel",
 		"e_supply_crate",
+		"e_boat_wood",
+		"e_boat_metal",
 	};
 	
 	for (uint i = 0; i < part_names.length(); i++)
@@ -1149,6 +1161,11 @@ void resetVoteBlockers()
 	CBaseEntity@ block1 = g_EntityFuncs.FindEntityByTargetname(null, "option1_block");
 	CBaseEntity@ block2 = g_EntityFuncs.FindEntityByTargetname(null, "option2_block");
 	CBaseEntity@ block3 = g_EntityFuncs.FindEntityByTargetname(null, "option3_block");
+	if (block1 is null or block2 is null or block3 is null)
+	{
+		println("Missing option*_block ents. Voting will be broken");
+		return;
+	}
 	block1.pev.solid = block2.pev.solid = block3.pev.solid = SOLID_NOT;
 	block1.pev.rendercolor = block2.pev.rendercolor = block3.pev.rendercolor = Vector(0, 255, 0);
 }

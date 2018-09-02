@@ -44,7 +44,6 @@ class monster_c4 : ScriptBaseEntity
 		beepTime -= 1;
 		
 		float delta = h_attachEnt.IsValid() ? (attachEntOrigin - h_attachEnt.GetEntity().pev.origin).Length() : 9999;
-		println("DELTA " + delta + " " + h_attachEnt.GetEntity().pev.classname);
 		if (life <= 0 or delta > 4)
 		{
 			CBaseEntity@ phit = h_attachEnt;

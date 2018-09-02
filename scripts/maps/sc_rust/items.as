@@ -1138,7 +1138,7 @@ void openPlayerMenu(CBasePlayer@ plr, string subMenu)
 	}
 	else if (subMenu == "medical-menu")
 	{
-		state.menu.SetTitle("Actions -> Craft -> Medical:\n");
+		state.menu.SetTitle("Actions -> Craft -> Utility:\n");
 		
 		state.menu.AddItem("Back\n", any("craft-menu"));
 		//state.menu.AddItem("Bandage", any("bandage"));
@@ -1146,7 +1146,9 @@ void openPlayerMenu(CBasePlayer@ plr, string subMenu)
 		//state.menu.AddItem("Medkit", any("small-medkit"));
 		state.menu.AddItem(g_items[I_ARMOR].getCraftText() , any("craft-3-" + I_ARMOR));
 		//state.menu.AddItem("Large Medkit", any("large-medkit"));
-		state.menu.AddItem(g_items[I_GUITAR].getCraftText() + "\n\n", any("craft-3-" + I_GUITAR));
+		state.menu.AddItem(g_items[I_GUITAR].getCraftText(), any("craft-3-" + I_GUITAR));
+		state.menu.AddItem(g_items[I_BOAT_WOOD].getCraftText(), any("craft-3-" + I_BOAT_WOOD));
+		state.menu.AddItem(g_items[I_BOAT_METAL].getCraftText() + "\n\n", any("craft-3-" + I_BOAT_WOOD));
 		
 	}
 	else if (subMenu == "weapon-menu")
@@ -1188,7 +1190,7 @@ void openPlayerMenu(CBasePlayer@ plr, string subMenu)
 		state.menu.AddItem("Exterior Items", any("build-menu"));
 		state.menu.AddItem("Interior Items", any("item-menu"));
 		state.menu.AddItem("Tools", any("tool-menu"));
-		state.menu.AddItem("Medical / Armor", any("medical-menu"));
+		state.menu.AddItem("Utility", any("medical-menu"));
 		state.menu.AddItem("Weapons", any("weapon-menu"));
 		state.menu.AddItem("Explosives", any("explode-menu"));
 		state.menu.AddItem("Ammo\n\n\n", any("ammo-menu"));

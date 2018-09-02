@@ -95,6 +95,9 @@ class Item
 			
 			case I_SYRINGE: tabs = "        "; break;
 			case I_ARMOR: tabs = "  "; break;
+			case I_GUITAR: tabs = "          "; break;
+			case I_BOAT_WOOD: tabs = "   "; break;
+			case I_BOAT_METAL: tabs = "    "; break;
 			
 			case I_CROWBAR: tabs = "        "; break;
 			case I_BOW: tabs = "  "; break;
@@ -170,6 +173,8 @@ enum build_types
 	B_FURNACE,
 	B_BED,
 	B_FIRE,
+	E_BOAT_WOOD,
+	E_BOAT_METAL,
 	
 	B_ITEM_TYPES,
 	
@@ -202,6 +207,9 @@ enum item_types
 	I_FURNACE,
 	I_BED,
 	I_FIRE,
+	
+	I_BOAT_WOOD,
+	I_BOAT_METAL,
 	
 	I_WOOD,
 	I_STONE,
@@ -262,18 +270,18 @@ enum builder_status
 }
 
 array<BuildPartInfo> g_part_info = {
-	BuildPartInfo(B_FOUNDATION, "Square Foundation", "b_foundation", 100),
-	BuildPartInfo(B_FOUNDATION_TRI, "Triangle Foundation", "b_foundation_tri", 50),
-	BuildPartInfo(B_WALL, "Wall", "b_wall", 100),
-	BuildPartInfo(B_DOORWAY, "Doorway", "b_doorway", 50),
-	BuildPartInfo(B_WINDOW, "Window", "b_window", 50),
-	BuildPartInfo(B_LOW_WALL, "Low Wall", "b_low_wall", 50),
-	BuildPartInfo(B_FLOOR, "Square Floor", "b_floor", 50),
-	BuildPartInfo(B_FLOOR_TRI, "Triangle Floor", "b_floor_tri", 30),
-	BuildPartInfo(B_ROOF, "Roof", "b_roof", 100),
-	BuildPartInfo(B_STAIRS, "Stairs (U-shape)", "b_stairs", 100),
-	BuildPartInfo(B_STAIRS_L, "Stairs (L-shape)", "b_stairs_l", 100),
-	BuildPartInfo(B_FOUNDATION_STEPS, "Foundation Steps", "b_foundation_steps", 50),
+	BuildPartInfo(B_FOUNDATION, "Square Foundation", "b_foundation", 50),
+	BuildPartInfo(B_FOUNDATION_TRI, "Triangle Foundation", "b_foundation_tri", 25),
+	BuildPartInfo(B_WALL, "Wall", "b_wall", 50),
+	BuildPartInfo(B_DOORWAY, "Doorway", "b_doorway", 35),
+	BuildPartInfo(B_WINDOW, "Window", "b_window", 35),
+	BuildPartInfo(B_LOW_WALL, "Low Wall", "b_low_wall", 25),
+	BuildPartInfo(B_FLOOR, "Square Floor", "b_floor", 25),
+	BuildPartInfo(B_FLOOR_TRI, "Triangle Floor", "b_floor_tri", 15),
+	BuildPartInfo(B_ROOF, "Roof", "b_roof", 50),
+	BuildPartInfo(B_STAIRS, "Stairs (U-shape)", "b_stairs", 50),
+	BuildPartInfo(B_STAIRS_L, "Stairs (L-shape)", "b_stairs_l", 50),
+	BuildPartInfo(B_FOUNDATION_STEPS, "Foundation Steps", "b_foundation_steps", 25),
 	
 	BuildPartInfo(B_WOOD_DOOR, "Wood Door", "b_wood_door", 0),
 	BuildPartInfo(B_METAL_DOOR, "Metal Door", "b_metal_door", 0),
@@ -291,6 +299,8 @@ array<BuildPartInfo> g_part_info = {
 	BuildPartInfo(B_FURNACE, "Furnace", "b_furnace", 0),
 	BuildPartInfo(B_BED, "Sleeping Bag", "b_bed", 0),
 	BuildPartInfo(B_FIRE, "Camp Fire", "b_fire", 0),
+	BuildPartInfo(E_BOAT_WOOD, "Wood Boat", "e_boat_wood", 0),
+	BuildPartInfo(E_BOAT_METAL, "Metal Boat", "e_boat_metal", 0),
 	
 	BuildPartInfo(E_SUPPLY_CRATE, "Supply Crate", "e_supply_crate", 0),
 };
@@ -328,6 +338,11 @@ array<Item> g_items = {
 		"Placing this gives you a location to respawn."),
 	Item(I_FIRE, 1, false, false, "b_fire", "", "Camp Fire", RawItem(I_WOOD, 100), null,
 		"Provides light and health regeneration up to 50 HP. Press USE to toggle the fire on/off."),
+		
+	Item(I_BOAT_WOOD, 1, false, false, "e_boat_wood", "", "Wood Boat", RawItem(I_WOOD, 200), null,
+		"Faster than swimming."),
+	Item(I_BOAT_METAL, 1, false, false, "e_boat_metal", "", "Metal Boat", RawItem(I_METAL, 100), RawItem(I_SCRAP, 2),
+		"Tough and speedy."),
 	
 	Item(I_WOOD, 1000, false, false, "", "", "Wood", null, null,
 		"Collected from trees and used to build bases and craft items."),
@@ -568,6 +583,10 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 			buildDist = 96.0f;
 		if (isFloorItem(buildEnt) or buildType == B_FIRE)
 			buildDist = 128.0f;
+			
+		bool buildingBoat = buildType == E_BOAT_WOOD or buildType == E_BOAT_METAL;
+		if (buildingBoat)
+			buildDist = 192.0f;
 		float maxSnapDist = buildDist + 32.0f;
 		TraceResult tr = TraceLook(plr, buildDist);
 		
@@ -577,12 +596,23 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 		float newRot = buildEnt.pev.angles.z;
 		CBaseEntity@ phit = g_EntityFuncs.Instance( tr.pHit );
 		
+		if (buildingBoat)
+			newYaw -= 90;
+		
 		int partSocket = socketType(buildType);
 		bool attaching = false;
 		CBaseEntity@ skipCollide = null;
 		
 		validBuild = false;
-		if (partSocket == -1)
+		if (buildingBoat)
+		{
+			if (g_EngineFuncs.PointContents(tr.vecEndPos) == CONTENTS_WATER)
+			{
+				newOri.z = g_Utility.WaterLevel(tr.vecEndPos, tr.vecEndPos.z, tr.vecEndPos.z + 256) - 12;
+				validBuild = true;
+			}
+		}
+		else if (partSocket == -1)
 		{
 			// place anywhere
 			if (tr.flFraction < 1.0f and (phit.pev.classname == "worldspawn" or isFloorPiece(phit))) {
@@ -1242,7 +1272,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 			validBuild = false;
 		
 		// only allow building in build zones
-		if (!g_build_anywhere)
+		if (!g_build_anywhere and !buildingBoat)
 		{
 			zoneid = getBuildZone(buildEnt);
 			if (zoneid == -1)
@@ -1363,6 +1393,10 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 		CBaseEntity@ attachEnt = h_attachEnt;
 		CBasePlayer@ plr = getPlayer();
 		PlayerState@ state = getPlayerState(plr);
+		
+		
+		bool buildingBoat = buildType == E_BOAT_WOOD or buildType == E_BOAT_METAL;
+		
 		if (buildEnt !is null and forbidden)
 		{
 			g_PlayerFuncs.PrintKeyBindingString(plr, "Building blocked by tool cupboard");
@@ -1388,7 +1422,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 			}
 			if (!g_build_anywhere)
 			{
-				if (zoneid == -1)
+				if (zoneid == -1 and !buildingBoat)
 				{
 					g_PlayerFuncs.PrintKeyBindingString(plr, "Building not allowed in outskirts");
 					return false;
@@ -1412,7 +1446,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 							g_PlayerFuncs.SayText(plr, msg);
 						
 						int previousRaiderParts = state.getNumParts(zoneid);
-						zone.numRaiderParts -= previousRaiderParts; // parts built by this player no longer count as raider parts
+						zone.addRaiderParts(-previousRaiderParts); // parts built by this player no longer count as raider parts
 					}
 					else
 					{
@@ -1421,7 +1455,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 					}
 				}
 				int zonePartTotal = g_invasion_mode ? -1337 : zoneid;
-				if (state.getNumParts(zonePartTotal) >= state.maxPoints(zonePartTotal))
+				if (state.getNumParts(zonePartTotal) >= state.maxPoints(zonePartTotal) and !buildingBoat)
 				{
 					g_PlayerFuncs.PrintKeyBindingString(plr, "You're out of build points!\n\nFuse your parts (Hammer) for more points.");
 					return false;
@@ -1466,7 +1500,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 				}
 				
 				if ((zoneid != state.home_zone and !g_invasion_mode) or g_creative_mode or g_shared_build_points_in_pvp_mode)
-					getBuildZone(zoneid).numRaiderParts++;
+					getBuildZone(zoneid).addRaiderParts(1);
 			}
 		
 			plr.SetAnimation( PLAYER_ATTACK1 );
@@ -1545,11 +1579,14 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 			switch(buildType)
 			{
 				case B_FIRE: 
+				case E_BOAT_WOOD:
 					health = 100; break;
 				case B_BED: 
 				case B_SMALL_CHEST: 
 				case B_WOOD_SHUTTERS:
 					health = 200; break;
+				case E_BOAT_METAL:
+					health = 500; break;
 				case B_WOOD_DOOR: health = 1500; break;
 				case B_METAL_DOOR: health = 3000; break;
 				case B_WOOD_BARS: health = 1500; break;
@@ -1564,6 +1601,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 		
 			Vector origin = buildEnt.pev.origin;				
 			dictionary keys;
+			string buildCname = buildingBoat ? "func_vehicle_custom" : "func_breakable_custom";
 			keys["origin"] = origin.ToString();
 			keys["angles"] = buildEnt.pev.angles.ToString();
 			keys["model"] = brushModel;
@@ -1580,6 +1618,30 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 			keys["parent"] = "" + parent;
 			keys["frame"] = "2";
 			//keys["effects"] = "512";
+			
+			if (buildingBoat)
+			{
+				keys["rendermode"] = "4";
+				keys["renderamt"] = "255";
+				keys["length"] = "280";
+				keys["width"] = "96";
+				keys["height"] = "64";
+				keys["acceleration"] = "0.000001";
+				keys["speed"] = "1000";
+				keys["sounds"] = "2";
+				keys["bank"] = "3";
+				keys["material"] = "0";
+				if (buildType == E_BOAT_METAL)
+				{
+					keys["speed"] = "1500";
+					keys["material"] = "2";
+				}
+				
+				CBaseEntity@ boat = getBoatByOwner(plr);
+				if (boat !is null) {
+					boat.TakeDamage(plr.pev, plr.pev, boat.pev.health, DMG_GENERIC);
+				}
+			}
 				
 			if (buildSocket == SOCKET_DOORWAY or buildType == B_WOOD_SHUTTERS)
 			{
@@ -1623,7 +1685,10 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 			}
 			else
 			{				
-				@ent = g_EntityFuncs.CreateEntity("func_breakable_custom", keys, true);
+				@ent = g_EntityFuncs.CreateEntity(buildCname, keys, true);
+				
+				if (buildingBoat)
+					g_boats.insertLast(EHandle(ent));
 				
 				build_effect(ent.pev.origin);
 				

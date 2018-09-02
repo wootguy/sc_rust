@@ -450,7 +450,7 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 				
 				if( pHit !is null ) 
 				{
-					if (pHit.pev.classname == "func_breakable_custom" or pHit.pev.classname == "func_door_rotating")
+					if (pHit.pev.classname == "func_breakable_custom" or pHit.pev.classname == "func_door_rotating" or pHit.pev.classname == "func_vehicle_custom")
 					{
 						Repair(pHit);
 					}
@@ -872,7 +872,7 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 			state.addPartCount(parts.length() - 1, fuseZone);
 			
 		if (g_creative_mode or g_shared_build_points_in_pvp_mode)
-			getBuildZone(fuseZone).numRaiderParts += parts.length() - 1;
+			getBuildZone(fuseZone).addRaiderParts(parts.length() - 1);
 		
 		// disconnect children
 		for (uint i = 0; i < g_build_parts.size(); i++)
@@ -1040,6 +1040,7 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 						float newAngle = part1.pev.angles.y + 180;
 						part1.pev.effects |= EF_NODRAW;
 						part1.pev.solid = SOLID_NOT;
+						g_EntityFuncs.SetOrigin(part1, part1.pev.origin); // force nonsolid to take effect
 						@part1 = getPartAtPos(part1.pev.origin + g_Engine.v_right*128);
 						if (part1 is null)
 						{
@@ -1180,6 +1181,7 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 					float newAngle = part1.pev.angles.y + 180;
 					part1.pev.effects |= EF_NODRAW;
 					part1.pev.solid = SOLID_NOT;
+					g_EntityFuncs.SetOrigin(part1, part1.pev.origin); // force nonsolid to take effect
 					@part1 = getPartAtPos(part1.pev.origin + g_Engine.v_right*64 + g_Engine.v_forward*36.95);
 					if (part1 is null)
 					{
@@ -1230,6 +1232,7 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 					float newAngle = part1.pev.angles.y;
 					part1.pev.effects |= EF_NODRAW;
 					part1.pev.solid = SOLID_NOT;
+					g_EntityFuncs.SetOrigin(part1, part1.pev.origin); // force nonsolid to take effect
 					@part1 = getPartAtPos(part1.pev.origin + g_Engine.v_right*-128);
 					if (part1 is null)
 					{
@@ -1245,6 +1248,7 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 					float newAngle = part1.pev.angles.y + 60;
 					part1.pev.effects |= EF_NODRAW;
 					part1.pev.solid = SOLID_NOT;
+					g_EntityFuncs.SetOrigin(part1, part1.pev.origin); // force nonsolid to take effect
 					@part1 = getPartAtPos(part1.pev.origin + g_Engine.v_right*64 + g_Engine.v_forward*36.95);
 					if (part1 is null)
 					{
@@ -1419,7 +1423,7 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 				state.addPartCount(-1, fuseZone);
 				
 			if (g_creative_mode or g_shared_build_points_in_pvp_mode)
-				getBuildZone(fuseZone).numRaiderParts -= 1;
+				getBuildZone(fuseZone).addRaiderParts(-1);
 			
 			func_breakable_custom@ b1 = getBuildPartByID(part1.pev.team);
 			int oldParent = b1.parent;
@@ -1428,6 +1432,8 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 			g_EntityFuncs.SetModel(part1, getModelFromName(newModel));
 			part2.pev.effects |= EF_NODRAW;
 			part2.pev.solid = SOLID_NOT;
+			g_EntityFuncs.SetOrigin(part2, part2.pev.origin); // force nonsolid to take effect
+			
 			// set invisible part (and its children) as child of fused part (so they get destroyed properly)
 			for (uint i = 0; i < g_build_parts.size(); i++)
 			{

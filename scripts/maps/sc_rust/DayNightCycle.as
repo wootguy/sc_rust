@@ -58,6 +58,9 @@ class DayNightCycle {
 		CBaseEntity@ sun_dusk = h_sun_dusk;
 		CBaseEntity@ moon = h_moon;
 		
+		if (sun is null or moon is null)
+			return;
+		
 		sun.pev.movetype = sun_dusk.pev.movetype = moon.pev.movetype = MOVETYPE_NOCLIP;
 		
 		sun.pev.angles.z = sun_dusk.pev.angles.z = moon.pev.angles.z = 45;

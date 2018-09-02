@@ -521,7 +521,7 @@ class func_breakable_custom : ScriptBaseEntity
 			} while (ent !is null);
 		}
 		
-		g_Scheduler.SetTimeout("weird_think_bug_workaround", 0.375f, EHandle(self));
+		g_Scheduler.SetTimeout("weird_think_bug_workaround", 0.385f, EHandle(self));
 	}
 	
 	void DoorThink()

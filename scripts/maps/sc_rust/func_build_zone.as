@@ -6,6 +6,12 @@ class BuildZone
 	int id = -1;
 	string name = "???";
 	
+	void addRaiderParts(int amt)
+	{
+		g_global_solids += amt;
+		numRaiderParts += amt;
+	}
+	
 	BuildZone() {}
 	
 	BuildZone(int id, string name)
@@ -105,6 +111,14 @@ class func_build_zone : ScriptBaseEntity
 	
 	void DeleteNullNodes()
 	{
+		for (uint i = 0; i < animals.size(); i++)
+		{
+			if (@animals[i].GetEntity() == null)
+			{
+				animals.removeAt(i);
+				i--;
+			}
+		}
 		for (uint i = 0; i < nodes.size(); i++)
 		{
 			if (@nodes[i].GetEntity() == null)
@@ -173,13 +187,10 @@ class func_build_zone : ScriptBaseEntity
 	bool monstersAreAlive()
 	{
 		DeleteNullNodes();
-		for (uint i = 0; i < nodes.length(); i++)
+		for (uint i = 0; i < animals.length(); i++)
 		{
-			CBaseEntity@ node = nodes[i];
-			if (node.IsMonster() and node.IsAlive())
-			{
+			if (animals[i] and animals[i].GetEntity().IsAlive())
 				return true;
-			}
 		}
 		return false;
 	}
@@ -188,14 +199,12 @@ class func_build_zone : ScriptBaseEntity
 	{
 		DeleteNullNodes();
 		int numRemoved = 0;
-		for (uint i = 0; i < nodes.length(); i++)
+		for (uint i = 0; i < animals.length(); i++)
 		{
-			CBaseEntity@ node = nodes[i];
-			if (node.IsMonster()) {
-				g_EntityFuncs.Remove(node);
-				numRemoved++;
-			}
+			g_EntityFuncs.Remove(animals[i]);
+			numRemoved++;
 		}
+		DeleteNullNodes();
 		return numRemoved;
 	}
 	
@@ -217,6 +226,7 @@ class func_build_zone : ScriptBaseEntity
 			g_EntityFuncs.Remove(node);
 		}
 		nodes.resize(0);
+		animals.resize(0);
 		
 		spawnDelay = 0;
 		nextSpawn = g_Engine.time;
@@ -325,10 +335,10 @@ class func_build_zone : ScriptBaseEntity
 		wave_extra_health = 0;
 		DeleteNullNodes();
 		
-		for (uint i = 0; i < nodes.size(); i++)
+		for (uint i = 0; i < animals.size(); i++)
 		{
-			CBaseEntity@ ent = nodes[i];
-			if (ent.IsMonster() and ent.IsAlive())
+			CBaseEntity@ ent = animals[i];
+			if (ent.IsAlive())
 			{
 				CBaseMonster@ mon = cast<CBaseMonster@>(ent);
 				wave_extra_health += ent.pev.health;
@@ -359,23 +369,17 @@ class func_build_zone : ScriptBaseEntity
 			return;
 		}
 		
-		int numTrees = 0;
-		int numRocks = 0;
-		int numBarrels = 0;
-		int numMonsters = 0;
-		
-		for (uint i = 0; i < nodes.size(); i++)
+		for (uint i = 0; i < animals.size(); i++)
 		{
-			if (!nodes[i].IsValid())
+			if (!animals[i].IsValid())
 			{
-				nodes.removeAt(i);
+				animals.removeAt(i);
 				i--;
 				continue;
 			}
-			CBaseEntity@ node = nodes[i];
-			if (node.IsMonster() and node.IsAlive())
+			CBaseEntity@ node = animals[i];
+			if (node.IsAlive())
 			{
-				numMonsters++;
 				CBaseMonster@ mon = cast<CBaseMonster@>(node);
 				
 				bool isAgro = mon.GetClassification(0) != CLASS_NONE or mon.m_hEnemy.IsValid();
@@ -477,20 +481,35 @@ class func_build_zone : ScriptBaseEntity
 				}
 				*/
 			}
-			else if (node.pev.classname == "func_breakable_custom")
-			{
-				func_breakable_custom@ bnode = cast<func_breakable_custom@>(CastToScriptClass(node));
-				switch(bnode.nodeType)
-				{
-					case NODE_TREE: numTrees++; break;
-					case NODE_ROCK: numRocks++; break;
-					case NODE_BARREL: numBarrels++; break;
-				}
-			}
 		}
 				
 		if (g_Engine.time > nextSpawn or spawning_wave)
 		{
+			int numTrees = 0;
+			int numRocks = 0;
+			int numBarrels = 0;
+			int numMonsters = 0;
+		
+			DeleteNullNodes();
+			for (uint i = 0; i < nodes.size(); i++)
+			{
+				CBaseEntity@ node = nodes[i];
+				if (node.IsMonster() and node.IsAlive())
+				{
+					numMonsters++;
+				}
+				else if (node.pev.classname == "func_breakable_custom")
+				{
+					func_breakable_custom@ bnode = cast<func_breakable_custom@>(CastToScriptClass(node));
+					switch(bnode.nodeType)
+					{
+						case NODE_TREE: numTrees++; break;
+						case NODE_ROCK: numRocks++; break;
+						case NODE_BARREL: numBarrels++; break;
+					}
+				}
+			}
+		
 			array<int> choices;
 			if (numTrees < maxTrees) choices.insertLast(NODE_TREE);
 			if (numRocks < maxRocks) choices.insertLast(NODE_ROCK);
@@ -580,6 +599,7 @@ class func_build_zone : ScriptBaseEntity
 									ent.pev.targetname = "node_xen";
 									ent.pev.armortype = g_Engine.time + 10.0f;
 									nodes.insertLast(EHandle(ent));
+									animals.insertLast(EHandle(ent));
 									if (spawning_wave)
 									{
 										if (ent.pev.classname == "monster_alien_voltigore")

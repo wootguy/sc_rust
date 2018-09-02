@@ -331,6 +331,21 @@ array<EHandle> getPartsByParent(int parent)
 	return ents;
 }
 
+CBaseEntity@ getBoatByOwner(CBasePlayer@ plr)
+{
+	string authid = g_EngineFuncs.GetPlayerAuthId( plr.edict() );
+	string netname = plr.pev.netname;
+		
+	array<EHandle> ents;
+	for (uint i = 0; i < g_boats.size(); i++)
+	{	
+		CBaseEntity@ boat = g_build_parts[i].GetEntity();
+		if (boat !is null and ((authid == boat.pev.noise1 and authid != "STEAM_ID_LAN") or (authid == "STEAM_ID_LAN" and netname == boat.pev.noise2)) ) 
+			return boat;
+	}
+	return null;
+}
+
 string getModelName(CBaseEntity@ part)
 {
 	string name;
