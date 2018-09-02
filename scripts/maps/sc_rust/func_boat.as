@@ -5,6 +5,8 @@
 *	DO NOT ALTER THIS FILE
 */
 
+void te_spritespray(Vector pos, Vector velocity, string sprite="sprites/bubble.spr", uint8 count=8, uint8 speed=16, uint8 noise=255, NetworkMessageDest msgType=MSG_BROADCAST, edict_t@ dest=null) { NetworkMessage m(msgType, NetworkMessages::SVC_TEMPENTITY, dest);m.WriteByte(TE_SPRITE_SPRAY);m.WriteCoord(pos.x);m.WriteCoord(pos.y);m.WriteCoord(pos.z);m.WriteCoord(velocity.x);m.WriteCoord(velocity.y);m.WriteCoord(velocity.z);m.WriteShort(g_EngineFuncs.ModelIndex(sprite));m.WriteByte(count);m.WriteByte(speed);m.WriteByte(noise);m.End(); }
+
 const double VEHICLE_SPEED0_ACCELERATION = 0.005000000000000000;
 const double VEHICLE_SPEED1_ACCELERATION = 0.002142857142857143;
 const double VEHICLE_SPEED2_ACCELERATION = 0.003333333333333334;
@@ -23,7 +25,7 @@ const double VEHICLE_SPEED14_ACCELERATION = 0.001444444444444444;
 
 const int VEHICLE_STARTPITCH = 60;
 const int VEHICLE_MAXPITCH = 200;
-const int VEHICLE_MAXSPEED = 1500;
+const int VEHICLE_MAXSPEED = 2048;
 
 enum FuncVehicleFlags
 {
@@ -32,6 +34,45 @@ enum FuncVehicleFlags
 
 class func_vehicle_custom : ScriptBaseEntity
 {
+	CPathTrack@ m_ppath;
+	float m_length;
+	float m_width;
+	float m_height;
+	float m_speed;
+	float m_dir;
+	float m_startSpeed;
+	Vector m_controlMins;
+	Vector m_controlMaxs;
+	int m_soundPlaying;
+	int m_sounds;
+	float m_acceleration;
+	float m_flVolume;
+	float m_flBank;
+	float m_oldSpeed;
+	int m_iTurnAngle;
+	float m_flSteeringWheelDecay;
+	float m_flAcceleratorDecay;
+	float m_flTurnStartTime;
+	float m_flLaunchTime;
+	float m_flLastNormalZ;
+	float m_flCanTurnNow;
+	float m_flUpdateSound;
+	float ocean_z = 0; // height of the ocean
+	Vector m_vFrontLeft;
+	Vector m_vFront;
+	Vector m_vFrontRight;
+	Vector m_vBackLeft;
+	Vector m_vBack;
+	Vector m_vBackRight;
+	Vector m_vSurfaceNormal;
+	Vector m_vVehicleDirection;
+	Vector controlsCenterOffset;
+	CBasePlayer@ m_pDriver;
+	
+	float lastSpray = 0;
+	bool dead = false;
+	int mat = 0;
+	
 	bool KeyValue( const string& in szKey, const string& in szValue )
 	{
 		if (szKey == "length")
@@ -72,13 +113,12 @@ class func_vehicle_custom : ScriptBaseEntity
 		}
 		else if (szKey == "acceleration")
 		{
-			m_acceleration = atoi(szValue);
-
-			if (m_acceleration < 1)
-				m_acceleration = 1;
-			else if (m_acceleration > 10)
-				m_acceleration = 10;
-
+			m_acceleration = atof(szValue);
+			return true;
+		}
+		else if (szKey == "material")
+		{
+			mat = atoi(szValue);
 			return true;
 		}
 		else
@@ -110,8 +150,8 @@ class func_vehicle_custom : ScriptBaseEntity
 			pevOther.velocity.z += 300;
 			self.pev.velocity = self.pev.velocity * 0.85;
 		}
-
-		g_Game.AlertMessage(at_aiconsole, "TRAIN(%1): Blocked by %2 (dmg:%3)\n", self.pev.targetname, pOther.pev.classname, self.pev.dmg);
+		
+		//g_Game.AlertMessage(at_aiconsole, "TRAIN(%1): Blocked by %2 (dmg:%3)\n", self.pev.targetname, pOther.pev.classname, self.pev.dmg);
 		Math.MakeVectors(self.pev.angles);
 
 		Vector vFrontLeft = (g_Engine.v_forward * -1) * (m_length * 0.5);
@@ -126,7 +166,11 @@ class func_vehicle_custom : ScriptBaseEntity
 		float maxz = self.pev.origin.z + (2 * abs(int(self.pev.mins.z - self.pev.maxs.z)));
 
 		if (pOther.pev.origin.x < minx || pOther.pev.origin.x > maxx || pOther.pev.origin.y < miny || pOther.pev.origin.y > maxy || pOther.pev.origin.z < minz || pOther.pev.origin.z > maxz)
-			pOther.TakeDamage(self.pev, self.pev, 150, DMG_CRUSH);
+		{
+			float giveAmt = Math.min(pOther.pev.health, 100);
+			pOther.TakeDamage(self.pev, self.pev, giveAmt, DMG_CRUSH);
+			TakeDamage(pev, pev, giveAmt, DMG_CRUSH);
+		}
 	}
 
 	void Spawn()
@@ -139,18 +183,22 @@ class func_vehicle_custom : ScriptBaseEntity
 		if (m_sounds == 0)
 			m_sounds = 3;
 
-		g_Game.AlertMessage(at_console, "M_speed = %1\n", m_speed);
+		//g_Game.AlertMessage(at_console, "M_speed = %1\n", m_speed);
 
+		ocean_z = self.pev.origin.z;
+		
+		pev.takedamage = DAMAGE_YES;
+		
 		self.pev.speed = 0;
 		self.pev.velocity = g_vecZero;
 		self.pev.avelocity = g_vecZero;
 		self.pev.impulse = int(m_speed);
-		m_acceleration = 5;
+		//m_acceleration = 5;
 		m_dir = 1;
 		m_flTurnStartTime = -1;
 
-		if( string( self.pev.target ).IsEmpty() )
-			g_Game.AlertMessage(at_console, "Vehicle with no target\n");
+		//if( string( self.pev.target ).IsEmpty() )
+		//	g_Game.AlertMessage(at_console, "Vehicle with no target\n");
 
 		/*
 		if (self.pev.spawnflags & SF_TRACKTRAIN_PASSABLE)
@@ -179,9 +227,53 @@ class func_vehicle_custom : ScriptBaseEntity
 		Precache();
 	}
 
+	int TakeDamage( entvars_t@ pevInflictor, entvars_t@ pevAttacker, float flDamage, int bitsDamageType )
+	{
+		if (dead)
+			return 0;
+			
+		if (bitsDamageType != DMG_BURN)
+			pev.health -= flDamage;
+			
+		if (pev.health <= 0)
+		{
+			dead = true;
+			StopSound();
+			
+			string sound = g_materials[mat].breakSounds[ Math.RandomLong(0, g_materials[mat].breakSounds.length()-1) ];
+			g_SoundSystem.PlaySound(self.edict(), CHAN_ITEM, fixPath(sound), 1.0f, 0.4f, 0, Math.RandomLong(85, 115));
+			
+			Vector center = getCentroid(self);
+			Vector mins = self.pev.mins;
+			if (isFoundation(self))
+			{
+				mins.z = -8;
+				center = self.pev.origin;
+			}
+			Math.MakeVectors(self.pev.angles);
+			Vector forward = (g_Engine.v_forward * -1) * (m_length * 0.3);
+			Vector up = g_Engine.v_up * 64;
+			m_vBack = self.pev.origin - forward + up;
+			
+			te_breakmodel(center, self.pev.maxs - mins, Vector(0,0,0), 4, g_materials[mat].gibs, 8, 0, g_materials[mat].gibsnd);
+			g_EntityFuncs.CreateExplosion(m_vBack, Vector(0,0,0), self.edict(), 120, false);
+			
+			
+			g_EntityFuncs.Remove(self);
+		}
+		else
+		{
+			float dmgVolume = bitsDamageType & DMG_BURN != 0 ? 0.0f : 0.8f;
+			string sound = g_materials[mat].hitSounds[ Math.RandomLong(0, g_materials[mat].hitSounds.length()-1) ];
+			g_SoundSystem.PlaySound(self.edict(), CHAN_ITEM, fixPath(sound), dmgVolume, 0.4f, 0, Math.RandomLong(90, 110));
+		}
+		
+		return 0;
+	}
+	
 	void Restart()
 	{
-		g_Game.AlertMessage(at_console, "M_speed = %1\n", m_speed);
+		//g_Game.AlertMessage(at_console, "M_speed = %1\n", m_speed);
 
 		self.pev.speed = 0;
 		self.pev.velocity = g_vecZero;
@@ -243,11 +335,17 @@ class func_vehicle_custom : ScriptBaseEntity
 				SetThink(null);
 			}
 		}
-
+		
 		if (delta < 10)
 		{
 			if (delta < 0 && self.pev.speed > 145)
 				StopSound();
+				
+			if (delta > 0 and g_Engine.time - lastSpray > 0.05f)
+			{
+				lastSpray = g_Engine.time;
+				te_spritespray(m_vBack + Vector(0,0,16) - g_Engine.v_forward*48, Vector(0,0,1), "sprites/wep_smoke_01.spr", 1, 64, 32);
+			}
 
 			float flSpeedRatio = delta;
 
@@ -438,21 +536,37 @@ class func_vehicle_custom : ScriptBaseEntity
 			self.pev.speed -= m_speed * 0.1;
 	}
 	
+	bool ImpactDamage(CBaseEntity@ other, float speed)
+	{
+		float damage = (abs(speed)*0.05f);
+		if (damage < 10)
+			return false;
+		damage = other.pev.takedamage == DAMAGE_YES ? Math.min(other.pev.health, damage) : damage;
+		other.TakeDamage(pev, pev, damage*2, DMG_CRUSH);
+		TakeDamage(pev, pev, damage, DMG_CRUSH);
+		println("DAMAGE " + damage);
+		return other.pev.health <= 0 and other.pev.takedamage == DAMAGE_YES;
+	}
+	
 	void CollisionDetection()
 	{
 		TraceResult tr;
 		Vector vecStart, vecEnd;
 		float flDot;
 
+		Vector forward = g_Engine.v_forward;
+		forward.z = 0;
+		forward = forward.Normalize();
+		
 		if (self.pev.speed < 0)
 		{
 			vecStart = m_vBackLeft;
-			vecEnd = vecStart + (g_Engine.v_forward * 16);
+			vecEnd = vecStart + (forward * 16);
 			g_Utility.TraceLine(vecStart, vecEnd, ignore_monsters, dont_ignore_glass, self.edict(), tr);
 
 			if (tr.flFraction != 1)
 			{
-				flDot = DotProduct(g_Engine.v_forward, tr.vecPlaneNormal * -1);
+				flDot = DotProduct(forward, tr.vecPlaneNormal * -1);
 
 				if (flDot < 0.7 && tr.vecPlaneNormal.z < 0.1)
 				{
@@ -461,7 +575,11 @@ class func_vehicle_custom : ScriptBaseEntity
 					self.pev.speed *= 0.99;
 				}
 				else if (tr.vecPlaneNormal.z < 0.65 || tr.fStartSolid != 0)
-					self.pev.speed *= -1;
+				{
+					CBaseEntity@ other = g_EntityFuncs.Instance( tr.pHit );
+					if (!ImpactDamage(other, self.pev.speed))
+						self.pev.speed *= -0.1;
+				}
 				else
 					m_vSurfaceNormal = tr.vecPlaneNormal;
 
@@ -474,55 +592,38 @@ class func_vehicle_custom : ScriptBaseEntity
 			}
 
 			vecStart = m_vBackRight;
-			vecEnd = vecStart + (g_Engine.v_forward * 16);
+			vecEnd = vecStart + (forward * 16);
 			g_Utility.TraceLine(vecStart, vecEnd, ignore_monsters, dont_ignore_glass, self.edict(), tr);
 
 			if (tr.flFraction == 1)
 			{
 				vecStart = m_vBack;
-				vecEnd = vecStart + (g_Engine.v_forward * 16);
+				vecEnd = vecStart + (forward * 16);
 				g_Utility.TraceLine(vecStart, vecEnd, ignore_monsters, dont_ignore_glass, self.edict(), tr);
 
 				if (tr.flFraction == 1)
 					return;
 			}
-
-			flDot = DotProduct(g_Engine.v_forward, tr.vecPlaneNormal * -1);
-
-			if (flDot >= 0.7)
-			{
-				if (tr.vecPlaneNormal.z < 0.65 || tr.fStartSolid != 0)
-					self.pev.speed *= -1;
-				else
-					m_vSurfaceNormal = tr.vecPlaneNormal;
-			}
-			else if (tr.vecPlaneNormal.z < 0.1)
-			{
-				m_vSurfaceNormal = tr.vecPlaneNormal;
-				m_vSurfaceNormal.z = 0;
-				self.pev.speed *= 0.99;
-			}
-			else if (tr.vecPlaneNormal.z < 0.65 || tr.fStartSolid != 0)
-				self.pev.speed *= -1;
-			else
-				m_vSurfaceNormal = tr.vecPlaneNormal;
+			CBaseEntity@ other = g_EntityFuncs.Instance( tr.pHit );
+			if (!ImpactDamage(other, self.pev.speed))
+				self.pev.speed *= -0.1f;
 		}
 		else if (self.pev.speed > 0)
 		{
 			vecStart = m_vFrontRight;
-			vecEnd = vecStart - (g_Engine.v_forward * 16);
+			vecEnd = vecStart - (forward * 16);
 			g_Utility.TraceLine(vecStart, vecEnd, dont_ignore_monsters, dont_ignore_glass, self.edict(), tr);
 
 			if (tr.flFraction == 1)
 			{
 				vecStart = m_vFrontLeft;
-				vecEnd = vecStart - (g_Engine.v_forward * 16);
+				vecEnd = vecStart - (forward * 16);
 				g_Utility.TraceLine(vecStart, vecEnd, ignore_monsters, dont_ignore_glass, self.edict(), tr);
 
 				if (tr.flFraction == 1)
 				{
 					vecStart = m_vFront;
-					vecEnd = vecStart - (g_Engine.v_forward * 16);
+					vecEnd = vecStart - (forward * 16);
 					g_Utility.TraceLine(vecStart, vecEnd, ignore_monsters, dont_ignore_glass, self.edict(), tr);
 
 					if (tr.flFraction == 1)
@@ -530,39 +631,23 @@ class func_vehicle_custom : ScriptBaseEntity
 				}
 			}
 
-			flDot = DotProduct(g_Engine.v_forward, tr.vecPlaneNormal * -1);
-
-			if (flDot <= -0.7)
-			{
-				if (tr.vecPlaneNormal.z < 0.65 || tr.fStartSolid != 0)
-					self.pev.speed *= -1;
-				else
-					m_vSurfaceNormal = tr.vecPlaneNormal;
-			}
-			else if (tr.vecPlaneNormal.z < 0.1)
-			{
-				m_vSurfaceNormal = tr.vecPlaneNormal;
-				m_vSurfaceNormal.z = 0;
-				self.pev.speed *= 0.99;
-			}
-			else if (tr.vecPlaneNormal.z < 0.65 || tr.fStartSolid != 0)
-				self.pev.speed *= -1;
-			else
-				m_vSurfaceNormal = tr.vecPlaneNormal;
+			CBaseEntity@ other = g_EntityFuncs.Instance( tr.pHit );
+			if (!ImpactDamage(other, self.pev.speed))
+				self.pev.speed *= -0.1f;
 		}
 	}
 
 	void TerrainFollowing()
-	{
+	{		
 		TraceResult tr;
 		g_Utility.TraceLine(self.pev.origin, self.pev.origin + Vector(0, 0, (m_height + 48) * -1), ignore_monsters, dont_ignore_glass, self.edict(), tr);
 
 		if (tr.flFraction != 1)
 			m_vSurfaceNormal = tr.vecPlaneNormal;
-		else if( tr.fInWater != 0 )
+		else if( tr.fInWater != 0 or tr.vecEndPos.z < -2048 )
 			m_vSurfaceNormal = Vector(0, 0, 1);
 	}
-
+	
 	void Next()
 	{
 		Vector vGravityVector = g_vecZero;
@@ -580,6 +665,23 @@ class func_vehicle_custom : ScriptBaseEntity
 		m_vBack = self.pev.origin - forward + up;
 		m_vSurfaceNormal = g_vecZero;
 
+		// boat rotates a lot but doesn't climb anything so collision should be flat
+		m_vFrontRight.z -= (self.pev.origin.z - ocean_z);
+		m_vFrontLeft.z -= (self.pev.origin.z - ocean_z);
+		m_vFront.z -= (self.pev.origin.z - ocean_z);
+		m_vBackLeft.z -= (self.pev.origin.z - ocean_z);
+		m_vBackRight.z -= (self.pev.origin.z - ocean_z);
+		m_vBack.z -= (self.pev.origin.z - ocean_z);
+		
+		m_vFront.z -= 24;
+		m_vBack.z -= 24;
+		
+		if (g_EngineFuncs.PointContents(self.pev.origin + controlsCenterOffset) == CONTENTS_SOLID)
+		{
+			TakeDamage(pev, pev, pev.health, DMG_GENERIC);
+			return;
+		}
+		
 		CheckTurning();
 
 		if (g_Engine.time > m_flSteeringWheelDecay)
@@ -596,16 +698,16 @@ class func_vehicle_custom : ScriptBaseEntity
 		{
 			if (self.pev.speed < 0)
 			{
-				self.pev.speed += 20;
+				self.pev.speed *= 0.98f;
 
-				if (self.pev.speed > 0)
+				if (self.pev.speed > -16)
 					self.pev.speed = 0;
 			}
 			else if (self.pev.speed > 0)
 			{
-				self.pev.speed -= 20;
+				self.pev.speed *= 0.98f;
 
-				if (self.pev.speed < 0)
+				if (self.pev.speed < 16)
 					self.pev.speed = 0;
 			}
 		}
@@ -629,6 +731,8 @@ class func_vehicle_custom : ScriptBaseEntity
 
 		TerrainFollowing();
 		CollisionDetection();
+		
+		m_vSurfaceNormal = Vector(0,0,1);
 
 		if (m_vSurfaceNormal == g_vecZero)
 		{
@@ -656,15 +760,37 @@ class func_vehicle_custom : ScriptBaseEntity
 
 			Vector angles = Math.VecToAngles(m_vVehicleDirection);
 			angles.y += 180;
+			
+			float planing_speed = m_speed * 0.35f;
+			float accel_angle = 10;
+			float planing_angle = 5;
+			if (self.pev.speed > 0)
+			{
+				if (self.pev.speed < planing_speed)
+					angles.x += (self.pev.speed/planing_speed)*accel_angle;
+				else if (self.pev.speed < planing_speed*2.0f)
+				{
+					float t = (planing_speed - (self.pev.speed-planing_speed))/planing_speed;
+					angles.x += accel_angle - (1.0f-t)*planing_angle;
+				}
+				else if (self.pev.speed > 0)
+					angles.x += planing_angle;
+					
+				angles.x += abs(m_iTurnAngle)*planing_angle*0.1f;
+			}
 
 			if (m_iTurnAngle != 0)
+			{
 				angles.y += m_iTurnAngle;
+				angles.z += m_iTurnAngle*(self.pev.speed > 0 ? m_flBank : -m_flBank);
+			}
 
 			angles = FixupAngles(angles);
 			self.pev.angles = FixupAngles(self.pev.angles);
 
 			float vx = Math.AngleDistance(angles.x, self.pev.angles.x);
 			float vy = Math.AngleDistance(angles.y, self.pev.angles.y);
+			float vz = Math.AngleDistance(angles.z, self.pev.angles.z);
 
 			if (vx > 10)
 				vx = 10;
@@ -675,9 +801,15 @@ class func_vehicle_custom : ScriptBaseEntity
 				vy = 10;
 			else if (vy < -10)
 				vy = -10;
+				
+			if (vz > 10)
+				vz = 10;
+			else if (vz < -10)
+				vz = -10;
 
 			self.pev.avelocity.y = int(vy * 10);
 			self.pev.avelocity.x = int(vx * 10);
+			self.pev.avelocity.z = int(vz * 10);
 			m_flLaunchTime = -1;
 			m_flLastNormalZ = m_vSurfaceNormal.z;
 		}
@@ -692,11 +824,24 @@ class func_vehicle_custom : ScriptBaseEntity
 		}
 		*/
 
+		
+		
 		if (m_vSurfaceNormal == g_vecZero)
 			self.pev.velocity = self.pev.velocity + vGravityVector;
 		else
 			self.pev.velocity = m_vVehicleDirection.Normalize() * self.pev.speed;
-
+			
+			
+		float twist = self.pev.angles.z > 180 ? self.pev.angles.z - 360 : self.pev.angles.z;
+		float targetZ = ocean_z + abs(self.pev.angles.x)*2 + abs(twist)*0.5f;
+		self.pev.velocity.z = (targetZ - self.pev.origin.z)*32;
+		if (self.pev.velocity.z > 512.0f)
+			self.pev.velocity.z = 512;
+		else if (self.pev.velocity.z < -512.0f)
+			self.pev.velocity.z = -512;
+		else if (abs(self.pev.velocity.z) < 1.0f)
+			self.pev.velocity.z = 0;
+		
 		SetThink(ThinkFunction(this.Next));
 		NextThink(self.pev.ltime + 0.1, true);
 	}
@@ -793,6 +938,8 @@ class func_vehicle_custom : ScriptBaseEntity
 		Vector offset = pevControls.origin - self.pev.oldorigin;
 		m_controlMins = pevControls.mins + offset;
 		m_controlMaxs = pevControls.maxs + offset;
+		
+		controlsCenterOffset = (pevControls.absmin + (pevControls.absmax - pevControls.absmin)*0.5f) - pev.origin;
 	}
 
 	bool OnControls(entvars_t@ pevTest)
@@ -865,39 +1012,6 @@ class func_vehicle_custom : ScriptBaseEntity
 		if( pDriver !is null )
 			g_SoundSystem.EmitSoundDyn( self.edict(), CHAN_ITEM, "plats/vehicle_ignition.wav", 0.8, ATTN_NORM, 0, PITCH_NORM );
 	}
-
-	CPathTrack@ m_ppath;
-	float m_length;
-	float m_width;
-	float m_height;
-	float m_speed;
-	float m_dir;
-	float m_startSpeed;
-	Vector m_controlMins;
-	Vector m_controlMaxs;
-	int m_soundPlaying;
-	int m_sounds;
-	int m_acceleration;
-	float m_flVolume;
-	float m_flBank;
-	float m_oldSpeed;
-	int m_iTurnAngle;
-	float m_flSteeringWheelDecay;
-	float m_flAcceleratorDecay;
-	float m_flTurnStartTime;
-	float m_flLaunchTime;
-	float m_flLastNormalZ;
-	float m_flCanTurnNow;
-	float m_flUpdateSound;
-	Vector m_vFrontLeft;
-	Vector m_vFront;
-	Vector m_vFrontRight;
-	Vector m_vBackLeft;
-	Vector m_vBack;
-	Vector m_vBackRight;
-	Vector m_vSurfaceNormal;
-	Vector m_vVehicleDirection;
-	CBasePlayer@ m_pDriver;
 }
 
 const string VEHICLE_RC_EHANDLE_KEY = "VEHICLE_RC_EHANDLE_KEY"; //Key into player user data used to keep track of vehicle RC state
@@ -1384,7 +1498,7 @@ HookReturnCode VehicleClientSay( SayParameters@ pParams )
 				}
 				else if( pArguments[ 0 ] == "vehicle_accel" )
 				{
-					pVehicle.m_acceleration = int(flNewValue);
+					pVehicle.m_acceleration = float(flNewValue);
 					g_Game.AlertMessage( at_console, "changing acceleration to %1\n", flNewValue );
 					
 					fHandled = true;
