@@ -18,13 +18,9 @@
 // nobody voted shown when people voted
 // 400+ built parts on twlz
 // auto save plz
-// getting frozen in certain areas (only seen this in twlz so far)
 // remove ladders cuz freezing :'<
 // mp_decals 2 message :<
-// can place roof on ground
-// HUD map would be nice
-// update zone names
-// prevent repairing when recently attacked
+// remove beta prefix from assets
 
 // Should do/fix but too lazy:
 // crashing/leaving players leave unusable items and sometimes duplicate player states
@@ -62,11 +58,8 @@
 // distant explosion sounds
 // houndeye doesn't always stop attacking
 // allow dropping weapons, but convert to an item with the same model(?)
-// map screen
 // blue blood sniper
-// baby garg wasn't getting killed by bow
 // flesh doesn't spawn where monsters die depending on death animation
-// monsters attack each other if only one is agro
 // still firing flamethrower (animation)
 // hatchet and other tools mb are still too loud
 // sniper doesn't zoom in after 
@@ -97,20 +90,21 @@ float g_item_time = 30.0f; // time (in seconds) before items despawn
 float g_supply_time = 150.0f; // time (in seconds) before air drop crate disappears
 float g_revive_time = 5.0f; // time needed to revive player holding USE
 float g_airdrop_min_delay = 10.0f; // time (in minutes) between airdrops
-float g_airdrop_max_delay = 20.0f; // time (in minutes) between airdrops
+float g_airdrop_max_delay = 15.0f; // time (in minutes) between airdrops
 float g_airdrop_first_delay = 15.0f; // time (in minutes) before the FIRST airdrop
-float g_node_spawn_time = 60.0f; // time (in seconds) between node spawns
+float g_node_spawn_time = 20.0f; // time (in seconds) between node spawns
 float g_chest_touch_dist = 96; // maximum distance from which a chest can be opened
 float g_gather_multiplier = 2.0f; // resource gather amount multiplied by this (for faster/slower games)
+float g_repair_time = 10.0f; // don't allow repairing parts that are under attack, until this amount of time has passed
 float g_monster_forget_time = 6.0f; // time it takes for a monster to calm down after not seeing any players
-int g_max_zone_monsters = 3;
+int g_max_zone_monsters = 10;
 uint NODES_PER_ZONE = 64;
 float g_xen_agro_dist = 300.0f;
 
 float g_apache_forget_time = 30.0f; // seconds it takes for an apache to forget a player had guns
 float g_apache_roam_time = 15.0f; // minutes until the apache flies back out to sea
 float g_apache_min_delay = 10.0f; // time (in minutes) between apache spawns
-float g_apache_max_delay = 20.0f; // time (in minutes) between apache spawns
+float g_apache_max_delay = 15.0f; // time (in minutes) between apache spawns
 float g_apache_first_delay = 20.0f; // time (in minutes) between apache spawns
 
 bool g_shared_build_points_in_pvp_mode = true; // cool var name
@@ -207,14 +201,11 @@ class ZoneInfo
 	string getZoneName(int zoneid)
 	{
 		switch(zoneid) {
-			case 1: return "Bay";
-			case 2: return "Forest";
-			case 3: return "Lake";
-			case 4: return "Dunes";
-			case 5: return "Snow";
-			case 6: return "Hill";
-			case 7: return "River";
-			case 8: return "Beach";
+			case 1: return "Dune";
+			case 2: return "Bay";
+			case 3: return "Canyon";
+			case 4: return "Mountain";
+			case 5: return "Middle";
 		}
 		return zoneid;
 	}
@@ -355,6 +346,10 @@ class PlayerState
 	bool inGame = true;
 	float lastDangerous = 0; // last time this player was dangerous (had guns)
 	float lastFireHeal = 0; // prevent fire heal stacking
+	int map_mode = 1;
+	int map_size = 0;
+	bool map_enabled = false;
+	bool map_update = true;
 	
 	uint64 tips = 0; // bitfield for shown tips
 	
@@ -517,14 +512,17 @@ class PlayerState
 
 	void addPart(CBaseEntity@ part, int zoneid)
 	{
+		part.pev.noise1 = g_EngineFuncs.GetPlayerAuthId( plr.GetEntity().edict() );
+		part.pev.noise2 = plr.GetEntity().pev.netname;
+		
+		if (part.pev.classname == "func_vehicle_custom")
+			return;
+		
 		int count = 0;
 		if (zoneParts.exists(zoneid))
 			zoneParts.get(zoneid, count);
 		count++;
 		zoneParts[zoneid] = count;
-		
-		part.pev.noise1 = g_EngineFuncs.GetPlayerAuthId( plr.GetEntity().edict() );
-		part.pev.noise2 = plr.GetEntity().pev.netname;
 		
 		if (team !is null and zoneid == team.home_zone)
 			team.numParts++;
@@ -927,6 +925,8 @@ void MapInit()
 	PrecacheModel("models/sc_rust/w_c4.mdl");
 	PrecacheModel("models/sc_rust/b17.mdl");
 	PrecacheModel("models/sc_rust/parachute.mdl");
+	PrecacheModel("sprites/sc_rust/map_b6.spr");
+	PrecacheModel("sprites/sc_rust/map_plr.spr");
 	
 	for (uint i = 0; i < g_material_damage_sounds.length(); i++)
 		for (uint k = 0; k < g_material_damage_sounds[i].length(); k++)
@@ -1128,6 +1128,25 @@ void MapActivate()
 	} 
 	else 
 		println("ERROR: air_drop_height entity is missing. Planes will spawn at the wrong height.");
+	
+	CBaseEntity@ heli_height = g_EntityFuncs.FindEntityByTargetname(null, "apache_height");
+	if (heli_height !is null)
+	{
+		g_apache_height = heli_height.pev.origin.z;
+		g_EntityFuncs.Remove(heli_height);
+	} 
+	else 
+		println("ERROR: apache_height entity is missing. Apaches will spawn at the wrong height and crash into mountains.");
+	
+	@ent = null;
+	do {
+		@ent = g_EntityFuncs.FindEntityByTargetname(ent, "zone_clip");
+		if (ent !is null)
+		{
+			ent.pev.solid = SOLID_NOT;
+			ent.pev.effects |= EF_NODRAW;
+		}
+	} while (ent !is null);
 	
 	day_night_cycle = DayNightCycle("sun", "sun2", "moon", "sky_mid", "sky_dawn", "sky_night");
 	
@@ -1343,7 +1362,7 @@ void startGame()
 	g_Scheduler.SetTimeout("spawn_airdrop", g_airdrop_first_delay*60);
 	if (!g_invasion_mode)
 		g_Scheduler.SetTimeout("spawn_heli", g_apache_first_delay*60);
-	g_Scheduler.SetInterval("inventoryCheck", 0.1);
+	g_Scheduler.SetInterval("inventoryCheck", 0.05);
 	g_Scheduler.SetInterval("cleanup_map", 60);
 	g_Scheduler.SetTimeout("showGameModeTip", 3);
 	game_started = true;
@@ -1401,6 +1420,17 @@ void setupInvasionMode()
 	
 	g_zone_info.init();
 	g_EntityFuncs.FireTargets("zone_clip", null, null, USE_TOGGLE);
+	
+	CBaseEntity@ ent = null;
+	do {
+		@ent = g_EntityFuncs.FindEntityByTargetname(ent, "zone_clip");
+		if (ent !is null)
+		{
+			ent.pev.solid = SOLID_BSP;
+			ent.pev.effects &= ~EF_NODRAW;
+		}
+	} while (ent !is null);
+	
 	int rand = Math.RandomLong(0, g_build_zone_ents.size()-1);
 	CBaseEntity@ randomZoneEnt = g_build_zone_ents[rand];
 	func_build_zone@ randomZone = cast<func_build_zone@>(CastToScriptClass(randomZoneEnt));
@@ -1416,7 +1446,7 @@ void setupInvasionMode()
 			zone.Disable();
 	}
 	
-	CBaseEntity@ ent = null;
+	@ent = null;
 	do {
 		@ent = g_EntityFuncs.FindEntityByTargetname(ent, "zone_spawn");
 		if (ent !is null)
@@ -1627,15 +1657,24 @@ void spawnInvasionWave()
 
 void dropNodes()
 {
+	CBaseEntity@ ent = null;
+	do {
+		@ent = g_EntityFuncs.FindEntityByTargetname(ent, "wawa*");
+		if (ent !is null)
+		{
+			g_EntityFuncs.SetOrigin(ent, Vector(0,0,8192));
+		}
+	} while (ent !is null);
+	
 	// place nodes on the ground (they're in the sky cause i'm too lazy to do this myself)
 	int count = 0;
-	CBaseEntity@ ent = null;
+	@ent = null;
 	do {
 		@ent = g_EntityFuncs.FindEntityByTargetname(ent, "node_pos");
 		if (ent !is null) {
 			TraceResult tr;
 			g_Utility.TraceLine( ent.pev.origin, ent.pev.origin + Vector(0,0,-8192), ignore_monsters, null, tr );
-			Vector nodePos = tr.vecEndPos + Vector(0,0,1);
+			Vector nodePos = tr.vecEndPos + Vector(0,0,64);
 			g_EntityFuncs.SetOrigin(ent, nodePos);
 			
 			/*
@@ -1664,7 +1703,22 @@ void dropNodes()
 		}
 	} while (ent !is null);
 	
+	
+	g_Scheduler.SetTimeout("dropWater", 3);
+	
 	//println("Dropped " + count + " nodes");
+}
+
+void dropWater()
+{
+	CBaseEntity@ ent = null;
+	do {
+		@ent = g_EntityFuncs.FindEntityByTargetname(ent, "wawa*");
+		if (ent !is null)
+		{
+			g_EntityFuncs.SetOrigin(ent, Vector(0,0,0));
+		}
+	} while (ent !is null);
 }
 
 void removeExtraEnts()
@@ -1734,6 +1788,8 @@ void monster_killed(CBaseEntity@ pActivator, CBaseEntity@ pCaller, USE_TYPE useT
 {	
 	if (pCaller.pev.classname == "monster_apache")
 		heli_die(pCaller);
+	else
+		monster_node(EHandle(pCaller));
 }
 
 void equipPlayer(CBasePlayer@ plr)

@@ -407,27 +407,36 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 		CBasePlayer@ plr = getPlayer();
 		if (ent.pev.health < ent.pev.max_health)
 		{
-			float healAmt = Math.min(ent.pev.max_health*0.2f, ent.pev.max_health - ent.pev.health);
-			float ratio = healAmt / ent.pev.max_health;
-			
-			int mat = getMaterialTypeInt(ent);
-			
-			RawItem cost = getUpgradeCost(mat, ent);
-			cost.amt = Math.max(1, int(cost.amt*ratio + 0.5f));
-			
-			if (g_free_build or getItemCount(plr, cost.type, true, true) >= cost.amt)
+			float healTime = g_Engine.time - ent.pev.teleport_time;
+			if (healTime < g_repair_time)
 			{
-				if (!g_free_build)
-				{
-					giveItem(plr, cost.type, -cost.amt);
-					printItemCost(plr, cost.type, -cost.amt, 0);
-				}
-				ent.pev.health += healAmt;
-				g_SoundSystem.PlaySound(plr.edict(), CHAN_ITEM, fixPath(getRandomSound(upgradeWoodSounds)), 1.0f, 1.0f, 0, 90 + Math.RandomLong(0, 20));
+				healTime = g_repair_time - healTime;
+				g_PlayerFuncs.PrintKeyBindingString(plr, "Wait " + format_float(healTime) + " seconds");
 			}
 			else
 			{
-				g_PlayerFuncs.PrintKeyBindingString(plr, "You need more " + g_items[cost.type].title);
+				float healAmt = Math.min(ent.pev.max_health*0.2f, ent.pev.max_health - ent.pev.health);
+				float ratio = healAmt / ent.pev.max_health;
+				
+				int mat = getMaterialTypeInt(ent);
+				
+				RawItem cost = getUpgradeCost(mat, ent);
+				cost.amt = Math.max(1, int(cost.amt*ratio + 0.5f));
+				
+				if (g_free_build or getItemCount(plr, cost.type, true, true) >= cost.amt)
+				{
+					if (!g_free_build)
+					{
+						giveItem(plr, cost.type, -cost.amt);
+						printItemCost(plr, cost.type, -cost.amt, 0);
+					}
+					ent.pev.health += healAmt;
+					g_SoundSystem.PlaySound(plr.edict(), CHAN_ITEM, fixPath(getRandomSound(upgradeWoodSounds)), 1.0f, 1.0f, 0, 90 + Math.RandomLong(0, 20));
+				}
+				else
+				{
+					g_PlayerFuncs.PrintKeyBindingString(plr, "You need more " + g_items[cost.type].title);
+				}
 			}
 		}
 		g_SoundSystem.PlaySound(plr.edict(), lastChannel, fixPath(getRandomSound(repairWoodSounds)), 1.0f, 1.0f, 0, 90 + Math.RandomLong(0, 20));

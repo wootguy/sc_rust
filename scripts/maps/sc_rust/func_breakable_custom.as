@@ -240,7 +240,10 @@ class func_breakable_custom : ScriptBaseEntity
 		}
 		else if (isAirdrop)
 		{
-			g_Scheduler.SetTimeout("weird_think_bug_workaround", 0.0f, EHandle(self));
+			deathTime = g_Engine.time + g_supply_time;
+			SetThink( ThinkFunction( AirdropThink ) );
+			pev.nextthink = g_Engine.time;
+			g_Scheduler.SetTimeout("weird_think_bug_workaround", 0.0f, EHandle(self)); // just in case
 		}
 		else if (isFire)
 		{
@@ -453,6 +456,7 @@ class func_breakable_custom : ScriptBaseEntity
 		if (g_Engine.time > deathTime)
 			Destroy();
 		
+		pev.nextthink = g_Engine.time;
 		g_Scheduler.SetTimeout("weird_think_bug_workaround", 0.1, EHandle(self));
 	}
 	
@@ -942,6 +946,20 @@ class func_breakable_custom : ScriptBaseEntity
 		}
 		
 		pev.health -= flDamage;
+		
+		if (flDamage > 0)
+		{
+			bool attackingOwnPart = false;
+			if (pevAttacker !is null and pevAttacker.classname == "player")
+			{
+				PlayerState@ state = getPlayerStateBySteamID(pev.noise1, pev.noise2);
+				CBaseEntity@ attacker = g_EntityFuncs.Instance( pevAttacker.get_pContainingEntity() );
+				if (attacker !is null and state !is null and state.plr.IsValid() and state.plr.GetEntity().entindex() == attacker.entindex())
+					attackingOwnPart = true;
+			}
+			if (!attackingOwnPart)
+				pev.teleport_time = g_Engine.time;
+		}
 		
 		BMaterial@ material = getMaterial();
 		float attn = 0.4f;

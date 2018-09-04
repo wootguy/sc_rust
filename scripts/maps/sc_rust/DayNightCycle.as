@@ -64,7 +64,7 @@ class DayNightCycle {
 		sun.pev.movetype = sun_dusk.pev.movetype = moon.pev.movetype = MOVETYPE_NOCLIP;
 		
 		sun.pev.angles.z = sun_dusk.pev.angles.z = moon.pev.angles.z = 45;
-		sun.pev.avelocity.z = sun_dusk.pev.avelocity.z = moon.pev.avelocity.z = -5;
+		sun.pev.avelocity.z = sun_dusk.pev.avelocity.z = moon.pev.avelocity.z = -1;
 		
 		moon.pev.renderamt = 255;
 		

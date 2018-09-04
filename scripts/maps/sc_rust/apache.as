@@ -6,7 +6,10 @@ void heli_think(EHandle h_heli)
 	CBaseEntity@ target = g_EntityFuncs.FindEntityByTargetname(null, heli.pev.target);
 	
 	if (heli is null or target is null)
+	{
+		g_Scheduler.SetTimeout("spawn_heli", Math.RandomFloat(g_apache_min_delay, g_apache_max_delay)*60);
 		return;
+	}
 	
 	CBaseEntity@ enemy = heli.m_hEnemy;
 	
@@ -60,6 +63,25 @@ void heli_think(EHandle h_heli)
 		}
 		readyToMove = false;
 	}
+	else if (enemy !is null and target.pev.colormap == 0) // just found a target
+	{
+		readyToMove = true;
+		//println("Found a target!");
+		
+		dictionary keys;
+		keys["targetname"] = "heli_path" + g_heli_idx++;
+		keys["origin"] = target.pev.origin.ToString();
+		CBaseEntity@ path = g_EntityFuncs.CreateEntity("path_corner", keys, true);
+		
+		g_EntityFuncs.Remove(target);
+		heli.pev.target = path.pev.targetname;
+		@target = @path;
+	}
+	
+	if (enemy is null)
+	{
+		target.pev.colormap = 0;
+	}
 	
 	if (readyToMove)
 	{
@@ -80,14 +102,25 @@ void heli_think(EHandle h_heli)
 				if (tr.flFraction >= 1.0f)
 				{
 					canMove = true;
+					target.pev.colormap = 1;
 					break;
 				}
 			}
 			
-			// prevent running into the ground when moving across cliffs
+			// prevent running into the ground or mountains
 			TraceResult tr;
 			g_Utility.TraceLine( oldOri, oldOri + Vector(0,0,-65536), ignore_monsters, heli.edict(), tr );
 			target.pev.origin.z = Math.max(target.pev.origin.z, tr.vecEndPos.z);
+			
+			Vector belowPos = heli.pev.origin;
+			belowPos.z = target.pev.origin.z;
+			g_Utility.TraceLine(belowPos, target.pev.origin, ignore_monsters, heli.edict(), tr );
+			if (tr.flFraction < 1.0f)
+			{
+				// don't move down, we'll run into something
+				target.pev.origin.z = heli.pev.origin.z;
+			}
+			
 		}
 		else
 		{		
@@ -104,6 +137,7 @@ void heli_think(EHandle h_heli)
 					break;
 				}
 			}
+			target.pev.colormap = 0;
 		}
 		
 		if (!canMove)
@@ -202,7 +236,7 @@ void spawn_heli()
 	CBaseEntity@ ent = g_EntityFuncs.CreateEntity("monster_apache", keys, true);
 	ent.pev.teleport_time = g_Engine.time;
 	
-	g_SoundSystem.PlaySound(ent.edict(), CHAN_ITEM, fixPath("sc_rust/heli_far.ogg"), 1.0f, 0.07f, SND_FORCE_LOOP, 100);
+	g_SoundSystem.PlaySound(ent.edict(), CHAN_ITEM, fixPath("sc_rust/heli_far.ogg"), 1.0f, 0.04f, SND_FORCE_LOOP, 100);
 	
 	ent.SetClassification(CLASS_XRACE_PITDRONE);
 	

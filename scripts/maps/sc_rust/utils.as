@@ -382,7 +382,7 @@ string prettyPartName(CBaseEntity@ part)
 	
 	string owner = "";
 
-	if (part.pev.colormap == B_BED)
+	if (part.pev.colormap == B_BED or part.pev.colormap == E_BOAT_WOOD or part.pev.colormap == E_BOAT_METAL)
 	{
 		PlayerState@ state = getPlayerStateBySteamID(part.pev.noise1, part.pev.noise2);
 		if (state !is null and state.plr.IsValid())
@@ -997,6 +997,12 @@ void PrintKeyBindingStringAllLong(string text)
 	g_Scheduler.SetTimeout("PrintKeyBindingStringAll_delay", 2, text);
 	g_Scheduler.SetTimeout("PrintKeyBindingStringAll_delay", 3, text);
 	g_Scheduler.SetTimeout("PrintKeyBindingStringAll_delay", 4, text);
+}
+
+string format_float(float f)
+{
+	uint decimal = uint(((f - int(f)) * 10)) % 10;
+	return "" + int(f) + "." + decimal;
 }
 
 void showTip(EHandle h_plr, int tipType)

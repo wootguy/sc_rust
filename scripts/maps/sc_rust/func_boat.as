@@ -167,7 +167,7 @@ class func_vehicle_custom : ScriptBaseEntity
 
 		if (pOther.pev.origin.x < minx || pOther.pev.origin.x > maxx || pOther.pev.origin.y < miny || pOther.pev.origin.y > maxy || pOther.pev.origin.z < minz || pOther.pev.origin.z > maxz)
 		{
-			float giveAmt = Math.min(pOther.pev.health, 100);
+			float giveAmt = Math.min(pOther.pev.health, 10);
 			pOther.TakeDamage(self.pev, self.pev, giveAmt, DMG_CRUSH);
 			TakeDamage(pev, pev, giveAmt, DMG_CRUSH);
 		}
@@ -196,6 +196,8 @@ class func_vehicle_custom : ScriptBaseEntity
 		//m_acceleration = 5;
 		m_dir = 1;
 		m_flTurnStartTime = -1;
+		
+		self.SetClassification(CLASS_ALIEN_MONSTER);
 
 		//if( string( self.pev.target ).IsEmpty() )
 		//	g_Game.AlertMessage(at_console, "Vehicle with no target\n");
@@ -231,9 +233,27 @@ class func_vehicle_custom : ScriptBaseEntity
 	{
 		if (dead)
 			return 0;
-			
-		if (bitsDamageType != DMG_BURN)
-			pev.health -= flDamage;
+		
+		bool immune = bitsDamageType == DMG_BURN and mat != 0;
+		
+		if (immune)
+			flDamage = 0;
+		
+		pev.health -= flDamage;
+		
+		if (flDamage > 0)
+		{
+			bool attackingOwnPart = false;
+			if (pevAttacker !is null and pevAttacker.classname == "player")
+			{
+				PlayerState@ state = getPlayerStateBySteamID(pev.noise1, pev.noise2);
+				CBaseEntity@ attacker = g_EntityFuncs.Instance( pevAttacker.get_pContainingEntity() );
+				if (attacker !is null and state.plr.IsValid() and state.plr.GetEntity().entindex() == attacker.entindex())
+					attackingOwnPart = true;
+			}
+			if (!attackingOwnPart)
+				pev.teleport_time = g_Engine.time;
+		}
 			
 		if (pev.health <= 0)
 		{
@@ -261,9 +281,9 @@ class func_vehicle_custom : ScriptBaseEntity
 			
 			g_EntityFuncs.Remove(self);
 		}
-		else
+		else if (flDamage > 0)
 		{
-			float dmgVolume = bitsDamageType & DMG_BURN != 0 ? 0.0f : 0.8f;
+			float dmgVolume = 0.8f;
 			string sound = g_materials[mat].hitSounds[ Math.RandomLong(0, g_materials[mat].hitSounds.length()-1) ];
 			g_SoundSystem.PlaySound(self.edict(), CHAN_ITEM, fixPath(sound), dmgVolume, 0.4f, 0, Math.RandomLong(90, 110));
 		}
@@ -465,7 +485,7 @@ class func_vehicle_custom : ScriptBaseEntity
 				vecEnd = vecStart + g_Engine.v_right * 16;
 			}
 
-			g_Utility.TraceLine(vecStart, vecEnd, ignore_monsters, dont_ignore_glass, self.edict(), tr);
+			g_Utility.TraceHull(vecStart, vecEnd, ignore_monsters, head_hull, self.edict(), tr);
 
 			if (tr.flFraction != 1)
 				m_iTurnAngle = 1;
@@ -483,7 +503,7 @@ class func_vehicle_custom : ScriptBaseEntity
 				vecEnd = vecStart - g_Engine.v_right * 16;
 			}
 
-			g_Utility.TraceLine(vecStart, vecEnd, ignore_monsters, dont_ignore_glass, self.edict(), tr);
+			g_Utility.TraceHull(vecStart, vecEnd, ignore_monsters, head_hull, self.edict(), tr);
 
 			if (tr.flFraction != 1)
 				m_iTurnAngle = -1;
@@ -544,7 +564,7 @@ class func_vehicle_custom : ScriptBaseEntity
 		damage = other.pev.takedamage == DAMAGE_YES ? Math.min(other.pev.health, damage) : damage;
 		other.TakeDamage(pev, pev, damage*2, DMG_CRUSH);
 		TakeDamage(pev, pev, damage, DMG_CRUSH);
-		println("DAMAGE " + damage);
+		//println("DAMAGE " + damage);
 		return other.pev.health <= 0 and other.pev.takedamage == DAMAGE_YES;
 	}
 	
@@ -562,7 +582,7 @@ class func_vehicle_custom : ScriptBaseEntity
 		{
 			vecStart = m_vBackLeft;
 			vecEnd = vecStart + (forward * 16);
-			g_Utility.TraceLine(vecStart, vecEnd, ignore_monsters, dont_ignore_glass, self.edict(), tr);
+			g_Utility.TraceHull(vecStart, vecEnd, ignore_monsters, head_hull, self.edict(), tr);
 
 			if (tr.flFraction != 1)
 			{
@@ -593,13 +613,13 @@ class func_vehicle_custom : ScriptBaseEntity
 
 			vecStart = m_vBackRight;
 			vecEnd = vecStart + (forward * 16);
-			g_Utility.TraceLine(vecStart, vecEnd, ignore_monsters, dont_ignore_glass, self.edict(), tr);
+			g_Utility.TraceHull(vecStart, vecEnd, ignore_monsters, head_hull, self.edict(), tr);
 
 			if (tr.flFraction == 1)
 			{
 				vecStart = m_vBack;
 				vecEnd = vecStart + (forward * 16);
-				g_Utility.TraceLine(vecStart, vecEnd, ignore_monsters, dont_ignore_glass, self.edict(), tr);
+				g_Utility.TraceHull(vecStart, vecEnd, ignore_monsters, head_hull, self.edict(), tr);
 
 				if (tr.flFraction == 1)
 					return;
@@ -612,19 +632,19 @@ class func_vehicle_custom : ScriptBaseEntity
 		{
 			vecStart = m_vFrontRight;
 			vecEnd = vecStart - (forward * 16);
-			g_Utility.TraceLine(vecStart, vecEnd, dont_ignore_monsters, dont_ignore_glass, self.edict(), tr);
+			g_Utility.TraceHull(vecStart, vecEnd, dont_ignore_monsters, head_hull, self.edict(), tr);
 
 			if (tr.flFraction == 1)
 			{
 				vecStart = m_vFrontLeft;
 				vecEnd = vecStart - (forward * 16);
-				g_Utility.TraceLine(vecStart, vecEnd, ignore_monsters, dont_ignore_glass, self.edict(), tr);
+				g_Utility.TraceHull(vecStart, vecEnd, ignore_monsters, head_hull, self.edict(), tr);
 
 				if (tr.flFraction == 1)
 				{
 					vecStart = m_vFront;
 					vecEnd = vecStart - (forward * 16);
-					g_Utility.TraceLine(vecStart, vecEnd, ignore_monsters, dont_ignore_glass, self.edict(), tr);
+					g_Utility.TraceHull(vecStart, vecEnd, ignore_monsters, head_hull, self.edict(), tr);
 
 					if (tr.flFraction == 1)
 						return;
@@ -729,7 +749,7 @@ class func_vehicle_custom : ScriptBaseEntity
 			return;
 		}
 
-		TerrainFollowing();
+		//TerrainFollowing();
 		CollisionDetection();
 		
 		m_vSurfaceNormal = Vector(0,0,1);

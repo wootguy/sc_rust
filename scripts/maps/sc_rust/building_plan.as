@@ -612,22 +612,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 				validBuild = true;
 			}
 		}
-		else if (partSocket == -1)
-		{
-			// place anywhere
-			if (tr.flFraction < 1.0f and (phit.pev.classname == "worldspawn" or isFloorPiece(phit))) {
-				if (tr.vecPlaneNormal.z > 0.7f and g_EngineFuncs.PointContents(tr.vecEndPos) == CONTENTS_EMPTY)
-				{
-					validBuild = true;
-					Vector outAngles;
-					g_EngineFuncs.VecToAngles(tr.vecPlaneNormal, outAngles);
-					newYaw = outAngles.y;
-					newPitch = -outAngles.x + 90;
-					newRot = outAngles.z;
-				}
-			}
-		}
-		if (partSocket == SOCKET_HIGH_WALL)
+		else if (partSocket == SOCKET_HIGH_WALL)
 		{
 			if (phit.pev.classname == "worldspawn" and tr.flFraction < 1.0f) {
 				validBuild = true;
@@ -1140,7 +1125,21 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 					validBuild = false;
 			}
 		}
-			
+		else if (partSocket == -1)
+		{
+			// place anywhere
+			if (tr.flFraction < 1.0f and (phit.pev.classname == "worldspawn" or isFloorPiece(phit))) {
+				if (tr.vecPlaneNormal.z > 0.7f and g_EngineFuncs.PointContents(tr.vecEndPos) == CONTENTS_EMPTY)
+				{
+					validBuild = true;
+					Vector outAngles;
+					g_EngineFuncs.VecToAngles(tr.vecPlaneNormal, outAngles);
+					newYaw = outAngles.y;
+					newPitch = -outAngles.x + 90;
+					newRot = outAngles.z;
+				}
+			}
+		}	
 		
 		bool attachableEnt = phit.pev.classname == "func_breakable_custom" or phit.pev.classname == "func_door_rotating";
 		if (attachableEnt and !attaching) {
@@ -1499,8 +1498,11 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 					giveItem(plr, BUILD_MATERIAL, -g_part_info[buildType].cost, false);
 				}
 				
-				if ((zoneid != state.home_zone and !g_invasion_mode) or g_creative_mode or g_shared_build_points_in_pvp_mode)
-					getBuildZone(zoneid).addRaiderParts(1);
+				if (!buildingBoat)
+				{
+					if ((zoneid != state.home_zone and !g_invasion_mode) or g_creative_mode or g_shared_build_points_in_pvp_mode)
+						getBuildZone(zoneid).addRaiderParts(1);
+				}
 			}
 		
 			plr.SetAnimation( PLAYER_ATTACK1 );
@@ -1623,17 +1625,18 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 			{
 				keys["rendermode"] = "4";
 				keys["renderamt"] = "255";
-				keys["length"] = "280";
-				keys["width"] = "96";
-				keys["height"] = "64";
+				keys["length"] = "260";
+				keys["width"] = "64";
+				keys["height"] = "40";
 				keys["acceleration"] = "0.000001";
-				keys["speed"] = "1000";
-				keys["sounds"] = "2";
+				keys["speed"] = "1200";
+				keys["sounds"] = "6";
 				keys["bank"] = "3";
 				keys["material"] = "0";
+				keys["volume"] = "7";
 				if (buildType == E_BOAT_METAL)
 				{
-					keys["speed"] = "1500";
+					keys["speed"] = "1600";
 					keys["material"] = "2";
 				}
 				

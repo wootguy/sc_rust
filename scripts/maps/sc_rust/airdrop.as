@@ -189,7 +189,7 @@ class monster_b17 : ScriptBaseAnimating
 				keys["colormap"] = "" + E_SUPPLY_CRATE;
 				CBaseEntity@ crate = g_EntityFuncs.CreateEntity("func_breakable_custom", keys, true);
 				crate.pev.velocity = Vector(0,0,-dropSpeed);
-				crate.pev.scale = 0.1f;
+				//crate.pev.scale = 0.1f;
 				
 				// parachute also acts as a ground detecter (calls Block() for the crate if squished)
 				keys["origin"] = (dropPos - Vector(0,0,130)).ToString();
