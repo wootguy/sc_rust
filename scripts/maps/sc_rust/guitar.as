@@ -1,5 +1,5 @@
 
-string guitar_song_path = "scripts/maps/sc_rust/guitar_songs/";
+string guitar_song_path = "scripts/maps/rust/guitar_songs/";
 array<Song> g_songs = {
 	Song("greenhill.txt", "Sonic 1 - Green Hill Zone", 11.0f),
 	Song("starlight_zone.txt", "Sonic 1 - Starlight Zone", 8.0f),
@@ -259,7 +259,7 @@ class Song
 		if (int(position) >= int(rows.size()))
 			position = loopPoint;
 
-		notePlayed = rows[int(position)].play(ent, fixPath("sc_rust/guitar.ogg"), fixPath("sc_rust/guitar2.ogg"));
+		notePlayed = rows[int(position)].play(ent, "rust/guitar.ogg", "rust/guitar2.ogg");
 		return position;
 	}
 }
@@ -337,12 +337,12 @@ void guitar_note_play2(CBaseEntity@ pActivator, CBaseEntity@ pCaller, USE_TYPE u
 
 void guitar_note_play(CBaseEntity@ pActivator, CBaseEntity@ pCaller, USE_TYPE useType, float flValue)
 {	
-	string sample = fixPath("sc_rust/guitar.ogg");
+	string sample = "rust/guitar.ogg";
 	float pitch = 44 + ((pActivator.pev.angles.x + 29.664917) / 59.329834) * (179.0f + 155.0f); // high E at 224
 	if (pitch >= 224)
 	{
 		pitch -= 124;
-		sample = fixPath("sc_rust/guitar2.ogg");
+		sample = "rust/guitar2.ogg";
 	}
 	
 	g_SoundSystem.PlaySound(pActivator.edict(), CHAN_STATIC, sample, 1.0f, 0.5f, 0, int(pitch));

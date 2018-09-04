@@ -18,15 +18,15 @@ class BMaterial
 }
 
 array< array<string> > g_material_damage_sounds = {
-	{"sc_rust/damage_wood.ogg", "sc_rust/damage_wood2.ogg"},
-	{"sc_rust/damage_stone.ogg", "sc_rust/damage_stone2.ogg", "sc_rust/damage_stone3.ogg"},
-	{"sc_rust/damage_metal.ogg", "sc_rust/damage_metal2.ogg", "sc_rust/damage_metal3.ogg"}
+	{"rust/damage_wood.ogg", "rust/damage_wood2.ogg"},
+	{"rust/damage_stone.ogg", "rust/damage_stone2.ogg", "rust/damage_stone3.ogg"},
+	{"rust/damage_metal.ogg", "rust/damage_metal2.ogg", "rust/damage_metal3.ogg"}
 };
 
 array< array<string> > g_material_break_sounds = {
-	{"sc_rust/break_wood.ogg", "sc_rust/break_wood2.ogg", "sc_rust/break_wood3.ogg", "sc_rust/break_wood4.ogg"},
-	{"sc_rust/break_stone.ogg", "sc_rust/break_stone2.ogg", "sc_rust/break_stone3.ogg", "sc_rust/break_stone4.ogg"},
-	{"sc_rust/break_metal.ogg", "sc_rust/break_metal3.ogg", "sc_rust/break_metal4.ogg"},
+	{"rust/break_wood.ogg", "rust/break_wood2.ogg", "rust/break_wood3.ogg", "rust/break_wood4.ogg"},
+	{"rust/break_stone.ogg", "rust/break_stone2.ogg", "rust/break_stone3.ogg", "rust/break_stone4.ogg"},
+	{"rust/break_metal.ogg", "rust/break_metal3.ogg", "rust/break_metal4.ogg"},
 };
 
 array<BMaterial> g_materials = {
@@ -35,7 +35,7 @@ array<BMaterial> g_materials = {
 	BMaterial(g_material_damage_sounds[2], g_material_break_sounds[2], "models/metalplategibs.mdl", 2)
 };
 
-array<string> fleshSounds = {"sc_rust/flesh1.ogg", "sc_rust/flesh2.ogg", "sc_rust/flesh3.ogg"};
+array<string> fleshSounds = {"rust/flesh1.ogg", "rust/flesh2.ogg", "rust/flesh3.ogg"};
 
 // The think function won't let me set nextthink (it's always ~5 seconds or so) for this entity
 void weird_think_bug_workaround(EHandle h_ent)
@@ -468,11 +468,11 @@ class func_breakable_custom : ScriptBaseEntity
 		fireOn = !fireOn;
 		fireSkipEffects = 0;
 		if (fireOn)
-			g_SoundSystem.PlaySound(self.edict(), CHAN_BODY, fixPath("ambience/burning3.wav"), 0.5f, 1.0f, SND_FORCE_LOOP, 100);
+			g_SoundSystem.PlaySound(self.edict(), CHAN_BODY, "ambience/burning3.wav", 0.5f, 1.0f, SND_FORCE_LOOP, 100);
 		else
 		{
-			g_SoundSystem.StopSound(self.edict(), CHAN_BODY, fixPath("ambience/burning3.wav"));
-			g_SoundSystem.PlaySound(self.edict(), CHAN_BODY, fixPath("sc_rust/sizzle.ogg"), 0.3f, 1.0f, 0, 70);
+			g_SoundSystem.StopSound(self.edict(), CHAN_BODY, "ambience/burning3.wav");
+			g_SoundSystem.PlaySound(self.edict(), CHAN_BODY, "rust/sizzle.ogg", 0.3f, 1.0f, 0, 70);
 			
 		}
 	}
@@ -491,7 +491,7 @@ class func_breakable_custom : ScriptBaseEntity
 				te_sprite(firePos, "sprites/fire.spr", sz, 200.0f);
 				te_dlight(firePos, 8, color, 12, 0);
 				te_elight(self, firePos, 128.0f, color, 16, 0);
-				g_SoundSystem.PlaySound(self.edict(), CHAN_BODY, fixPath("ambience/burning3.wav"), 0.4f*bright + 0.1f, 1.0f, SND_CHANGE_VOL, 100);
+				g_SoundSystem.PlaySound(self.edict(), CHAN_BODY, "ambience/burning3.wav", 0.4f*bright + 0.1f, 1.0f, SND_CHANGE_VOL, 100);
 				fireSkipEffects = 3;
 			}
 			fireSkipEffects -= 1;
@@ -506,7 +506,7 @@ class func_breakable_custom : ScriptBaseEntity
 					float dist = ((ent.pev.origin - Vector(0,0,12)) - firePos).Length();
 					if (dist < 24)
 					{
-						g_SoundSystem.PlaySound(ent.edict(), CHAN_BODY, fixPath("sc_rust/sizzle.ogg"), 0.5f, 1.0f, 0, Math.RandomLong(95, 105));
+						g_SoundSystem.PlaySound(ent.edict(), CHAN_BODY, "rust/sizzle.ogg", 0.5f, 1.0f, 0, Math.RandomLong(95, 105));
 						ent.TakeDamage(pev, pev, 5.0f, DMG_BURN);
 					}
 					else
@@ -982,7 +982,7 @@ class func_breakable_custom : ScriptBaseEntity
 				}
 
 				string sound = material.breakSounds[ Math.RandomLong(0, material.breakSounds.length()-1) ];
-				g_SoundSystem.PlaySound(self.edict(), CHAN_STATIC, fixPath(sound), 1.0f, attn, 0, Math.RandomLong(85, 115));
+				g_SoundSystem.PlaySound(self.edict(), CHAN_STATIC, sound, 1.0f, attn, 0, Math.RandomLong(85, 115));
 				
 				Vector center = getCentroid(self);
 				Vector mins = self.pev.mins;
@@ -1003,7 +1003,7 @@ class func_breakable_custom : ScriptBaseEntity
 			}
 			else
 			{
-				g_SoundSystem.PlaySound(self.edict(), CHAN_STATIC, fixPath("sc_rust/stone_tree.ogg"), 1.0f, attn, 0, 90 + Math.RandomLong(0, 20));
+				g_SoundSystem.PlaySound(self.edict(), CHAN_STATIC, "rust/stone_tree.ogg", 1.0f, attn, 0, 90 + Math.RandomLong(0, 20));
 			}
 
 			Destroy();
@@ -1025,13 +1025,13 @@ class func_breakable_custom : ScriptBaseEntity
 				te_bloodsprite(mon.pev.origin + Vector(0,0,16), "sprites/bloodspray.spr", "sprites/blood.spr", BLOOD_COLOR_YELLOW);
 				
 				string sound = fleshSounds[ Math.RandomLong(0, fleshSounds.length()-1) ];
-				g_SoundSystem.PlaySound(self.edict(), CHAN_STATIC, fixPath(sound), 0.8f, attn, 0, Math.RandomLong(90, 110));
+				g_SoundSystem.PlaySound(self.edict(), CHAN_STATIC, sound, 0.8f, attn, 0, Math.RandomLong(90, 110));
 			}
 			else
 			{
 				float dmgVolume = bitsDamageType & DMG_BURN != 0 ? 0.0f : 0.8f;
 				string sound = material.hitSounds[ Math.RandomLong(0, material.hitSounds.length()-1) ];
-				g_SoundSystem.PlaySound(self.edict(), CHAN_STATIC, fixPath(sound), dmgVolume, attn, 0, Math.RandomLong(90, 110));
+				g_SoundSystem.PlaySound(self.edict(), CHAN_STATIC, sound, dmgVolume, attn, 0, Math.RandomLong(90, 110));
 			}
 		}
 		return 0;
@@ -1039,7 +1039,7 @@ class func_breakable_custom : ScriptBaseEntity
 
 	void Destroy()
 	{
-		g_SoundSystem.StopSound(self.edict(), CHAN_BODY, fixPath("ambience/burning3.wav"));
+		g_SoundSystem.StopSound(self.edict(), CHAN_BODY, "ambience/burning3.wav");
 		g_EntityFuncs.Remove(monster);
 		g_EntityFuncs.Remove(chute);
 		g_EntityFuncs.Remove(self);

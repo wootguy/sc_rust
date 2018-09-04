@@ -261,7 +261,7 @@ class func_vehicle_custom : ScriptBaseEntity
 			StopSound();
 			
 			string sound = g_materials[mat].breakSounds[ Math.RandomLong(0, g_materials[mat].breakSounds.length()-1) ];
-			g_SoundSystem.PlaySound(self.edict(), CHAN_ITEM, fixPath(sound), 1.0f, 0.4f, 0, Math.RandomLong(85, 115));
+			g_SoundSystem.PlaySound(self.edict(), CHAN_ITEM, sound, 1.0f, 0.4f, 0, Math.RandomLong(85, 115));
 			
 			Vector center = getCentroid(self);
 			Vector mins = self.pev.mins;
@@ -285,7 +285,7 @@ class func_vehicle_custom : ScriptBaseEntity
 		{
 			float dmgVolume = 0.8f;
 			string sound = g_materials[mat].hitSounds[ Math.RandomLong(0, g_materials[mat].hitSounds.length()-1) ];
-			g_SoundSystem.PlaySound(self.edict(), CHAN_ITEM, fixPath(sound), dmgVolume, 0.4f, 0, Math.RandomLong(90, 110));
+			g_SoundSystem.PlaySound(self.edict(), CHAN_ITEM, sound, dmgVolume, 0.4f, 0, Math.RandomLong(90, 110));
 		}
 		
 		return 0;

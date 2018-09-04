@@ -16,7 +16,7 @@ class monster_c4 : ScriptBaseEntity
 		pev.movetype = MOVETYPE_FLY;
 		pev.solid = SOLID_NOT;
 		
-		g_EntityFuncs.SetModel(self, fixPath("models/sc_rust/w_c4.mdl"));
+		g_EntityFuncs.SetModel(self, "models/rust/w_c4.mdl");
 		g_EntityFuncs.SetSize(self.pev, Vector( -8, -8, -8), Vector(8, 8, 8));
 		
 		// attach to surface
@@ -51,13 +51,13 @@ class monster_c4 : ScriptBaseEntity
 				phit.TakeDamage(self.pev, self.pev, 185.0f, DMG_BLAST);
 			
 			g_EntityFuncs.CreateExplosion(self.pev.origin, self.pev.angles, g_friendly_fire ? self.edict() : @self.pev.owner, 150, true);
-			//g_SoundSystem.PlaySound(self.edict(), CHAN_WEAPON, "sc_rust/c4_explode1.wav", 1.0f, 1.0f, 0, 100);
+			//g_SoundSystem.PlaySound(self.edict(), CHAN_WEAPON, "rust/c4_explode1.wav", 1.0f, 1.0f, 0, 100);
 			g_EntityFuncs.Remove(self);
 			return;
 		}
 		else if (beepTime <= 0)
 		{
-			g_SoundSystem.PlaySound(self.edict(), CHAN_WEAPON, fixPath("sc_rust/c4_beep.wav"), 1.0f, 1.0f, 0, 100);
+			g_SoundSystem.PlaySound(self.edict(), CHAN_WEAPON, "rust/c4_beep.wav", 1.0f, 1.0f, 0, 100);
 			beepTime = 10;
 		}
 		
@@ -99,7 +99,7 @@ class monster_satchel_charge : ScriptBaseEntity
 		
 		g_EntityFuncs.SetOrigin( self, tr.vecEndPos);
 
-		g_SoundSystem.PlaySound(self.edict(), CHAN_WEAPON, fixPath("sc_rust/fuse.ogg"), 1.0f, 1.0f, 0, 100);
+		g_SoundSystem.PlaySound(self.edict(), CHAN_WEAPON, "rust/fuse.ogg", 1.0f, 1.0f, 0, 100);
 		sparkPos = pev.origin + g_Engine.v_up*18 + g_Engine.v_right*-4 + g_Engine.v_forward*3;
 		deathTime = g_Engine.time + Math.RandomFloat(4, 20);
 		SetThink( ThinkFunction( Think ) );
@@ -114,7 +114,7 @@ class monster_satchel_charge : ScriptBaseEntity
 		float delta = h_attachEnt.IsValid() ? (attachEntOrigin - h_attachEnt.GetEntity().pev.origin).Length() : 9999;
 		if (g_Engine.time > deathTime or delta > 4)
 		{			
-			g_SoundSystem.StopSound(self.edict(), CHAN_WEAPON, fixPath("sc_rust/fuse.ogg"));
+			g_SoundSystem.StopSound(self.edict(), CHAN_WEAPON, "rust/fuse.ogg");
 			
 			g_EntityFuncs.CreateExplosion(self.pev.origin, self.pev.angles, g_friendly_fire ? self.edict() : @self.pev.owner, 126, true);
 			g_EntityFuncs.Remove(self);

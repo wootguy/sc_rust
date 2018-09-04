@@ -53,7 +53,7 @@ void heli_think(EHandle h_heli)
 			{
 				if (dist < 512.0f)
 				{
-					g_SoundSystem.StopSound(heli.edict(), CHAN_ITEM, fixPath("sc_rust/heli_far.ogg"));
+					g_SoundSystem.StopSound(heli.edict(), CHAN_ITEM, "rust/heli_far.ogg");
 					g_EntityFuncs.Remove(target);
 					g_EntityFuncs.Remove(heli);
 					g_Scheduler.SetTimeout("spawn_heli", Math.RandomFloat(g_apache_min_delay, g_apache_max_delay)*60);
@@ -196,7 +196,7 @@ void heli_die(CBaseEntity@ heli)
 {
 	CBaseEntity@ target = g_EntityFuncs.FindEntityByTargetname(null, heli.pev.target);
 	g_EntityFuncs.Remove(target);
-	g_SoundSystem.StopSound(heli.edict(), CHAN_ITEM, fixPath("sc_rust/heli_far.ogg"));
+	g_SoundSystem.StopSound(heli.edict(), CHAN_ITEM, "rust/heli_far.ogg");
 	
 	Vector itemPos = heli.pev.origin;
 	CBaseEntity@ item = null;
@@ -227,7 +227,7 @@ void spawn_heli()
 	CBaseEntity@ path = g_EntityFuncs.CreateEntity("path_corner", keys, true);
 	
 	keys["targetname"] = "heli";
-	keys["model"] = fixPath("models/sc_rust/apache.mdl");
+	keys["model"] = "models/rust/apache.mdl";
 	keys["origin"] = spawnPos.ToString();
 	keys["health"] = "1000";
 	keys["target"] = string(path.pev.targetname);
@@ -236,7 +236,7 @@ void spawn_heli()
 	CBaseEntity@ ent = g_EntityFuncs.CreateEntity("monster_apache", keys, true);
 	ent.pev.teleport_time = g_Engine.time;
 	
-	g_SoundSystem.PlaySound(ent.edict(), CHAN_ITEM, fixPath("sc_rust/heli_far.ogg"), 1.0f, 0.04f, SND_FORCE_LOOP, 100);
+	g_SoundSystem.PlaySound(ent.edict(), CHAN_ITEM, "rust/heli_far.ogg", 1.0f, 0.04f, SND_FORCE_LOOP, 100);
 	
 	ent.SetClassification(CLASS_XRACE_PITDRONE);
 	

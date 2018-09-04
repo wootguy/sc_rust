@@ -164,19 +164,19 @@ void loadNodesPartial(ByteBuffer@ buf, int zonesLoaded, int numZones, int nodesL
 			if (nodeType == NODE_TREE)
 			{
 				brushModel = getModelFromName("e_tree");
-				itemModel = "models/sc_rust/pine_tree.mdl";
+				itemModel = "models/rust/pine_tree.mdl";
 				itemHeight = 512; // prevents trees from disappearing across hills
 			}
 			else if (nodeType == NODE_BARREL)
 			{
 				brushModel = getModelFromName("e_barrel");
-				itemModel = "models/sc_rust/tr_barrel.mdl";
+				itemModel = "models/rust/tr_barrel.mdl";
 				itemHeight = 32;
 			}
 			else if (nodeType == NODE_ROCK)
 			{
 				brushModel = getModelFromName("e_rock");
-				itemModel = "models/sc_rust/rock.mdl";
+				itemModel = "models/rust/rock.mdl";
 				itemHeight = 64;
 			}
 			else
@@ -201,7 +201,7 @@ void loadNodesPartial(ByteBuffer@ buf, int zonesLoaded, int numZones, int nodesL
 			
 			ori.z += itemHeight;
 			keys["origin"] = ori.ToString();
-			keys["model"] = fixPath(itemModel);
+			keys["model"] = itemModel;
 			keys["movetype"] = "5";
 			keys["scale"] = "1";
 			keys["sequencename"] = "idle";

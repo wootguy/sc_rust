@@ -56,7 +56,7 @@ class item_parachute : ScriptBaseAnimating
 		pev.scale = 1.5f;
 		
 		g_EntityFuncs.SetOrigin(self, self.pev.origin);
-		g_EntityFuncs.SetModel(self, fixPath("models/sc_rust/parachute.mdl"));
+		g_EntityFuncs.SetModel(self, "models/rust/parachute.mdl");
 		g_EntityFuncs.SetSize(self.pev,  Vector(-48,-48,-33), Vector(48,48,-32));
 		
 		pev.frame = 0;
@@ -103,7 +103,7 @@ class monster_b17 : ScriptBaseAnimating
 		pev.movetype = MOVETYPE_FLY;
 		pev.solid = SOLID_NOT;
 		
-		g_EntityFuncs.SetModel(self, fixPath("models/sc_rust/b17.mdl"));		
+		g_EntityFuncs.SetModel(self, "models/rust/b17.mdl");		
 		
 		pev.frame = 0;
 		pev.sequence = 0;
@@ -126,10 +126,10 @@ class monster_b17 : ScriptBaseAnimating
 		//te_beampoints(airDropPos, tr.vecEndPos);
 		
 		
-		g_SoundSystem.PlaySound(self.edict(), CHAN_WEAPON, fixPath("sc_rust/b17.ogg"), 1.0f, 0.04f, SND_FORCE_LOOP, 102);
-		g_SoundSystem.PlaySound(self.edict(), CHAN_STATIC, fixPath("sc_rust/b17.ogg"), 1.0f, 0.04f, SND_FORCE_LOOP, 98);
-		g_SoundSystem.PlaySound(self.edict(), CHAN_BODY, fixPath("sc_rust/b17.ogg"), 1.0f, 0.04f, SND_FORCE_LOOP, 100);
-		g_SoundSystem.PlaySound(self.edict(), CHAN_ITEM, fixPath("sc_rust/b17_far.ogg"), 0.7f, 0.02f, SND_FORCE_LOOP, 95);
+		g_SoundSystem.PlaySound(self.edict(), CHAN_WEAPON, "rust/b17.ogg", 1.0f, 0.04f, SND_FORCE_LOOP, 102);
+		g_SoundSystem.PlaySound(self.edict(), CHAN_STATIC, "rust/b17.ogg", 1.0f, 0.04f, SND_FORCE_LOOP, 98);
+		g_SoundSystem.PlaySound(self.edict(), CHAN_BODY, "rust/b17.ogg", 1.0f, 0.04f, SND_FORCE_LOOP, 100);
+		g_SoundSystem.PlaySound(self.edict(), CHAN_ITEM, "rust/b17_far.ogg", 0.7f, 0.02f, SND_FORCE_LOOP, 95);
 		
 		lastDist = (airDropPos - pev.origin).Length();
 		SetThink( ThinkFunction( Think ) );
@@ -143,10 +143,10 @@ class monster_b17 : ScriptBaseAnimating
 	{
 		if (pev.velocity.Length() < moveSpeed - 10)
 		{
-			g_SoundSystem.StopSound(self.edict(), CHAN_WEAPON, fixPath("sc_rust/b17.ogg"));
-			g_SoundSystem.StopSound(self.edict(), CHAN_STATIC, fixPath("sc_rust/b17.ogg"));
-			g_SoundSystem.StopSound(self.edict(), CHAN_BODY, fixPath("sc_rust/b17.ogg"));
-			g_SoundSystem.StopSound(self.edict(), CHAN_ITEM, fixPath("sc_rust/b17_far.ogg"));
+			g_SoundSystem.StopSound(self.edict(), CHAN_WEAPON, "rust/b17.ogg");
+			g_SoundSystem.StopSound(self.edict(), CHAN_STATIC, "rust/b17.ogg");
+			g_SoundSystem.StopSound(self.edict(), CHAN_BODY, "rust/b17.ogg");
+			g_SoundSystem.StopSound(self.edict(), CHAN_ITEM, "rust/b17_far.ogg");
 			g_EntityFuncs.Remove(self);
 			return;
 		}

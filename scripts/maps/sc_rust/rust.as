@@ -834,17 +834,15 @@ int MAX_SAVE_DATA_LENGTH = 1015; // Maximum length of a value saved with trigger
 //int MAX_VISIBLE_ENTS = 510;
 int MAX_VISIBLE_ENTS = 480; // slightly reduced since I still got max vis ents error
 
-string beta_dir = "beta/"; // set to blank before release, or change when assets need updating
-
 void MapInit()
 {
 	debug_mode = false;
 	
 	g_CustomEntityFuncs.RegisterCustomEntity( "weapon_building_plan", "weapon_building_plan" );
-	g_ItemRegistry.RegisterWeapon( "weapon_building_plan", "sc_rust/beta", "" );
+	g_ItemRegistry.RegisterWeapon( "weapon_building_plan", "rust", "" );
 	
 	g_CustomEntityFuncs.RegisterCustomEntity( "weapon_hammer", "weapon_hammer" );
-	g_ItemRegistry.RegisterWeapon( "weapon_hammer", "sc_rust/beta", "" );
+	g_ItemRegistry.RegisterWeapon( "weapon_hammer", "rust", "" );
 	
 	g_CustomEntityFuncs.RegisterCustomEntity( "func_breakable_custom", "func_breakable_custom" );
 	g_CustomEntityFuncs.RegisterCustomEntity( "func_build_zone", "func_build_zone" );
@@ -860,31 +858,31 @@ void MapInit()
 	g_Hooks.RegisterHook( Hooks::Player::ClientPutInServer, @ClientJoin );
 	
 	PrecacheSound("tfc/items/itembk2.wav");
-	PrecacheSound("sc_rust/bars_metal_place.ogg");
-	PrecacheSound("sc_rust/bars_wood_place.ogg");
-	PrecacheSound("sc_rust/code_lock_beep.ogg");
-	PrecacheSound("sc_rust/code_lock_update.ogg");
-	PrecacheSound("sc_rust/code_lock_place.ogg");
-	PrecacheSound("sc_rust/code_lock_denied.ogg");
-	PrecacheSound("sc_rust/code_lock_shock.ogg");
-	PrecacheSound("sc_rust/door_metal_close.ogg");
-	PrecacheSound("sc_rust/door_metal_close2.ogg");
-	PrecacheSound("sc_rust/door_metal_open.ogg");
-	PrecacheSound("sc_rust/door_metal_place.ogg");
-	PrecacheSound("sc_rust/door_wood_close.ogg");
-	PrecacheSound("sc_rust/door_wood_open.ogg");
-	PrecacheSound("sc_rust/door_wood_place.ogg");
-	PrecacheSound("sc_rust/shutters_wood_close.ogg");
-	PrecacheSound("sc_rust/shutters_wood_open.ogg");
-	PrecacheSound("sc_rust/shutters_wood_place.ogg");
-	PrecacheSound("sc_rust/tool_cupboard_place.ogg");
-	PrecacheSound("sc_rust/ladder_place.ogg");
-	PrecacheSound("sc_rust/ladder_hatch_place.ogg");
-	PrecacheSound("sc_rust/ladder_hatch_open.ogg");
-	PrecacheSound("sc_rust/ladder_hatch_close.ogg");
-	PrecacheSound("sc_rust/high_wall_place_stone.ogg");
-	PrecacheSound("sc_rust/high_wall_place_wood.ogg");
-	PrecacheSound("sc_rust/stone_tree.ogg");
+	PrecacheSound("rust/bars_metal_place.ogg");
+	PrecacheSound("rust/bars_wood_place.ogg");
+	PrecacheSound("rust/code_lock_beep.ogg");
+	PrecacheSound("rust/code_lock_update.ogg");
+	PrecacheSound("rust/code_lock_place.ogg");
+	PrecacheSound("rust/code_lock_denied.ogg");
+	PrecacheSound("rust/code_lock_shock.ogg");
+	PrecacheSound("rust/door_metal_close.ogg");
+	PrecacheSound("rust/door_metal_close2.ogg");
+	PrecacheSound("rust/door_metal_open.ogg");
+	PrecacheSound("rust/door_metal_place.ogg");
+	PrecacheSound("rust/door_wood_close.ogg");
+	PrecacheSound("rust/door_wood_open.ogg");
+	PrecacheSound("rust/door_wood_place.ogg");
+	PrecacheSound("rust/shutters_wood_close.ogg");
+	PrecacheSound("rust/shutters_wood_open.ogg");
+	PrecacheSound("rust/shutters_wood_place.ogg");
+	PrecacheSound("rust/tool_cupboard_place.ogg");
+	PrecacheSound("rust/ladder_place.ogg");
+	PrecacheSound("rust/ladder_hatch_place.ogg");
+	PrecacheSound("rust/ladder_hatch_open.ogg");
+	PrecacheSound("rust/ladder_hatch_close.ogg");
+	PrecacheSound("rust/high_wall_place_stone.ogg");
+	PrecacheSound("rust/high_wall_place_wood.ogg");
+	PrecacheSound("rust/stone_tree.ogg");
 	PrecacheSound("debris/bustcrate1.wav");
 	PrecacheSound("debris/bustcrate2.wav");
 	PrecacheSound("debris/wood1.wav");
@@ -902,31 +900,31 @@ void MapInit()
 	PrecacheModel("sprites/fire.spr");
 	
 	g_Game.PrecacheMonster("monster_apache", false);
-	PrecacheModel("models/sc_rust/apache.mdl");
+	PrecacheModel("models/rust/apache.mdl");
 	
 	for (uint i = 0; i < g_puff_sprites.size(); i++)
 		PrecacheModel(g_puff_sprites[i]);
 	
-	PrecacheSound("sc_rust/flesh1.ogg");
-	PrecacheSound("sc_rust/flesh2.ogg");
-	PrecacheSound("sc_rust/flesh3.ogg");
-	PrecacheSound("sc_rust/guitar.ogg");
-	PrecacheSound("sc_rust/guitar2.ogg");
-	PrecacheSound("sc_rust/c4_beep.wav");
-	PrecacheSound("sc_rust/fuse.ogg");
-	PrecacheSound("sc_rust/b17.ogg");
-	PrecacheSound("sc_rust/b17_far.ogg");
-	PrecacheSound("sc_rust/heli_far.ogg");
-	PrecacheSound("sc_rust/sizzle.ogg");
+	PrecacheSound("rust/flesh1.ogg");
+	PrecacheSound("rust/flesh2.ogg");
+	PrecacheSound("rust/flesh3.ogg");
+	PrecacheSound("rust/guitar.ogg");
+	PrecacheSound("rust/guitar2.ogg");
+	PrecacheSound("rust/c4_beep.wav");
+	PrecacheSound("rust/fuse.ogg");
+	PrecacheSound("rust/b17.ogg");
+	PrecacheSound("rust/b17_far.ogg");
+	PrecacheSound("rust/heli_far.ogg");
+	PrecacheSound("rust/sizzle.ogg");
 	PrecacheSound("ambience/burning1.wav");
-	PrecacheModel("models/sc_rust/pine_tree.mdl");
-	PrecacheModel("models/sc_rust/rock.mdl");
-	PrecacheModel("models/sc_rust/tr_barrel.mdl");
-	PrecacheModel("models/sc_rust/w_c4.mdl");
-	PrecacheModel("models/sc_rust/b17.mdl");
-	PrecacheModel("models/sc_rust/parachute.mdl");
-	PrecacheModel("sprites/sc_rust/map_b6.spr");
-	PrecacheModel("sprites/sc_rust/map_plr.spr");
+	PrecacheModel("models/rust/pine_tree.mdl");
+	PrecacheModel("models/rust/rock.mdl");
+	PrecacheModel("models/rust/tr_barrel.mdl");
+	PrecacheModel("models/rust/w_c4.mdl");
+	PrecacheModel("models/rust/b17.mdl");
+	PrecacheModel("models/rust/parachute.mdl");
+	PrecacheModel("sprites/rust/map_b6.spr");
+	PrecacheModel("sprites/rust/map_plr.spr");
 	
 	for (uint i = 0; i < g_material_damage_sounds.length(); i++)
 		for (uint k = 0; k < g_material_damage_sounds[i].length(); k++)
@@ -2400,18 +2398,18 @@ bool doRustCommand(CBasePlayer@ plr, const CCommand@ args)
 					PrintKeyBindingStringLong(plr, "Code accepted. Lock engaged.");
 					lock_object(ent, code, false);
 					clearDoorAuths(ent);
-					g_SoundSystem.PlaySound(ent.edict(), CHAN_ITEM, fixPath("sc_rust/code_lock_update.ogg"), 1.0f, 1.0f, 0, 100);
+					g_SoundSystem.PlaySound(ent.edict(), CHAN_ITEM, "rust/code_lock_update.ogg", 1.0f, 1.0f, 0, 100);
 					state.authedLocks.insertLast(state.currentLock);
 				} 
 				else // guest is unlocking
 				{ 
 					if (code == ent.pev.noise3) {
 						PrintKeyBindingStringLong(plr, "Code accepted");
-						g_SoundSystem.PlaySound(ent.edict(), CHAN_ITEM, fixPath("sc_rust/code_lock_update.ogg"), 1.0f, 1.0f, 0, 100);
+						g_SoundSystem.PlaySound(ent.edict(), CHAN_ITEM, "rust/code_lock_update.ogg", 1.0f, 1.0f, 0, 100);
 						state.authedLocks.insertLast(state.currentLock);
 					} else {
 						PrintKeyBindingStringLong(plr, "Incorrect code");
-						g_SoundSystem.PlaySound(ent.edict(), CHAN_ITEM, fixPath("sc_rust/code_lock_shock.ogg"), 1.0f, 1.0f, 0, 100);
+						g_SoundSystem.PlaySound(ent.edict(), CHAN_ITEM, "rust/code_lock_shock.ogg", 1.0f, 1.0f, 0, 100);
 						plr.TakeDamage(ent.pev, ent.pev, 10.0f, DMG_SHOCK);
 					}	
 				}

@@ -440,7 +440,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 	void Spawn()
 	{		
 		Precache();
-		g_EntityFuncs.SetModel( self, fixPath("models/sc_rust/w_blueprint.mdl") );
+		g_EntityFuncs.SetModel( self, "models/rust/w_blueprint.mdl" );
 
 		//self.m_iDefaultAmmo = 0;
 		//self.m_iClip = self.m_iDefaultAmmo;
@@ -452,12 +452,12 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 	void Precache()
 	{
 		self.PrecacheCustomModels();
-		PrecacheModel( "models/sc_rust/w_blueprint.mdl" );
-		PrecacheModel( "models/sc_rust/p_blueprint.mdl" );
-		PrecacheModel( "models/sc_rust/v_blueprint.mdl" );
+		PrecacheModel( "models/rust/w_blueprint.mdl" );
+		PrecacheModel( "models/rust/p_blueprint.mdl" );
+		PrecacheModel( "models/rust/v_blueprint.mdl" );
 		
-		PrecacheSound("sc_rust/build1.ogg");
-		PrecacheSound("sc_rust/build2.ogg");
+		PrecacheSound("rust/build1.ogg");
+		PrecacheSound("rust/build2.ogg");
 	}
 	
 	bool GetItemInfo( ItemInfo& out info )
@@ -488,8 +488,8 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 	
 	bool Deploy()
 	{
-		bool bResult = self.DefaultDeploy( self.GetV_Model( fixPath("models/sc_rust/v_blueprint.mdl") ), 
-										   self.GetP_Model( fixPath("models/sc_rust/p_blueprint.mdl") ), 0, "trip" );
+		bool bResult = self.DefaultDeploy( self.GetV_Model( "models/rust/v_blueprint.mdl" ), 
+										   self.GetP_Model( "models/rust/p_blueprint.mdl" ), 0, "trip" );
 		
 		createBuildEnts();
 		
@@ -1517,7 +1517,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 				parent = attachEnt.pev.team;
 			}
 			
-			string soundFile = nextSnd == 0 ? "sc_rust/build1.ogg" : "sc_rust/build2.ogg";
+			string soundFile = nextSnd == 0 ? "rust/build1.ogg" : "rust/build2.ogg";
 			nextSnd = 1 - nextSnd;
 			
 			
@@ -1544,16 +1544,16 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 					showTip(EHandle(plr), TIP_CUPBOARD);
 			}
 			
-			if (buildType == B_WOOD_DOOR) soundFile = "sc_rust/door_wood_place.ogg";
-			if (buildType == B_METAL_DOOR) soundFile = "sc_rust/door_metal_place.ogg";
-			if (buildType == B_WOOD_BARS) soundFile = "sc_rust/bars_wood_place.ogg";
-			if (buildType == B_METAL_BARS) soundFile = "sc_rust/bars_metal_place.ogg";			
-			if (buildType == B_CODE_LOCK) soundFile = "sc_rust/code_lock_place.ogg";					
-			if (buildType == B_TOOL_CUPBOARD) soundFile = "sc_rust/tool_cupboard_place.ogg";					
-			if (buildType == B_LADDER) soundFile = "sc_rust/ladder_place.ogg";					
-			if (buildType == B_LADDER_HATCH) soundFile = "sc_rust/ladder_hatch_place.ogg";					
-			if (buildType == B_HIGH_STONE_WALL) soundFile = "sc_rust/high_wall_place_stone.ogg";					
-			if (buildType == B_HIGH_WOOD_WALL) soundFile = "sc_rust/high_wall_place_wood.ogg";					
+			if (buildType == B_WOOD_DOOR) soundFile = "rust/door_wood_place.ogg";
+			if (buildType == B_METAL_DOOR) soundFile = "rust/door_metal_place.ogg";
+			if (buildType == B_WOOD_BARS) soundFile = "rust/bars_wood_place.ogg";
+			if (buildType == B_METAL_BARS) soundFile = "rust/bars_metal_place.ogg";			
+			if (buildType == B_CODE_LOCK) soundFile = "rust/code_lock_place.ogg";					
+			if (buildType == B_TOOL_CUPBOARD) soundFile = "rust/tool_cupboard_place.ogg";					
+			if (buildType == B_LADDER) soundFile = "rust/ladder_place.ogg";					
+			if (buildType == B_LADDER_HATCH) soundFile = "rust/ladder_hatch_place.ogg";					
+			if (buildType == B_HIGH_STONE_WALL) soundFile = "rust/high_wall_place_stone.ogg";					
+			if (buildType == B_HIGH_WOOD_WALL) soundFile = "rust/high_wall_place_wood.ogg";					
 			
 			if (buildType == B_CODE_LOCK)
 			{
@@ -1573,7 +1573,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 				attachEnt.pev.button = 1;
 				attachEnt.pev.body = 0;
 				
-				g_SoundSystem.PlaySound(attachEnt.edict(), CHAN_STATIC, fixPath(soundFile), 1.0f, 1.0f, 0, 90 + Math.RandomLong(0, 20));
+				g_SoundSystem.PlaySound(attachEnt.edict(), CHAN_STATIC, soundFile, 1.0f, 1.0f, 0, 90 + Math.RandomLong(0, 20));
 				return true;
 			}
 		
@@ -1677,7 +1677,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 				ent2.pev.vuser1 = ent2.pev.angles;
 				ent2.pev.vuser2 = ent2.pev.angles + Vector(0,150,0);	
 				
-				g_SoundSystem.PlaySound(ent.edict(), CHAN_STATIC, fixPath("sc_rust/shutters_wood_place.ogg"), 1.0f, 1.0f, 0, 90 + Math.RandomLong(0, 20));
+				g_SoundSystem.PlaySound(ent.edict(), CHAN_STATIC, "rust/shutters_wood_place.ogg", 1.0f, 1.0f, 0, 90 + Math.RandomLong(0, 20));
 				
 				g_build_parts.insertLast(EHandle(ent));
 				g_build_parts.insertLast(EHandle(ent2));
@@ -1695,7 +1695,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 				
 				build_effect(ent.pev.origin);
 				
-				g_SoundSystem.PlaySound(ent.edict(), CHAN_STATIC, fixPath(soundFile), 1.0f, 1.0f, 0, 90 + Math.RandomLong(0, 20));
+				g_SoundSystem.PlaySound(ent.edict(), CHAN_STATIC, soundFile, 1.0f, 1.0f, 0, 90 + Math.RandomLong(0, 20));
 				
 				EHandle h_ent = ent;
 				g_build_parts.insertLast(EHandle(ent));

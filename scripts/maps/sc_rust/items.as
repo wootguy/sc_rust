@@ -248,7 +248,7 @@ HUDSpriteParams getIconForEnt(PlayerState@ state, CBaseEntity@ ent)
 {
 	HUDSpriteParams params;
 	params.flags = HUD_SPR_MASKED | HUD_ELEM_ABSOLUTE_X | HUD_ELEM_ABSOLUTE_Y | HUD_ELEM_SCR_CENTER_X | HUD_ELEM_SCR_CENTER_Y;
-	params.spritename = fixPath("sprites/sc_rust/map_plr.spr").SubString("sprites/".Length());
+	params.spritename = "sprites/rust/map_plr.spr".SubString("sprites/".Length());
 	params.holdTime = 99999.0f;
 	params.color1 = RGBA( 255, 255, 255, 255 );
 	
@@ -299,7 +299,7 @@ void drawMap(PlayerState@ state)
 	CBasePlayer@ plr = cast<CBasePlayer@>(state.plr.GetEntity());
 	
 	HUDSpriteParams params;
-	params.spritename = fixPath("sprites/sc_rust/map_b6.spr").SubString("sprites/".Length());
+	params.spritename = "sprites/rust/map_b6.spr".SubString("sprites/".Length());
 	//params.flags = HUD_SPR_OPAQUE | HUD_ELEM_ABSOLUTE_X | HUD_ELEM_ABSOLUTE_Y;
 	params.flags = HUD_SPR_OPAQUE | HUD_ELEM_ABSOLUTE_X | HUD_ELEM_ABSOLUTE_Y | HUD_ELEM_SCR_CENTER_X | HUD_ELEM_SCR_CENTER_Y;
 	params.holdTime = 99999.0f;
@@ -1208,7 +1208,7 @@ void playerMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CText
 				int barf = giveItem(plr, itemType, amt, false, true, true);
 				if (barf == 0)
 				{
-					g_SoundSystem.PlaySound(plr.edict(), CHAN_ITEM, fixPath("sc_rust/build1.ogg"), 1.0f, 1.0f, 0, Math.RandomLong(140, 160));
+					g_SoundSystem.PlaySound(plr.edict(), CHAN_ITEM, "rust/build1.ogg", 1.0f, 1.0f, 0, Math.RandomLong(140, 160));
 				}
 				else
 				{
@@ -1287,8 +1287,7 @@ void openPlayerMenu(CBasePlayer@ plr, string subMenu)
 		state.menu.AddItem(g_items[I_METAL_BARS].getCraftText(), any("craft-0-" + I_METAL_BARS));
 		state.menu.AddItem(g_items[I_WOOD_SHUTTERS].getCraftText(), any("craft-0-" + I_WOOD_SHUTTERS));
 		state.menu.AddItem(g_items[I_HIGH_WOOD_WALL].getCraftText(), any("craft-0-" + I_HIGH_WOOD_WALL));
-		state.menu.AddItem(g_items[I_HIGH_STONE_WALL].getCraftText(), any("craft-0-" + I_HIGH_STONE_WALL));
-		state.menu.AddItem(g_items[I_FIRE].getCraftText() +"\n", any("craft-0-" + I_FIRE));
+		state.menu.AddItem(g_items[I_HIGH_STONE_WALL].getCraftText() + "\n", any("craft-0-" + I_HIGH_STONE_WALL));
 	}
 	else if (subMenu == "item-menu") 
 	{
@@ -1330,6 +1329,7 @@ void openPlayerMenu(CBasePlayer@ plr, string subMenu)
 		state.menu.AddItem(g_items[I_ARMOR].getCraftText() , any("craft-3-" + I_ARMOR));
 		//state.menu.AddItem("Large Medkit", any("large-medkit"));
 		state.menu.AddItem(g_items[I_GUITAR].getCraftText(), any("craft-3-" + I_GUITAR));
+		state.menu.AddItem(g_items[I_FIRE].getCraftText(), any("craft-0-" + I_FIRE));
 		state.menu.AddItem(g_items[I_BOAT_WOOD].getCraftText(), any("craft-3-" + I_BOAT_WOOD));
 		state.menu.AddItem(g_items[I_BOAT_METAL].getCraftText() + "\n\n", any("craft-3-" + I_BOAT_WOOD));
 		
@@ -1972,22 +1972,22 @@ void rotate_door(CBaseEntity@ door, bool playSound)
 	
 	string soundFile = "";
 	if (door.pev.colormap == B_WOOD_DOOR) {
-		soundFile = opening ? "sc_rust/door_wood_open.ogg" : "sc_rust/door_wood_close.ogg";
+		soundFile = opening ? "rust/door_wood_open.ogg" : "rust/door_wood_close.ogg";
 	}
 	if (door.pev.colormap == B_METAL_DOOR or door.pev.colormap == B_LADDER_HATCH) {
-		soundFile = opening ? "sc_rust/door_metal_open.ogg" : "sc_rust/door_metal_close.ogg";
+		soundFile = opening ? "rust/door_metal_open.ogg" : "rust/door_metal_close.ogg";
 	}
 	if (door.pev.colormap == B_LADDER_HATCH) {
-		soundFile = opening ? "sc_rust/door_metal_open.ogg" : "sc_rust/door_metal_close2.ogg";
+		soundFile = opening ? "rust/door_metal_open.ogg" : "rust/door_metal_close2.ogg";
 		speed = 200;
 	}
 	if (door.pev.colormap == B_WOOD_SHUTTERS) {
-		soundFile = opening ? "sc_rust/shutters_wood_open.ogg" : "sc_rust/shutters_wood_close.ogg";
+		soundFile = opening ? "rust/shutters_wood_open.ogg" : "rust/shutters_wood_close.ogg";
 		speed = 128;
 	}
 	
 	if (playSound) {
-		g_SoundSystem.PlaySound(door.edict(), CHAN_ITEM, fixPath(soundFile), 1.0f, 1.0f, 0, 90 + Math.RandomLong(0, 20));
+		g_SoundSystem.PlaySound(door.edict(), CHAN_ITEM, soundFile, 1.0f, 1.0f, 0, 90 + Math.RandomLong(0, 20));
 	}	
 	
 	if (dest != door.pev.angles) {
@@ -2061,11 +2061,11 @@ void codeLockMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTe
 	}
 	if (action == "unlock") {
 		lock_object(state.currentLock, "", true);
-		g_SoundSystem.PlaySound(lock.edict(), CHAN_ITEM, fixPath("sc_rust/code_lock_beep.ogg"), 1.0f, 1.0f, 0, 100);
+		g_SoundSystem.PlaySound(lock.edict(), CHAN_ITEM, "rust/code_lock_beep.ogg", 1.0f, 1.0f, 0, 100);
 	}
 	if (action == "lock") {
 		lock_object(state.currentLock, "", false);
-		g_SoundSystem.PlaySound(lock.edict(), CHAN_ITEM, fixPath("sc_rust/code_lock_beep.ogg"), 1.0f, 1.0f, 0, 55);
+		g_SoundSystem.PlaySound(lock.edict(), CHAN_ITEM, "rust/code_lock_beep.ogg", 1.0f, 1.0f, 0, 55);
 	}
 	if (action == "remove")
 	{	
@@ -2079,7 +2079,7 @@ void codeLockMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTe
 		int oldcolormap = lock.pev.colormap;
 		g_EntityFuncs.SetModel(lock, getModelFromName(newModel));
 		lock.pev.colormap = oldcolormap;
-		g_SoundSystem.PlaySound(lock.edict(), CHAN_ITEM, fixPath("sc_rust/code_lock_place.ogg"), 1.0f, 1.0f, 0, 100);		
+		g_SoundSystem.PlaySound(lock.edict(), CHAN_ITEM, "rust/code_lock_place.ogg", 1.0f, 1.0f, 0, 100);		
 		giveItem(@plr, I_CODE_LOCK, 1);
 		
 		lock.pev.button = 0;
@@ -2174,11 +2174,11 @@ HookReturnCode PlayerUse( CBasePlayer@ plr, uint& out )
 					{
 						rotate_door(phit, true);
 						if (locked) {
-							g_SoundSystem.PlaySound(phit.edict(), CHAN_WEAPON, fixPath("sc_rust/code_lock_beep.ogg"), 1.0f, 1.0f, 0, 100);
+							g_SoundSystem.PlaySound(phit.edict(), CHAN_WEAPON, "rust/code_lock_beep.ogg", 1.0f, 1.0f, 0, 100);
 						}
 					}
 					if (locked and !authed)
-						g_SoundSystem.PlaySound(phit.edict(), CHAN_WEAPON, fixPath("sc_rust/code_lock_denied.ogg"), 1.0f, 1.0f, 0, 100);
+						g_SoundSystem.PlaySound(phit.edict(), CHAN_WEAPON, "rust/code_lock_denied.ogg", 1.0f, 1.0f, 0, 100);
 				}
 			}
 			else if (phit.pev.colormap == B_FIRE)
