@@ -1152,7 +1152,7 @@ void MapActivate()
 	
 	removeExtraEnts();
 	
-	dropNodes();
+	//dropNodes();
 	
 	resetVoteBlockers();
 	
@@ -1164,7 +1164,7 @@ void MapActivate()
 	} while (ent !is null);
 	
 	//setupInvasionMode();
-	//setupCreativeMode();
+	setupCreativeMode();
 	//setupPvpMode();
 }
 
@@ -1965,7 +1965,22 @@ bool doRustCommand(CBasePlayer@ plr, const CCommand@ args)
 	{
 		if (args[0] == ".version")
 		{
-			g_PlayerFuncs.SayText(plr, "Script version: v6 (August 24, 2018)");
+			g_PlayerFuncs.SayText(plr, "Script version: v6 (August, 2018)");
+			return true;
+		}
+		if (args[0] == ".test")
+		{
+			day_night_cycle.test();
+			return true;
+		}
+		if (args[0] == ".test2")
+		{
+			day_night_cycle.test2();
+			return true;
+		}
+		if (args[0] == ".heli")
+		{
+			spawn_heli();
 			return true;
 		}
 		if (args[0] == ".save")
