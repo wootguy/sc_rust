@@ -331,15 +331,46 @@ array<EHandle> getPartsByParent(int parent)
 	return ents;
 }
 
+void deleteNullBoats()
+{
+	for (uint i = 0; i < g_boats.size(); i++)
+	{
+		if (!g_boats[i].IsValid())
+		{
+			g_boats.removeAt(i);
+			i--;
+		}
+	}
+}
+
+void deleteExtraBoats()
+{
+	deleteNullBoats();
+	if (g_boats.size() < 32)
+		return; // no need to clean up yet
+		
+	for (uint i = 0; i < g_boats.size(); i++)
+	{
+		CBaseEntity@ boat = g_boats[i].GetEntity();
+		PlayerState@ state = getPlayerStateBySteamID(boat.pev.noise1, boat.pev.noise2);
+		if (state is null or state.inGame == false)
+		{
+			boat.TakeDamage(boat.pev, boat.pev, boat.pev.health, DMG_GENERIC);
+		}
+	}
+}
+
 CBaseEntity@ getBoatByOwner(CBasePlayer@ plr)
 {
 	string authid = g_EngineFuncs.GetPlayerAuthId( plr.edict() );
 	string netname = plr.pev.netname;
-		
+	
+	deleteNullBoats();
+	
 	array<EHandle> ents;
 	for (uint i = 0; i < g_boats.size(); i++)
-	{	
-		CBaseEntity@ boat = g_build_parts[i].GetEntity();
+	{
+		CBaseEntity@ boat = g_boats[i].GetEntity();
 		if (boat !is null and ((authid == boat.pev.noise1 and authid != "STEAM_ID_LAN") or (authid == "STEAM_ID_LAN" and netname == boat.pev.noise2)) ) 
 			return boat;
 	}

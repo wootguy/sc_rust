@@ -94,6 +94,15 @@ void saveMapData()
 				}
 			}
 			
+			deleteNullBoats();
+			buf.Write(uint16(g_boats.size()));
+			for (uint i = 0; i < g_boats.size(); i++)
+			{
+				func_vehicle_custom@ ent = cast<func_vehicle_custom@>(CastToScriptClass(g_boats[i].GetEntity()));
+				ent.StopSound();
+				buf.Write(ent.serialize());
+			}
+			
 			string dataString = buf.base128encode();
 			f.Write(dataString);
 			println("Rust: Wrote '" + path + "' (" + dataString.Length() + " bytes)");
@@ -119,6 +128,79 @@ void unlockSaveLoad()
 	{
 		func_breakable_custom@ ent = cast<func_breakable_custom@>(CastToScriptClass(g_build_parts[i].GetEntity()));
 		ent.updateConnections();
+	}
+}
+
+void loadBoatsPartial(ByteBuffer@ buf, int partsLoaded, int numParts)
+{
+	for (int partIdx = 0; partIdx < 1 and partsLoaded < numParts and buf.readPos < buf.data.size(); partIdx++, partsLoaded++)
+	{		
+		float x = buf.ReadFloat();
+		float y = buf.ReadFloat();
+		float z = buf.ReadFloat();
+		float ax = buf.ReadFloat();
+		float ay = buf.ReadFloat();
+		float az = buf.ReadFloat();
+		Vector origin(x, y, z);
+		Vector angles(ax, ay, az);
+		int type = buf.ReadInt16();
+		float health = buf.ReadFloat();
+		float max_health = buf.ReadFloat();
+		float speed = buf.ReadFloat();
+		int mat = buf.ReadInt16();
+		string model = buf.ReadString();
+		string steamid = buf.ReadString();
+		string netname = buf.ReadString();
+		
+		if (buf.err != 0)
+		{
+			println("Rust: Failed to load. Unexpected end of file.");
+			return;
+		}
+		
+		dictionary keys;
+		keys["origin"] = origin.ToString();
+		keys["angles"] = angles.ToString();
+		keys["model"] = model;
+		keys["material"] = "" + mat;
+		keys["health"] = "" + health;
+		keys["max_health"] = "" + max_health;
+		keys["rendermode"] = "4";
+		keys["renderamt"] = "255";
+		keys["colormap"] = "" + type;
+		keys["length"] = "270";
+		keys["width"] = "64";
+		keys["height"] = "40";
+		keys["acceleration"] = "0.000001";
+		keys["speed"] = "" + speed;
+		keys["sounds"] = "6";
+		keys["bank"] = "3";
+		keys["material"] = "" + mat;
+		keys["volume"] = "7";
+		
+		println("MAKE ONE A DOES: " + model);
+		
+		CBaseEntity@ ent = g_EntityFuncs.CreateEntity("func_vehicle_custom", keys, true);
+		ent.pev.noise1 = steamid;
+		ent.pev.noise2 = netname;	
+		
+		g_boats.insertLast(EHandle(ent));
+	}
+	
+	if (buf.readPos < buf.data.size())
+	{
+		if (partsLoaded < numParts)
+			g_Scheduler.SetTimeout("loadBoatsPartial", 0.0, @buf, partsLoaded, numParts);
+		else
+		{
+			saveLoadInProgress = false;
+			g_PlayerFuncs.SayTextAll(getAnyPlayer(), "Load complete\n");
+		}
+	}
+	else
+	{
+		saveLoadInProgress = false;
+		g_PlayerFuncs.SayTextAll(getAnyPlayer(), "Load complete\n");
 	}
 }
 
@@ -149,11 +231,17 @@ void loadNodesPartial(ByteBuffer@ buf, int zonesLoaded, int numZones, int nodesL
 			keys["origin"] = ori.ToString();
 			keys["angles"] = angles.ToString();
 			keys["health"] = "" + health;
+			keys["TriggerTarget"] = "monster_killed";
+			keys["TriggerCondition"] = "4";
+			keys["classify"] = "-1";
 			if (g_max_zone_monsters != 0) {
 				CBaseEntity@ ent = g_EntityFuncs.CreateEntity(classname, keys, true);
 				ent.pev.armortype = g_Engine.time + 10.0f;
-
+				CBaseMonster@ mon = cast<CBaseMonster@>(ent);
+				ent.pev.noise3 = mon.m_FormattedName;
+				
 				zone.nodes.insertLast(EHandle(ent));
+				zone.animals.insertLast(EHandle(ent));
 			}
 		}
 		else
@@ -222,23 +310,21 @@ void loadNodesPartial(ByteBuffer@ buf, int zonesLoaded, int numZones, int nodesL
 		if (nodesLoaded >= numNodes) {
 			println("loaded " + numNodes + " into zone idx " + zonesLoaded);
 			nodesLoaded = 0;
-			numNodes = buf.ReadUInt16();
 			zonesLoaded++;
+			numNodes = buf.ReadUInt16();
 			zone.Enable();
 			//println("Prepare to load " + numNodes + " nodes from zone " + zonesLoaded);
 		}
 		if (zonesLoaded < numZones)
+		{
 			g_Scheduler.SetTimeout("loadNodesPartial", 0.0, @buf, zonesLoaded, numZones, nodesLoaded, numNodes);
+		}
 		else
 		{
-			saveLoadInProgress = false;
-			g_PlayerFuncs.SayTextAll(getAnyPlayer(), "Load complete\n");
+			//uint32 numBoats = buf.ReadUInt16();
+			// numNodes holds numBoats after zones are loaded
+			g_Scheduler.SetTimeout("loadBoatsPartial", 0.0, @buf, 0, numNodes);
 		}
-	}
-	else
-	{
-		saveLoadInProgress = false;
-		g_PlayerFuncs.SayTextAll(getAnyPlayer(), "Load complete\n");
 	}
 }
 
@@ -411,6 +497,10 @@ void loadMapData()
 			zone.Disable();
 		}
 		
+		for (uint i = 0; i < g_boats.size(); i++)
+			g_EntityFuncs.Remove(g_boats[i]);
+		g_boats.resize(0);
+
 		// load parts
 		ByteBuffer buf(f);
 		uint32 numParts = buf.ReadUInt32();

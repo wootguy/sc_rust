@@ -608,7 +608,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 		{
 			if (g_EngineFuncs.PointContents(tr.vecEndPos) == CONTENTS_WATER)
 			{
-				newOri.z = g_Utility.WaterLevel(tr.vecEndPos, tr.vecEndPos.z, tr.vecEndPos.z + 256) - 12;
+				newOri.z = g_Utility.WaterLevel(tr.vecEndPos, tr.vecEndPos.z, tr.vecEndPos.z + 8192) - 12;
 				validBuild = true;
 			}
 		}
@@ -1125,7 +1125,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 					validBuild = false;
 			}
 		}
-		else if (partSocket == -1)
+		else if (partSocket == -1 and !isFloorItem(buildEnt))
 		{
 			// place anywhere
 			if (tr.flFraction < 1.0f and (phit.pev.classname == "worldspawn" or isFloorPiece(phit))) {
@@ -1625,7 +1625,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 			{
 				keys["rendermode"] = "4";
 				keys["renderamt"] = "255";
-				keys["length"] = "260";
+				keys["length"] = "270";
 				keys["width"] = "64";
 				keys["height"] = "40";
 				keys["acceleration"] = "0.000001";
@@ -1642,8 +1642,10 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 				
 				CBaseEntity@ boat = getBoatByOwner(plr);
 				if (boat !is null) {
+					g_PlayerFuncs.PrintKeyBindingString(plr, "You can only have one boat");
 					boat.TakeDamage(plr.pev, plr.pev, boat.pev.health, DMG_GENERIC);
 				}
+				deleteExtraBoats();
 			}
 				
 			if (buildSocket == SOCKET_DOORWAY or buildType == B_WOOD_SHUTTERS)
@@ -1689,16 +1691,17 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 			else
 			{				
 				@ent = g_EntityFuncs.CreateEntity(buildCname, keys, true);
+				EHandle h_ent = ent;
 				
 				if (buildingBoat)
-					g_boats.insertLast(EHandle(ent));
+					g_boats.insertLast(h_ent);
+				else
+					g_build_parts.insertLast(h_ent);
 				
 				build_effect(ent.pev.origin);
 				
 				g_SoundSystem.PlaySound(ent.edict(), CHAN_STATIC, soundFile, 1.0f, 1.0f, 0, 90 + Math.RandomLong(0, 20));
 				
-				EHandle h_ent = ent;
-				g_build_parts.insertLast(EHandle(ent));
 				g_part_id++;
 				state.addPart(ent, zoneid);
 				

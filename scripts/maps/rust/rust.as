@@ -20,11 +20,7 @@
 // auto save plz
 // remove ladders cuz freezing :'<
 // mp_decals 2 message :<
-// remove admin commands
-// remove boat if player leaves and new player wants a boat but theres 32 already
-// turn off boat
 // less furnace menus plz
-// why nodes spawn on walls WHY WHY WHY (canyon only)
 
 // Should do/fix but too lazy:
 // crashing/leaving players leave unusable items and sometimes duplicate player states
@@ -1776,6 +1772,7 @@ void monster_node(EHandle h_mon)
 		cent.monster = mon;
 		g_EntityFuncs.DispatchSpawn(ent.edict());
 		mon.pev.solid = SOLID_NOT;
+		mon.pev.movetype = MOVETYPE_NONE;
 		return;
 	}
 	g_Scheduler.SetTimeout("monster_node", 0, h_mon);
@@ -1969,21 +1966,36 @@ bool doRustCommand(CBasePlayer@ plr, const CCommand@ args)
 	{
 		if (args[0] == ".version")
 		{
-			g_PlayerFuncs.SayText(plr, "Script version: v6 (August, 2018)");
+			g_PlayerFuncs.SayText(plr, "Script version: v6 (September, 2018)");
 			return true;
 		}
 		if (args[0] == ".day")
 		{
+			if (!isAdmin)
+			{
+				g_PlayerFuncs.SayText(plr, "You don't have access to that command, peasent\n");
+				return true;
+			}
 			day_night_cycle.day();
 			return true;
 		}
 		if (args[0] == ".night")
 		{
+			if (!isAdmin)
+			{
+				g_PlayerFuncs.SayText(plr, "You don't have access to that command, peasent\n");
+				return true;
+			}
 			day_night_cycle.night();
 			return true;
 		}
 		if (args[0] == ".speed")
 		{
+			if (!isAdmin)
+			{
+				g_PlayerFuncs.SayText(plr, "You don't have access to that command, peasent\n");
+				return true;
+			}
 			if (args.ArgC() > 1)
 			{
 				day_night_cycle.setSpeed(atof(args[1]));

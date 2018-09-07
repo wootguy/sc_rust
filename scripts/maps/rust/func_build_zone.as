@@ -249,6 +249,9 @@ class func_build_zone : ScriptBaseEntity
 		if (phit.pev.classname != "worldspawn")
 			return false;
 
+		if (tr.vecPlaneNormal.z < 0.3f)
+			return false;
+			
 		// check radius around node for collisions
 		for (float r = 0.5f; r < 1.01f; r += 0.5f)
 		{
@@ -393,8 +396,7 @@ class func_build_zone : ScriptBaseEntity
 						{
 							mon.PushEnemy(ent, ent.pev.origin);
 							mon.SetClassification(CLASS_HUMAN_MILITARY); // Hate players, dislike player allies
-							mon.pev.noise3 = mon.m_FormattedName;
-							mon.m_FormattedName = "" + mon.m_FormattedName + " (angry)";
+							mon.m_FormattedName = "" + mon.pev.noise3 + " (angry)";
 							mon.pev.teleport_time = g_Engine.time;
 							isAgro = true;
 							break;
@@ -420,8 +422,7 @@ class func_build_zone : ScriptBaseEntity
 								if (!isAgro)
 								{
 									mon.SetClassification(CLASS_HUMAN_MILITARY); // Hate players, dislike player allies
-									mon.pev.noise3 = mon.m_FormattedName;
-									mon.m_FormattedName = "" + mon.m_FormattedName + " (angry)";
+									mon.m_FormattedName = "" + mon.pev.noise3 + " (angry)";
 									mon.MonsterUse(ent, ent, USE_TOGGLE, 0);
 									//mon.PushEnemy(ent, ent.pev.origin);
 									//mon.m_flDistLook = 32;
@@ -598,6 +599,8 @@ class func_build_zone : ScriptBaseEntity
 								{
 									ent.pev.targetname = "node_xen";
 									ent.pev.armortype = g_Engine.time + 10.0f;
+									CBaseMonster@ mon = cast<CBaseMonster@>(ent);
+									ent.pev.noise3 = mon.m_FormattedName;
 									nodes.insertLast(EHandle(ent));
 									animals.insertLast(EHandle(ent));
 									if (spawning_wave)

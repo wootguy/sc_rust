@@ -72,6 +72,7 @@ class func_vehicle_custom : ScriptBaseEntity
 	float lastSpray = 0;
 	bool dead = false;
 	int mat = 0;
+	float offTime; // time when motor should turn off
 	
 	bool KeyValue( const string& in szKey, const string& in szValue )
 	{
@@ -123,6 +124,28 @@ class func_vehicle_custom : ScriptBaseEntity
 		}
 		else
 			return BaseClass.KeyValue( szKey, szValue );
+	}
+	
+	ByteBuffer serialize()
+	{
+		ByteBuffer buf;
+		
+		buf.Write(pev.origin.x);
+		buf.Write(pev.origin.y);
+		buf.Write(pev.origin.z);
+		buf.Write(pev.angles.x);
+		buf.Write(pev.angles.y);
+		buf.Write(pev.angles.z);
+		buf.Write(int16(pev.colormap));
+		buf.Write(float(pev.health));
+		buf.Write(float(pev.max_health));
+		buf.Write(float(m_speed));
+		buf.Write(int16(mat));
+		buf.Write(string(pev.model));
+		buf.Write(string(pev.noise1));
+		buf.Write(string(pev.noise2));
+		
+		return buf;
 	}
 	
 	void NextThink(float thinkTime, const bool alwaysThink)
@@ -271,7 +294,7 @@ class func_vehicle_custom : ScriptBaseEntity
 				center = self.pev.origin;
 			}
 			Math.MakeVectors(self.pev.angles);
-			Vector forward = (g_Engine.v_forward * -1) * (m_length * 0.3);
+			Vector forward = (g_Engine.v_forward * -1) * (m_length * 0.2);
 			Vector up = g_Engine.v_up * 64;
 			m_vBack = self.pev.origin - forward + up;
 			
@@ -364,7 +387,7 @@ class func_vehicle_custom : ScriptBaseEntity
 			if (delta > 0 and g_Engine.time - lastSpray > 0.05f)
 			{
 				lastSpray = g_Engine.time;
-				te_spritespray(m_vBack + Vector(0,0,16) - g_Engine.v_forward*48, Vector(0,0,1), "sprites/wep_smoke_01.spr", 1, 64, 32);
+				te_spritespray(m_vBack + Vector(0,0,16) - g_Engine.v_forward*64, Vector(0,0,1), "sprites/wep_smoke_01.spr", 1, 64, 32);
 			}
 
 			float flSpeedRatio = delta;
@@ -736,7 +759,7 @@ class func_vehicle_custom : ScriptBaseEntity
 		if (g_Engine.time > m_flUpdateSound)
 		{
 			UpdateSound();
-			m_flUpdateSound = g_Engine.time + 1;
+			m_flUpdateSound = g_Engine.time + 0.2;
 		}
 
 		if (self.pev.speed == 0)
@@ -1000,9 +1023,30 @@ class func_vehicle_custom : ScriptBaseEntity
 	{
 		if (string( self.pev.noise ).IsEmpty())
 			return;
+			
+		if (m_pDriver is null)
+		{
+			if (offTime != 0)
+			{
+				if (offTime < g_Engine.time)
+				{
+					StopSound();
+					return;
+				}
+			}
+			else
+				offTime = g_Engine.time + 1;
+		}
+		else
+			offTime = 0;
 
 		float flpitch = VEHICLE_STARTPITCH + (abs(int(self.pev.speed)) * (VEHICLE_MAXPITCH - VEHICLE_STARTPITCH) / VEHICLE_MAXSPEED);
-
+		if (offTime > 0)
+		{
+			float delta = ((offTime - g_Engine.time)/1.0f);
+			flpitch = delta*flpitch;
+		}
+		
 		if (flpitch > 200)
 			flpitch = 200;
 
@@ -1030,7 +1074,7 @@ class func_vehicle_custom : ScriptBaseEntity
 		@m_pDriver = @pDriver;
 
 		if( pDriver !is null )
-			g_SoundSystem.EmitSoundDyn( self.edict(), CHAN_ITEM, "plats/vehicle_ignition.wav", 0.8, ATTN_NORM, 0, PITCH_NORM );
+			g_SoundSystem.EmitSoundDyn( self.edict(), CHAN_ITEM, "plats/vehicle_ignition.wav", 0.8, ATTN_NORM, 0, 70 );
 	}
 }
 
@@ -1231,62 +1275,6 @@ void VehicleMapInit( bool fRegisterHooks, bool fAddDebugCode = false )
 	
 	g_CustomEntityFuncs.RegisterCustomEntity( "func_vehicle_custom", "func_vehicle_custom" );
 	g_CustomEntityFuncs.RegisterCustomEntity( "func_vehiclecontrols", "func_vehiclecontrols" );
-	
-	//Create beams between all func_vehicle_custom entities
-	/*
-	const string szSprite = "sprites/xbeam1.spr";
-	
-	g_Game.PrecacheModel( szSprite );
-	
-	CBaseEntity@ pPrevEntity = null;
-	CBaseEntity@ pEntity = null;
-	
-	array<EHandle>@ pBeams = array<EHandle>();
-	
-	while( ( @pEntity = g_EntityFuncs.FindEntityByClassname( pEntity, "func_vehicle_custom" ) ) !is null )
-	{
-		if( pPrevEntity !is null )
-		{
-			CBeam@ pBeam = g_EntityFuncs.CreateBeam( szSprite, 40 );
-			
-			pBeam.EntsInit( pPrevEntity, pEntity );
-			pBeam.SetFlags( BEAM_FSINE );
-			//pBeam.SetEndAttachment( 1 );
-			//pBeam.pev.spawnflags |= SF_BEAM_TEMPORARY;
-			
-			pBeams.insertLast( EHandle( pBeam ) );
-		}
-		
-		@pPrevEntity = @pEntity;
-	}
-	
-	if( !pBeams.isEmpty() )
-	{
-		g_Scheduler.SetInterval( "UpdateBeams", 0.1, ( 1 / 0.1 ) * 60, pBeams );
-		g_Scheduler.SetTimeout( "CleanupBeams", 60, pBeams );
-	}
-	*/
-}
-
-void UpdateBeams( array<EHandle>@ pBeams )
-{
-	for( uint uiIndex = 0; uiIndex < pBeams.length(); ++uiIndex )
-	{
-		if( pBeams[ uiIndex ].IsValid() )
-		{
-			cast<CBeam@>( pBeams[ uiIndex ].GetEntity() ).RelinkBeam();
-		}
-	}
-}
-
-void CleanupBeams( array<EHandle>@ pBeams )
-{
-	for( uint uiIndex = 0; uiIndex < pBeams.length(); ++uiIndex )
-	{
-		g_EntityFuncs.Remove( pBeams[ uiIndex ].GetEntity() );
-	}
-	
-	pBeams.resize(0);
 }
 
 HookReturnCode VehicleClientPutInServer( CBasePlayer@ pPlayer )
