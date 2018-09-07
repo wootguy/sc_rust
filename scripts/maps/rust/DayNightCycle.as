@@ -34,22 +34,22 @@ class DayNightCycle {
 		h_light_env = g_EntityFuncs.FindEntityByTargetname(null, "light_day");
 	}
 	
-	void test()
+	void night()
 	{
 		CBaseEntity@ sun = h_sun;
 		CBaseEntity@ sun_dusk = h_sun_dusk;
 		CBaseEntity@ moon = h_moon;
 		
-		sun.pev.angles.z = sun_dusk.pev.angles.z = moon.pev.angles.z = -43;
+		sun.pev.angles.x = sun_dusk.pev.angles.x = moon.pev.angles.x = -98;
 	}
 	
-	void test2()
+	void day()
 	{
 		CBaseEntity@ sun = h_sun;
 		CBaseEntity@ sun_dusk = h_sun_dusk;
 		CBaseEntity@ moon = h_moon;
 		
-		sun.pev.angles.z = sun_dusk.pev.angles.z = moon.pev.angles.z = -180 - 43;
+		sun.pev.angles.x = sun_dusk.pev.angles.x = moon.pev.angles.x = -180 - 105;
 	}
 	
 	void start()
@@ -63,8 +63,8 @@ class DayNightCycle {
 		
 		sun.pev.movetype = sun_dusk.pev.movetype = moon.pev.movetype = MOVETYPE_NOCLIP;
 		
-		sun.pev.angles.z = sun_dusk.pev.angles.z = moon.pev.angles.z = 45;
-		sun.pev.avelocity.z = sun_dusk.pev.avelocity.z = moon.pev.avelocity.z = -1;
+		sun.pev.angles.x = sun_dusk.pev.angles.x = moon.pev.angles.x = 45;
+		sun.pev.avelocity.x = sun_dusk.pev.avelocity.x = moon.pev.avelocity.x = -1;
 		
 		moon.pev.renderamt = 255;
 		
@@ -79,19 +79,20 @@ class DayNightCycle {
 		println("Day Night Cycle started");
 	}
 	
-	void pause()
+	void setSpeed(float speed)
 	{
+		speed = -speed;
 		CBaseEntity@ sun = h_sun;
 		CBaseEntity@ sun_dusk = h_sun_dusk;
 		CBaseEntity@ moon = h_moon;
 		
-		sun.pev.avelocity.z = sun_dusk.pev.avelocity.z = moon.pev.avelocity.z = 0;
+		sun.pev.avelocity.x = sun_dusk.pev.avelocity.x = moon.pev.avelocity.x = speed;
 	}
 	
 	void wrapAngle(CBaseEntity@ ent)
 	{
-		while (ent.pev.angles.z < -360) {
-			ent.pev.angles.z += 360;
+		while (ent.pev.angles.x < -360) {
+			ent.pev.angles.x += 360;
 		}
 	}
 	
@@ -113,7 +114,7 @@ class DayNightCycle {
 		wrapAngle(sun_dusk);
 		wrapAngle(moon);
 		
-		float sunAngle = -sun.pev.angles.z / 360.0f;
+		float sunAngle = -sun.pev.angles.x / 360.0f;
 		
 		float fade_time = 0.1f;
 		
@@ -126,6 +127,7 @@ class DayNightCycle {
 		{
 			skybox_day.pev.renderamt = ((day_fadeout_end - sunAngle) / fade_time)*255.0f;
 			skybox_dusk.pev.renderamt = 255.0f - skybox_day.pev.renderamt;
+			skybox_night.pev.renderamt = 0;
 		}
 		
 		if (sunAngle > night_fadein_start and sunAngle < night_fadein_start + fade_time)
@@ -133,6 +135,7 @@ class DayNightCycle {
 			skybox_night.pev.renderamt = 255.0f - (((night_fadein_start+fade_time) - sunAngle) / fade_time)*255.0f;
 			skybox_dusk.pev.renderamt = 255.0f - skybox_night.pev.renderamt;
 			skybox_night.pev.renderamt *= 0.5f;
+			skybox_day.pev.renderamt = 0;
 		}
 		
 		if (sunAngle > night_fadeout_end - fade_time and sunAngle < night_fadeout_end)
@@ -140,12 +143,14 @@ class DayNightCycle {
 			skybox_night.pev.renderamt = ((night_fadeout_end - sunAngle) / fade_time)*255.0f;
 			skybox_dusk.pev.renderamt = 255.0f - skybox_night.pev.renderamt;
 			skybox_night.pev.renderamt *= 0.5f;
+			skybox_day.pev.renderamt = 0;
 		}
 		
 		if (sunAngle > day_fadein_start and sunAngle < day_fadein_start + fade_time)
 		{
 			skybox_day.pev.renderamt = 255.0f - (((day_fadein_start+fade_time) - sunAngle) / fade_time)*255.0f;
 			skybox_dusk.pev.renderamt = 255.0f - skybox_day.pev.renderamt;
+			skybox_night.pev.renderamt = 0;
 		}
 		
 		if (sunAngle > night_fadein_start + fade_time and sunAngle < night_fadeout_end - fade_time)

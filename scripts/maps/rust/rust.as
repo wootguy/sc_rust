@@ -1,4 +1,3 @@
-#include "../weapon_custom/v4/weapon_custom"
 #include "building_plan"
 #include "hammer"
 #include "func_breakable_custom"
@@ -13,6 +12,7 @@
 #include "DayNightCycle"
 #include "apache"
 #include "func_boat"
+#include "../weapon_custom/v5/weapon_custom"
 
 // TODO:
 // nobody voted shown when people voted
@@ -20,7 +20,11 @@
 // auto save plz
 // remove ladders cuz freezing :'<
 // mp_decals 2 message :<
-// remove beta prefix from assets
+// remove admin commands
+// remove boat if player leaves and new player wants a boat but theres 32 already
+// turn off boat
+// less furnace menus plz
+// why nodes spawn on walls WHY WHY WHY (canyon only)
 
 // Should do/fix but too lazy:
 // crashing/leaving players leave unusable items and sometimes duplicate player states
@@ -1968,18 +1972,32 @@ bool doRustCommand(CBasePlayer@ plr, const CCommand@ args)
 			g_PlayerFuncs.SayText(plr, "Script version: v6 (August, 2018)");
 			return true;
 		}
-		if (args[0] == ".test")
+		if (args[0] == ".day")
 		{
-			day_night_cycle.test();
+			day_night_cycle.day();
 			return true;
 		}
-		if (args[0] == ".test2")
+		if (args[0] == ".night")
 		{
-			day_night_cycle.test2();
+			day_night_cycle.night();
 			return true;
 		}
-		if (args[0] == ".heli")
+		if (args[0] == ".speed")
 		{
+			if (args.ArgC() > 1)
+			{
+				day_night_cycle.setSpeed(atof(args[1]));
+				g_PlayerFuncs.SayTextAll(plr, "The day/night cycle speed was set to " + atof(args[1]) + "\n");
+			}
+			return true;
+		}
+		if (args[0] == ".apache")
+		{
+			if (!isAdmin)
+			{
+				g_PlayerFuncs.SayText(plr, "You don't have access to that command, peasent\n");
+				return true;
+			}
 			spawn_heli();
 			return true;
 		}
@@ -2446,7 +2464,7 @@ HookReturnCode ClientLeave(CBasePlayer@ plr)
 	PlayerState@ state = getPlayerState(plr);
 	state.inGame = false;
 	state.resumeOnJoin = true;
-	state.leaveTeam();
+	//state.leaveTeam();
 	
 	// spawn corpse for leaver
 	if (plr.pev.deadflag == DEAD_NO)

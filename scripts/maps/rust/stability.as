@@ -133,9 +133,6 @@ void stabilityCheck()
 		}
 	}
 	
-	float check_delay = 0.5f; // default to infrequent checks to reduce CPU usage
-	bool any_broken = false;
-	
 	while(stability_ents.length() > 0)
 	{		
 		visited_parts.deleteAll();
@@ -176,10 +173,7 @@ void stabilityCheck()
 
 		//println("Stability for part " + src_part.pev.team + " finished in " + numChecks + " checks (" + numSkip + " skipped). Result is " + supported);
 		
-		if (!supported) {
-			any_broken = true;
-			check_delay = 0.05; // do fast checks while stuff is breaking
-			
+		if (!supported) {			
 			propogate_part_destruction(src_part);
 			src_part.TakeDamage(src_part.pev, src_part.pev, src_part.pev.health, 0);
 			if (src_part.pev.classname == "func_ladder")
@@ -190,8 +184,8 @@ void stabilityCheck()
 		stability_ents.removeAt(0);
 		break;
 	}
-	if (any_broken)
-		g_Scheduler.SetTimeout("stabilityCheck", check_delay);
+	if (stability_ents.length() > 0)
+		g_Scheduler.SetTimeout("stabilityCheck", 0.05);
 	else
 		g_running_stability = false;
 }

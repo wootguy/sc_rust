@@ -348,6 +348,8 @@ CBaseEntity@ getBoatByOwner(CBasePlayer@ plr)
 
 string getModelName(CBaseEntity@ part)
 {
+	if (part is null)
+		return "NULL";
 	string name;
 	g_partname_to_model.get(string(part.pev.model), name);
 	return name;
@@ -355,6 +357,8 @@ string getModelName(CBaseEntity@ part)
 
 string prettyPartName(CBaseEntity@ part)
 {
+	if (part is null)
+		return "NULL";
 	string modelName = getModelName(part);
 		
 	string size = "";
