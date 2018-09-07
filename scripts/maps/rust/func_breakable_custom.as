@@ -64,6 +64,18 @@ void weird_think_bug_workaround(EHandle h_ent)
 	}
 }
 
+void delay_connect(EHandle h_ent)
+{
+	if (!h_ent.IsValid())
+		return;
+		
+	func_breakable_custom@ ent = cast<func_breakable_custom@>(CastToScriptClass(h_ent.GetEntity()));
+	if (ent.dead)
+		return;
+		
+	ent.updateConnections();
+}
+
 class func_breakable_custom : ScriptBaseEntity
 {
 	int id = -1;
@@ -231,7 +243,10 @@ class func_breakable_custom : ScriptBaseEntity
 		}
 
 		if (!isNode)
+		{
+			g_Scheduler.SetTimeout("delay_connect", 0.0f, EHandle(self)); // needed for part separation (adjacent piece isn't solid yet)
 			updateConnections();
+		}
 		
 		if (isDoor)
 		{

@@ -886,6 +886,8 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 		// disconnect children
 		for (uint i = 0; i < g_build_parts.size(); i++)
 		{
+			if (!g_build_parts[i].IsValid())
+				continue;
 			func_breakable_custom@ part = cast<func_breakable_custom@>(CastToScriptClass(g_build_parts[i].GetEntity()));
 			if (part.parent == ent.pev.team) 
 			{
@@ -1039,14 +1041,13 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 				}
 				
 				string newSize = "_2x2";
+				bool justDoIt = false;
 				
 				if (DotProduct(dir, -g_Engine.v_right) > 0.9f) // left
 				{
 					newSize = "_4x1";
-
 					if (abs(dist - 128) < EPSILON) // facing opposite directions (outward, not inward)
 					{
-						float newAngle = part1.pev.angles.y + 180;
 						part1.pev.effects |= EF_NODRAW;
 						part1.pev.solid = SOLID_NOT;
 						g_EntityFuncs.SetOrigin(part1, part1.pev.origin); // force nonsolid to take effect
@@ -1057,7 +1058,8 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 							return;
 						}
 						@part1 = respawnPart(part1.pev.team);
-						part1.pev.angles.y = newAngle;
+						part1.pev.angles.y = part2.pev.angles.y;
+						justDoIt = true;
 					}
 					else
 					{
@@ -1075,7 +1077,7 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 					part1.pev.angles.y -= 90;
 				}
 				
-				if ( abs(DotProduct(dir, g_Engine.v_forward)) > EPSILON and newSize == "_4x1")
+				if ( abs(DotProduct(dir, g_Engine.v_forward)) > EPSILON and newSize == "_4x1" and !justDoIt)
 				{
 					cancelFuse("Can only fuse adjacent pieces");
 					return;
@@ -1128,6 +1130,7 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 					CBaseEntity@ temp = @part1;
 					@part1 = @part2;
 					@part2 = @temp;
+					part1.pev.angles = part2.pev.angles;
 				}
 				
 				newModel = prefix + "_4x1" + material;
@@ -1251,7 +1254,7 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 					@part1 = respawnPart(part1.pev.team);
 					part1.pev.angles.y = newAngle;
 				}
-				else if ((DotProduct(dir, -g_Engine.v_forward) > 0.7f and size1 == "_2x1" and abs(dist - 73.899) < EPSILON))
+				else if ((DotProduct(dir, -g_Engine.v_forward) > 0.7f and size1 == "_2x1"))
 				{
 					newSize = "_1x4";
 					float newAngle = part1.pev.angles.y + 60;

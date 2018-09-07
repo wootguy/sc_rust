@@ -24,7 +24,6 @@
 
 // Should do/fix but too lazy:
 // crashing/leaving players leave unusable items and sometimes duplicate player states
-// supply crate not disappearing on lossy server
 // window shutters have different hp each half
 // crash when farming with inv open
 // can't disable decals on airdrops
