@@ -96,8 +96,11 @@ float g_chest_touch_dist = 96; // maximum distance from which a chest can be ope
 float g_gather_multiplier = 2.0f; // resource gather amount multiplied by this (for faster/slower games)
 float g_repair_time = 10.0f; // don't allow repairing parts that are under attack, until this amount of time has passed
 float g_monster_forget_time = 6.0f; // time it takes for a monster to calm down after not seeing any players
-int g_max_zone_monsters = 10;
-uint NODES_PER_ZONE = 64;
+int g_max_zone_monsters = 3;
+uint NODES_PER_ZONE = 150;
+uint BUSHES_PER_ZONE = 100;
+int SOLIDS_PER_ZONE = 320; // more than this + 32players/boats/corpses will cause crashes, stuck players or weird physics
+int SOLIDS_PER_ZONE_SAFE = 252; // absolute worst case = 32 players + 32 boats + 64 corpses
 float g_xen_agro_dist = 300.0f;
 
 float g_apache_forget_time = 30.0f; // seconds it takes for an apache to forget a player had guns
@@ -114,6 +117,7 @@ bool g_invasion_mode = false; // monsters spawn in waves and always attack
 float g_invasion_delay = 8.0f; // minutes between waves
 float g_invasion_initial_delay = 8.0f; // minutes before the invasion starts (first wave)
 float g_node_spawn_time_invasion = 10.0f; // time (in seconds) between node spawns when in invasion mode
+int g_invasion_monster_count = 12;
 
 float g_vote_time = 20.0f; // time (in seconds) for vote to expire. Timer resets when new player joins.
 
@@ -124,6 +128,13 @@ const int CHEST_ITEM_MAX_FURNACE = 3; // slots for wood, ore, and result
 float COOK_TIME_WOOD = 2.0f;
 float COOK_TIME_METAL = 2.0f;
 float COOK_TIME_HQMETAL = 4.0f;
+
+// max possible visible ents = 310 solids (nodes+parts) + 32 players + 64 corpses + 
+
+//int MAX_VISIBLE_ENTS = 510;
+int MAX_VISIBLE_ENTS = 500; // slightly reduced for global ents like airdrops and sky
+int VISIBLE_ENT_BUFFER = 100; // amount of player-related entities to expect in a zone (32 plrs + 64 misc + 32 boats)
+int MAX_VISIBLE_ZONE_ENTS = MAX_VISIBLE_ENTS - VISIBLE_ENT_BUFFER;
 
 //
 // End game settings
@@ -829,10 +840,6 @@ ZoneInfo g_zone_info;
 
 EHandle g_invasion_zone;
 
-int MAX_SAVE_DATA_LENGTH = 1015; // Maximum length of a value saved with trigger_save. Discovered through testing
-//int MAX_VISIBLE_ENTS = 510;
-int MAX_VISIBLE_ENTS = 480; // slightly reduced since I still got max vis ents error
-
 void MapInit()
 {
 	debug_mode = false;
@@ -897,6 +904,8 @@ void MapInit()
 	PrecacheModel("models/skeleton.mdl");
 	PrecacheModel("sprites/xbeam4.spr");
 	PrecacheModel("sprites/fire.spr");
+	PrecacheModel("models/rust/bush.mdl");
+	PrecacheModel("models/rust/arc_bush.mdl");
 	
 	g_Game.PrecacheMonster("monster_apache", false);
 	PrecacheModel("models/rust/apache.mdl");
@@ -1151,7 +1160,7 @@ void MapActivate()
 	
 	removeExtraEnts();
 	
-	//dropNodes();
+	dropNodes();
 	
 	resetVoteBlockers();
 	
@@ -1162,8 +1171,8 @@ void MapActivate()
 			ent.pev.effects |= EF_NODRAW;
 	} while (ent !is null);
 	
-	//setupInvasionMode();
-	setupCreativeMode();
+	setupInvasionMode();
+	//setupCreativeMode();
 	//setupPvpMode();
 }
 
@@ -1511,7 +1520,7 @@ array<string> invasion_wave_titles = {"Baby Voltigores", "Zombie Barneys", "Pit 
 void clearTimer()
 {
 	HUDNumDisplayParams params;
-	params.channel = 0;
+	params.channel = 15;
 	params.flags = HUD_ELEM_HIDDEN;
 	g_PlayerFuncs.HudTimeDisplay( null, params );
 }
@@ -1527,7 +1536,7 @@ void updateWaveTimer()
 	
 	HUDNumDisplayParams params;
 	
-	params.channel = 0;
+	params.channel = 15;
 	
 	params.flags = HUD_ELEM_SCR_CENTER_X | HUD_ELEM_DEFAULT_ALPHA |
 		HUD_TIME_MINUTES | HUD_TIME_SECONDS | HUD_TIME_COUNT_DOWN;
@@ -2088,7 +2097,7 @@ bool doRustCommand(CBasePlayer@ plr, const CCommand@ args)
 				if (item !is null)
 				{
 					giveItem(plr, item.type, amt, false, true, true);
-					g_PlayerFuncs.SayTextAll(plr, "" + plr.pev.netname + " gave " + amt + " " + item.title + " to self");
+					g_PlayerFuncs.SayTextAll(plr, "" + plr.pev.netname + " gave " + amt + " " + item.title + " to self\n");
 				}
 			}
 			return true;

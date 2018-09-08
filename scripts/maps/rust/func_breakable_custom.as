@@ -1016,7 +1016,7 @@ class func_breakable_custom : ScriptBaseEntity
 					mon.GibMonster();
 				}
 			}
-			else
+			else if (bitsDamageType & DMG_DROWNRECOVER == 0)
 			{
 				g_SoundSystem.PlaySound(self.edict(), CHAN_STATIC, "rust/stone_tree.ogg", 1.0f, attn, 0, 90 + Math.RandomLong(0, 20));
 			}
@@ -1044,7 +1044,7 @@ class func_breakable_custom : ScriptBaseEntity
 			}
 			else
 			{
-				float dmgVolume = bitsDamageType & DMG_BURN != 0 ? 0.0f : 0.8f;
+				float dmgVolume = bitsDamageType & (DMG_BURN|DMG_DROWNRECOVER) != 0 ? 0.0f : 0.8f;
 				string sound = material.hitSounds[ Math.RandomLong(0, material.hitSounds.length()-1) ];
 				g_SoundSystem.PlaySound(self.edict(), CHAN_STATIC, sound, dmgVolume, attn, 0, Math.RandomLong(90, 110));
 			}

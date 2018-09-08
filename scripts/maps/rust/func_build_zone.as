@@ -37,12 +37,15 @@ class func_build_zone : ScriptBaseEntity
 	int id;
 	float spawnDelay = 0.0f; // fill up quickly when map loads, then slowly replace stuff
 	float nextSpawn = 0;
+	float nextBush = 0;
 	bool nodes_disabled = false;
 	bool think_disabled = false;
 	
 	bool spawning_wave = false;
 	string wave_spawner = "monster_gonome";
 	float wave_extra_health = 0;
+	
+	BuildZone@ buildZone;
 	
 	float treeRatio = 0.68f;
 	float rockRatio = 0.12f;
@@ -55,11 +58,13 @@ class func_build_zone : ScriptBaseEntity
 	int maxMonsters = 0;
 	
 	uint maxNodes = NODES_PER_ZONE;
+	uint maxBushes = BUSHES_PER_ZONE;
 	
 	array<EHandle> nodes; // trees & rocks
 	array<EHandle> animals;
 	array<EHandle> subZones;
 	array<Vector> ainodes; // list of node locations
+	array<EHandle> bushes;
 	
 	// too OP:
 	// "agrunt_spawner"
@@ -127,6 +132,14 @@ class func_build_zone : ScriptBaseEntity
 				i--;
 			}
 		}
+		for (uint i = 0; i < bushes.size(); i++)
+		{
+			if (@bushes[i].GetEntity() == null)
+			{
+				bushes.removeAt(i);
+				i--;
+			}
+		}
 	}
 	
 	void UpdateNodeRatios()
@@ -154,8 +167,8 @@ class func_build_zone : ScriptBaseEntity
 		maxMonsters = int(Math.Floor(maxNodes*monsterRatio + 0.5f));
 		if (!g_invasion_mode and maxMonsters > g_max_zone_monsters)
 			maxMonsters = g_max_zone_monsters;
-		if (g_invasion_mode and maxMonsters > 32)
-			maxMonsters = 32;
+		if (g_invasion_mode)
+			maxMonsters = g_invasion_monster_count;
 		
 		int maxTotal = maxTrees + maxRocks + maxBarrels + maxMonsters;
 		int diff = int(maxNodes) - maxTotal;
@@ -225,8 +238,11 @@ class func_build_zone : ScriptBaseEntity
 			}
 			g_EntityFuncs.Remove(node);
 		}
+		for (uint i = 0; i < bushes.length(); i++)
+			g_EntityFuncs.Remove(bushes[i]);
 		nodes.resize(0);
 		animals.resize(0);
+		bushes.resize(0);
 		
 		spawnDelay = 0;
 		nextSpawn = g_Engine.time;
@@ -372,6 +388,46 @@ class func_build_zone : ScriptBaseEntity
 			return;
 		}
 		
+		if (buildZone !is null)
+		{
+			maxNodes = NODES_PER_ZONE;
+			maxBushes = BUSHES_PER_ZONE;
+			if (maxNodes + buildZone.numRaiderParts > SOLIDS_PER_ZONE)
+			{
+				maxNodes = SOLIDS_PER_ZONE - buildZone.numRaiderParts;
+			}
+			if (maxBushes + maxNodes + buildZone.numRaiderParts > MAX_VISIBLE_ZONE_ENTS)
+			{
+				maxBushes = MAX_VISIBLE_ZONE_ENTS - (maxNodes + buildZone.numRaiderParts);
+			}
+			if (nodes.length() > maxNodes)
+			{
+				DeleteNullNodes();
+				for (uint i = 0; i < nodes.size(); i++)
+				{
+					CBaseEntity@ ent = nodes[i];
+					if (ent.pev.classname == "func_breakable_custom")
+					{
+						ent.TakeDamage(ent.pev, ent.pev, ent.pev.health, DMG_DROWNRECOVER);
+						nodes.removeAt(i);
+						break;
+					}
+				}
+			}
+			if (bushes.length() > maxBushes)
+			{
+				DeleteNullNodes();
+				if (bushes.length() > maxBushes and bushes.length() > 0)
+				{
+					g_EntityFuncs.Remove(bushes[0]);
+					bushes.removeAt(0);
+				}
+			}
+		}
+		else
+			@buildZone = @getBuildZone(id);
+		
+		
 		for (uint i = 0; i < animals.size(); i++)
 		{
 			if (!animals[i].IsValid())
@@ -483,7 +539,40 @@ class func_build_zone : ScriptBaseEntity
 				*/
 			}
 		}
-				
+		
+		if (g_Engine.time > nextSpawn or g_Engine.time > nextBush)
+		{
+			DeleteNullNodes();
+			
+			nextBush = g_Engine.time + 5;
+			
+			if (bushes.size() < maxBushes)
+			{
+				Vector ori = getRandomPosition();
+				Vector ground;
+				float radius = 32;
+				if (canSpawn(ori, radius, ground, false))
+				{
+					array<string> bush_models = {"models/rust/bush.mdl", "models/rust/arc_bush.mdl"};
+					ori = ground;
+					dictionary keys;
+					keys["origin"] = ori.ToString();
+					keys["angles"] = Vector(0, Math.RandomLong(-180, 180), 0).ToString();
+					keys["model"] = bush_models[Math.RandomLong(0, bush_models.length()-1)];
+					keys["colormap"] = "-1";
+					keys["movetype"] = "5";
+					keys["scale"] = "2";
+					keys["sequencename"] = "idle";
+					keys["targetname"] = "bush";
+					CBaseEntity@ ent = g_EntityFuncs.CreateEntity("item_generic", keys, true);
+					ent.pev.movetype = MOVETYPE_NONE; // epic lag without this
+					ent.pev.solid = SOLID_NOT;
+					
+					bushes.insertLast(EHandle(ent));
+				}
+			}
+		}
+		
 		if (g_Engine.time > nextSpawn or spawning_wave)
 		{
 			int numTrees = 0;
@@ -645,6 +734,7 @@ class func_build_zone : ScriptBaseEntity
 						keys["targetname"] = name;
 						CBaseEntity@ ent2 = g_EntityFuncs.CreateEntity("item_generic", keys, true);
 						ent2.pev.movetype = MOVETYPE_NONE; // epic lag without this
+						ent2.pev.solid = SOLID_NOT;
 					}
 					
 					if (nodes.size() >= maxNodes)

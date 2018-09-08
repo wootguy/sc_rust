@@ -32,6 +32,9 @@ class DayNightCycle {
 		h_skybox_dusk = g_EntityFuncs.FindEntityByTargetname(null, skybox_dusk_tname);
 		h_skybox_moon = g_EntityFuncs.FindEntityByTargetname(null, skybox_moon_tname);
 		h_light_env = g_EntityFuncs.FindEntityByTargetname(null, "light_day");
+		
+		day();		
+		Think();
 	}
 	
 	void night()
@@ -41,6 +44,7 @@ class DayNightCycle {
 		CBaseEntity@ moon = h_moon;
 		
 		sun.pev.angles.x = sun_dusk.pev.angles.x = moon.pev.angles.x = -98;
+		Think();
 	}
 	
 	void day()
@@ -50,6 +54,7 @@ class DayNightCycle {
 		CBaseEntity@ moon = h_moon;
 		
 		sun.pev.angles.x = sun_dusk.pev.angles.x = moon.pev.angles.x = -180 - 105;
+		Think();
 	}
 	
 	void start()
@@ -62,8 +67,7 @@ class DayNightCycle {
 			return;
 		
 		sun.pev.movetype = sun_dusk.pev.movetype = moon.pev.movetype = MOVETYPE_NOCLIP;
-		
-		sun.pev.angles.x = sun_dusk.pev.angles.x = moon.pev.angles.x = 45;
+
 		sun.pev.avelocity.x = sun_dusk.pev.avelocity.x = moon.pev.avelocity.x = -1;
 		
 		moon.pev.renderamt = 255;

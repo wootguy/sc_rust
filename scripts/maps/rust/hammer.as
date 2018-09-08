@@ -1050,6 +1050,7 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 					{
 						part1.pev.effects |= EF_NODRAW;
 						part1.pev.solid = SOLID_NOT;
+						g_EntityFuncs.SetModel(part1, ""); // NODRAW isn't enough to avoid max vis ents
 						g_EntityFuncs.SetOrigin(part1, part1.pev.origin); // force nonsolid to take effect
 						@part1 = getPartAtPos(part1.pev.origin + g_Engine.v_right*128);
 						if (part1 is null)
@@ -1193,6 +1194,7 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 					float newAngle = part1.pev.angles.y + 180;
 					part1.pev.effects |= EF_NODRAW;
 					part1.pev.solid = SOLID_NOT;
+					g_EntityFuncs.SetModel(part1, ""); // NODRAW isn't enough to avoid max vis ents
 					g_EntityFuncs.SetOrigin(part1, part1.pev.origin); // force nonsolid to take effect
 					@part1 = getPartAtPos(part1.pev.origin + g_Engine.v_right*64 + g_Engine.v_forward*36.95);
 					if (part1 is null)
@@ -1244,6 +1246,7 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 					float newAngle = part1.pev.angles.y;
 					part1.pev.effects |= EF_NODRAW;
 					part1.pev.solid = SOLID_NOT;
+					g_EntityFuncs.SetModel(part1, ""); // NODRAW isn't enough to avoid max vis ents
 					g_EntityFuncs.SetOrigin(part1, part1.pev.origin); // force nonsolid to take effect
 					@part1 = getPartAtPos(part1.pev.origin + g_Engine.v_right*-128);
 					if (part1 is null)
@@ -1260,6 +1263,7 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 					float newAngle = part1.pev.angles.y + 60;
 					part1.pev.effects |= EF_NODRAW;
 					part1.pev.solid = SOLID_NOT;
+					g_EntityFuncs.SetModel(part1, ""); // NODRAW isn't enough to avoid max vis ents
 					g_EntityFuncs.SetOrigin(part1, part1.pev.origin); // force nonsolid to take effect
 					@part1 = getPartAtPos(part1.pev.origin + g_Engine.v_right*64 + g_Engine.v_forward*36.95);
 					if (part1 is null)
@@ -1444,6 +1448,7 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 			g_EntityFuncs.SetModel(part1, getModelFromName(newModel));
 			part2.pev.effects |= EF_NODRAW;
 			part2.pev.solid = SOLID_NOT;
+			g_EntityFuncs.SetModel(part2, ""); // NODRAW isn't enough to avoid max vis ents
 			g_EntityFuncs.SetOrigin(part2, part2.pev.origin); // force nonsolid to take effect
 			
 			// set invisible part (and its children) as child of fused part (so they get destroyed properly)
@@ -1589,6 +1594,8 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 								g_EntityFuncs.SetModel(right, temp1);
 								g_EntityFuncs.SetModel(lookEnt, temp2);
 								lookEnt.pev.effects |= EF_NODRAW;
+								g_EntityFuncs.SetModel(lookEnt, ""); // NODRAW isn't enough to avoid max vis ents
+								g_EntityFuncs.SetOrigin(lookEnt, lookEnt.pev.origin); // force nonsolid to take effect
 								lookEnt.pev.solid = SOLID_NOT;
 								lookEnt.pev.angles.y += 180;
 								right.pev.angles.y += 180;

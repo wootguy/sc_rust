@@ -720,10 +720,7 @@ class func_vehicle_custom : ScriptBaseEntity
 		m_vBack.z -= 24;
 		
 		if (g_EngineFuncs.PointContents(self.pev.origin + controlsCenterOffset) == CONTENTS_SOLID)
-		{
-			TakeDamage(pev, pev, pev.health, DMG_GENERIC);
-			return;
-		}
+			TakeDamage(pev, pev, 0.1, DMG_GENERIC);
 		
 		CheckTurning();
 

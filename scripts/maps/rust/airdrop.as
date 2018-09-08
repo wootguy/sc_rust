@@ -126,10 +126,10 @@ class monster_b17 : ScriptBaseAnimating
 		//te_beampoints(airDropPos, tr.vecEndPos);
 		
 		
-		g_SoundSystem.PlaySound(self.edict(), CHAN_WEAPON, "rust/b17.ogg", 1.0f, 0.04f, SND_FORCE_LOOP, 102);
-		g_SoundSystem.PlaySound(self.edict(), CHAN_STATIC, "rust/b17.ogg", 1.0f, 0.04f, SND_FORCE_LOOP, 98);
-		g_SoundSystem.PlaySound(self.edict(), CHAN_BODY, "rust/b17.ogg", 1.0f, 0.04f, SND_FORCE_LOOP, 100);
-		g_SoundSystem.PlaySound(self.edict(), CHAN_ITEM, "rust/b17_far.ogg", 0.7f, 0.02f, SND_FORCE_LOOP, 95);
+		g_SoundSystem.PlaySound(self.edict(), CHAN_WEAPON, "rust/b17.ogg", 1.0f, 0.02f, SND_FORCE_LOOP, 102);
+		g_SoundSystem.PlaySound(self.edict(), CHAN_STATIC, "rust/b17.ogg", 1.0f, 0.02f, SND_FORCE_LOOP, 98);
+		g_SoundSystem.PlaySound(self.edict(), CHAN_BODY, "rust/b17.ogg", 1.0f, 0.02f, SND_FORCE_LOOP, 100);
+		g_SoundSystem.PlaySound(self.edict(), CHAN_ITEM, "rust/b17_far.ogg", 0.7f, 0.005f, SND_FORCE_LOOP, 95);
 		
 		lastDist = (airDropPos - pev.origin).Length();
 		SetThink( ThinkFunction( Think ) );

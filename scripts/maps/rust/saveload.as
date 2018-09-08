@@ -178,8 +178,6 @@ void loadBoatsPartial(ByteBuffer@ buf, int partsLoaded, int numParts)
 		keys["material"] = "" + mat;
 		keys["volume"] = "7";
 		
-		println("MAKE ONE A DOES: " + model);
-		
 		CBaseEntity@ ent = g_EntityFuncs.CreateEntity("func_vehicle_custom", keys, true);
 		ent.pev.noise1 = steamid;
 		ent.pev.noise2 = netname;	
@@ -234,6 +232,7 @@ void loadNodesPartial(ByteBuffer@ buf, int zonesLoaded, int numZones, int nodesL
 			keys["TriggerTarget"] = "monster_killed";
 			keys["TriggerCondition"] = "4";
 			keys["classify"] = "-1";
+			keys["spawnflags"] = "4"; // monsterclip
 			if (g_max_zone_monsters != 0) {
 				CBaseEntity@ ent = g_EntityFuncs.CreateEntity(classname, keys, true);
 				ent.pev.armortype = g_Engine.time + 10.0f;
@@ -443,6 +442,8 @@ void loadMapPartial(ByteBuffer@ buf, int partsLoaded, int numParts)
 		if (effects & EF_NODRAW != 0)
 		{
 			ent.pev.solid = SOLID_NOT;
+			g_EntityFuncs.SetModel(ent, "");
+			g_EntityFuncs.SetOrigin(ent, ent.pev.origin);
 		}
 		else
 		{

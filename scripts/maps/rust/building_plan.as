@@ -1693,6 +1693,16 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 				@ent = g_EntityFuncs.CreateEntity(buildCname, keys, true);
 				EHandle h_ent = ent;
 				
+				// remove bushes
+				CBaseEntity@ bush = null;
+				do {
+					@bush = g_EntityFuncs.FindEntityInSphere(bush, ent.pev.origin, 90.0f, "bush", "targetname");
+					if (bush !is null)
+					{
+						g_EntityFuncs.Remove(bush);
+					}
+				} while (bush !is null);
+				
 				if (buildingBoat)
 					g_boats.insertLast(h_ent);
 				else
