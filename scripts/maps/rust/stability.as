@@ -112,27 +112,6 @@ void stabilityCheck()
 	g_running_stability = true;
 	int numIter = 0;
 	
-	// check for destroyed ents
-	for (uint i = 0; i < g_build_parts.length(); i++)
-	{
-		func_breakable_custom@ ent = cast<func_breakable_custom@>(CastToScriptClass(g_build_parts[i].GetEntity()));
-		if (ent is null)
-		{
-			g_build_parts.removeAt(i);
-			i--;
-		}
-		else
-		{
-			ent.pev.frame = 0;
-			ent.pev.framerate = 0;
-			if (ent.pev.team != ent.id)
-			{
-				println("stabilityCheck: Bad ID! " + ent.id + " != " + ent.pev.team);
-				ent.pev.team = ent.id;
-			}
-		}
-	}
-	
 	while(stability_ents.length() > 0)
 	{		
 		visited_parts.deleteAll();
@@ -184,8 +163,34 @@ void stabilityCheck()
 		stability_ents.removeAt(0);
 		break;
 	}
+	
 	if (stability_ents.length() > 0)
 		g_Scheduler.SetTimeout("stabilityCheck", 0.05);
 	else
+	{
+		g_Scheduler.SetTimeout("deleteNullBuildEnts", 0.05);
 		g_running_stability = false;
+	}
+}
+
+void deleteNullBuildEnts()
+{
+	// check for destroyed ents
+	for (uint i = 0; i < g_build_parts.length(); i++)
+	{
+		func_breakable_custom@ ent = cast<func_breakable_custom@>(CastToScriptClass(g_build_parts[i].GetEntity()));
+		if (ent is null)
+		{
+			g_build_parts.removeAt(i);
+			i--;
+		}
+		else
+		{
+			if (ent.pev.team != ent.id)
+			{
+				println("stabilityCheck: Bad ID! " + ent.id + " != " + ent.pev.team);
+				ent.pev.team = ent.id;
+			}
+		}
+	}
 }

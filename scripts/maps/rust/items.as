@@ -22,19 +22,6 @@ void inventoryCheck()
 			continue;
 		g_corpses[i].GetEntity().pev.renderfx = 0;
 	}
-	CBaseEntity@ ent = null;
-	do {
-		@ent = g_EntityFuncs.FindEntityByClassname(ent, "player");
-		if (ent !is null and ent.pev.deadflag > 0)
-		{
-			ent.pev.renderfx = 0;
-			if (ent.pev.sequence != 13)
-			{
-				ent.pev.frame = 0;
-				ent.pev.sequence = 13;
-			}
-		}
-	} while (ent !is null);
 	
 	
 	// check for dropped weapons
@@ -86,8 +73,19 @@ void inventoryCheck()
 	CBaseEntity@ e_plr = null;
 	do {
 		@e_plr = g_EntityFuncs.FindEntityByClassname(e_plr, "player");
+		
 		if (e_plr !is null)
 		{
+			if (e_plr.pev.deadflag > 0)
+			{
+				e_plr.pev.renderfx = 0;
+				if (e_plr.pev.sequence != 13)
+				{
+					e_plr.pev.frame = 0;
+					e_plr.pev.sequence = 13;
+				}
+			}
+		
 			CBasePlayer@ plr = cast<CBasePlayer@>(e_plr);
 			PlayerState@ state = getPlayerState(plr);
 			if (!state.inGame)
@@ -377,7 +375,23 @@ void drawMap(PlayerState@ state)
 		icon.channel = channel++;
 		g_PlayerFuncs.HudCustomSprite(plr, icon);
 		
-		
+		if (g_invasion_mode)
+		{
+			CBaseEntity@ enemy = null;
+			do {
+				@enemy = g_EntityFuncs.FindEntityByTargetname(enemy, "node_xen");
+				
+				if (enemy !is null)
+				{
+					icon = getIconForEnt(state, enemy);
+					icon.channel = channel++;
+					icon.color1 = RGBA( 255, 64, 64, 255 );
+					g_PlayerFuncs.HudCustomSprite(plr, icon);
+					if (channel > 14)
+						break;
+				}
+			} while(enemy !is null);
+		}
 		CBaseEntity@ enemy = null;
 		do {
 			@enemy = g_EntityFuncs.FindEntityByClassname(enemy, "monster_apache");
@@ -388,7 +402,7 @@ void drawMap(PlayerState@ state)
 				icon.channel = channel++;
 				icon.color1 = RGBA( 255, 64, 64, 255 );
 				g_PlayerFuncs.HudCustomSprite(plr, icon);
-				if (channel > 15)
+				if (channel > 14)
 					break;
 			}
 		} while(enemy !is null);

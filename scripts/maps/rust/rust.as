@@ -1437,6 +1437,15 @@ void setupInvasionMode()
 		}
 	} while (ent !is null);
 	
+	@ent = null;
+	do {
+		@ent = g_EntityFuncs.FindEntityByClassname(ent, "func_monsterclip");
+		if (ent !is null)
+		{
+			g_EntityFuncs.Remove(ent);
+		}
+	} while (ent !is null);
+	
 	int rand = Math.RandomLong(0, g_build_zone_ents.size()-1);
 	CBaseEntity@ randomZoneEnt = g_build_zone_ents[rand];
 	func_build_zone@ randomZone = cast<func_build_zone@>(CastToScriptClass(randomZoneEnt));

@@ -228,7 +228,7 @@ class func_breakable_custom : ScriptBaseEntity
 			self.pev.effects = EF_NODRAW;
 		}
 		else
-			self.SetClassification(CLASS_ALIEN_MONSTER);
+			self.SetClassification(CLASS_XRACE_PITDRONE);
 		
 		g_EntityFuncs.SetModel(self, self.pev.model);
 		//g_EntityFuncs.SetSize(self.pev, self.pev.mins, self.pev.maxs);
