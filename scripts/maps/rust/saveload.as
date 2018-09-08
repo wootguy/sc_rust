@@ -206,7 +206,7 @@ void loadNodesPartial(ByteBuffer@ buf, int zonesLoaded, int numZones, int nodesL
 {
 	func_build_zone@ zone = cast<func_build_zone@>(CastToScriptClass(g_build_zone_ents[zonesLoaded].GetEntity()));
 	
-	for (int nodeIdx = 0; nodeIdx < 1 and nodesLoaded < numNodes and buf.readPos < buf.data.size(); nodeIdx++, nodesLoaded++)
+	for (int nodeIdx = 0; nodeIdx < 2 and nodesLoaded < numNodes and buf.readPos < buf.data.size(); nodeIdx++, nodesLoaded++)
 	{
 		int nodeType = buf.ReadByte();
 		string classname = "func_breakable_custom";
@@ -329,7 +329,7 @@ void loadNodesPartial(ByteBuffer@ buf, int zonesLoaded, int numZones, int nodesL
 
 void loadMapPartial(ByteBuffer@ buf, int partsLoaded, int numParts)
 {
-	for (int partIdx = 0; partIdx < 1 and partsLoaded < numParts and buf.readPos < buf.data.size(); partIdx++, partsLoaded++)
+	for (int partIdx = 0; partIdx < 2 and partsLoaded < numParts and buf.readPos < buf.data.size(); partIdx++, partsLoaded++)
 	{
 		float x = buf.ReadFloat();
 		float y = buf.ReadFloat();

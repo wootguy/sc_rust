@@ -21,6 +21,18 @@
 // remove ladders cuz freezing :'<
 // mp_decals 2 message :<
 // less furnace menus plz
+// apache getting stuck in one place?
+// default minimap
+// update motd, no teams or raiders
+// guitar too cheap
+// boats super laggy
+// code locks reversed color
+// build points for building plan
+// boats not blowing up out of world, not stopping with no driver, clipping way more easily, can barely turn
+// fires blinking off not double
+// players sizzling after death on fire
+// boats do friendly damage in creative (maybe keep this?)
+// remove bush from ground, not actual ori
 
 // Should do/fix but too lazy:
 // crashing/leaving players leave unusable items and sometimes duplicate player states

@@ -436,6 +436,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 	int nextSnd = 0;
 	int zoneid = -1;
 	bool alternateBuild = false;
+	Vector lastLookOri;
 	
 	void Spawn()
 	{		
@@ -591,6 +592,10 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 		TraceResult tr = TraceLook(plr, buildDist);
 		
 		Vector newOri = tr.vecEndPos;
+		if ((newOri - lastLookOri).Length() < EPSILON)
+			return;
+		lastLookOri = newOri;
+			
 		float newYaw = plr.pev.angles.y;
 		float newPitch = buildEnt.pev.angles.x;
 		float newRot = buildEnt.pev.angles.z;
@@ -623,81 +628,83 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 			Vector left = tr.vecEndPos - g_Engine.v_right*128;
 			Vector right = tr.vecEndPos + g_Engine.v_right*128;
 			
-			for (uint i = 0; i < g_build_parts.size(); i++)
-			{	
-				CBaseEntity@ part = g_build_parts[i].GetEntity();
-				
-				if (part is null or socketType(part.pev.colormap) != SOCKET_HIGH_WALL)
-					continue;
-					
-				if ((part.pev.origin - buildEnt.pev.origin + Vector(0,0,120)).Length() > 500)
-					continue;
-				
-				float attachDist = 64;
-				g_EngineFuncs.MakeVectors(part.pev.angles);
-				Vector attachLeft = part.pev.origin + g_Engine.v_right*-128 + Vector(0,0,-120);
-				Vector attachRight = part.pev.origin + g_Engine.v_right*128 + Vector(0,0,-120);
-				
-				float ll = (attachLeft - left).Length();
-				float lr = (attachLeft - right).Length();
-				float rr = (attachRight - right).Length();
-				float rl = (attachRight - left).Length();
-				
-				if (ll > attachDist and lr > attachDist and rr > attachDist and rl > attachDist)
-					continue;
-				
-				if (attaching)
-				{
-					// can attach to two walls (bridging a gap)
-					// just disable collision and let the player align it right
-					// (but only if it's close enough to the end)
-					@skipCollide = @part;
-					break;
-				}
-				bool sameDir = false;
-				if (ll < lr and ll < rr and ll < rl)
-				{
-					newOri = newOri + (attachLeft - left);
-					attaching = true;
-				}
-				else if (lr < ll and lr < rr and lr < rl)
-				{
-					newOri = newOri + (attachLeft - right);
-					attaching = true;
-					sameDir = true;
-				}
-				else if (rr < ll and rr < lr and rr < rl)
-				{
-					newOri = newOri + (attachRight - right);
-					attaching = true;
-				}
-				else if (rl < ll and rl < lr and rl < rr)
-				{
-					newOri = newOri + (attachRight - left);
-					attaching = true;
-					sameDir = true;
-				}
-				if (attaching)
-				{
-					float dot = DotProduct((attachLeft - attachRight).Normalize(), (left - right).Normalize());
-					if (!sameDir)
-						dot = -dot;
-					
-					if (dot > -0.55f)
-					{
-						TraceResult tr2;
-						g_Utility.TraceLine( newOri, newOri + Vector(0,0,-16), dont_ignore_monsters, null, tr2 );
-						CBaseEntity@ phit2 = g_EntityFuncs.Instance( tr2.pHit );
+			CBaseEntity@ part = null;
+			do {
+				@part = g_EntityFuncs.FindEntityInSphere(part, tr.vecEndPos, 768.0f, "func_breakable_custom", "classname");
+				if (part !is null)
+				{			
+					if (part is null or socketType(part.pev.colormap) != SOCKET_HIGH_WALL)
+						continue;
 						
-						validBuild = tr2.flFraction < 1.0f and phit2 !is null and phit2.pev.classname == "worldspawn";
-						@phit = @part;
-					}
-					else
+					if ((part.pev.origin - buildEnt.pev.origin + Vector(0,0,120)).Length() > 500)
+						continue;
+					
+					float attachDist = 64;
+					g_EngineFuncs.MakeVectors(part.pev.angles);
+					Vector attachLeft = part.pev.origin + g_Engine.v_right*-128 + Vector(0,0,-120);
+					Vector attachRight = part.pev.origin + g_Engine.v_right*128 + Vector(0,0,-120);
+					
+					float ll = (attachLeft - left).Length();
+					float lr = (attachLeft - right).Length();
+					float rr = (attachRight - right).Length();
+					float rl = (attachRight - left).Length();
+					
+					if (ll > attachDist and lr > attachDist and rr > attachDist and rl > attachDist)
+						continue;
+					
+					if (attaching)
 					{
-						validBuild = false;
+						// can attach to two walls (bridging a gap)
+						// just disable collision and let the player align it right
+						// (but only if it's close enough to the end)
+						@skipCollide = @part;
+						break;
+					}
+					bool sameDir = false;
+					if (ll < lr and ll < rr and ll < rl)
+					{
+						newOri = newOri + (attachLeft - left);
+						attaching = true;
+					}
+					else if (lr < ll and lr < rr and lr < rl)
+					{
+						newOri = newOri + (attachLeft - right);
+						attaching = true;
+						sameDir = true;
+					}
+					else if (rr < ll and rr < lr and rr < rl)
+					{
+						newOri = newOri + (attachRight - right);
+						attaching = true;
+					}
+					else if (rl < ll and rl < lr and rl < rr)
+					{
+						newOri = newOri + (attachRight - left);
+						attaching = true;
+						sameDir = true;
+					}
+					if (attaching)
+					{
+						float dot = DotProduct((attachLeft - attachRight).Normalize(), (left - right).Normalize());
+						if (!sameDir)
+							dot = -dot;
+						
+						if (dot > -0.55f)
+						{
+							TraceResult tr2;
+							g_Utility.TraceLine( newOri, newOri + Vector(0,0,-16), dont_ignore_monsters, null, tr2 );
+							CBaseEntity@ phit2 = g_EntityFuncs.Instance( tr2.pHit );
+							
+							validBuild = tr2.flFraction < 1.0f and phit2 !is null and phit2.pev.classname == "worldspawn";
+							@phit = @part;
+						}
+						else
+						{
+							validBuild = false;
+						}
 					}
 				}
-			}
+			} while (part !is null);
 			newOri.z += 120;
 		}
 		else if (partSocket == SOCKET_FOUNDATION or partSocket == SOCKET_WALL or buildType == B_FLOOR or 
@@ -707,373 +714,371 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 			g_EngineFuncs.MakeVectors(buildEnt.pev.angles);
 			float bestDist = 9000;
 			
-			for (uint i = 0; i < g_build_parts.size(); i++)
-			{	
-				CBaseEntity@ part = g_build_parts[i].GetEntity();
-				if (part is null)
-					continue;
+			CBaseEntity@ part = null;
+			do {
+				@part = g_EntityFuncs.FindEntityInSphere(part, tr.vecEndPos, 256.0f, "func_breakable_custom", "classname");
+				if (part !is null)
+				{						
+					int attachType = part.pev.colormap;
+					int attachSocket = socketType(part.pev.colormap);
+						
+					if (partSocket == SOCKET_FOUNDATION and (part.pev.colormap != B_FOUNDATION and part.pev.colormap != B_FOUNDATION_TRI))
+						continue;
+					if ((partSocket == SOCKET_WALL or buildType == B_FLOOR or buildType == B_LADDER_HATCH or buildType == B_FLOOR_TRI) 
+						and !isFloorPiece(part) and attachSocket != SOCKET_WALL)
+						continue;
+					if (buildType == B_ROOF and attachSocket != SOCKET_WALL)
+						continue;
+					if (partSocket == SOCKET_MIDDLE and !isFloorPiece(part))
+						continue;
+					if (partSocket == SOCKET_DOORWAY and attachType != B_DOORWAY)
+						continue;
+					if (partSocket == SOCKET_WINDOW and attachType != B_WINDOW)
+						continue;
+					if (part.pev.colormap == B_LADDER_HATCH and part.pev.targetname != "") // don't attach to door
+						continue;
 					
-				int attachType = part.pev.colormap;
-				int attachSocket = socketType(part.pev.colormap);
+					float attachDist = 96;
+					if (partSocket == SOCKET_DOORWAY or partSocket == SOCKET_WINDOW)
+						attachDist = 200;
+					g_EngineFuncs.MakeVectors(part.pev.angles);
 					
-				if (partSocket == SOCKET_FOUNDATION and (part.pev.colormap != B_FOUNDATION and part.pev.colormap != B_FOUNDATION_TRI))
-					continue;
-				if ((partSocket == SOCKET_WALL or buildType == B_FLOOR or buildType == B_LADDER_HATCH or buildType == B_FLOOR_TRI) 
-					and !isFloorPiece(part) and attachSocket != SOCKET_WALL)
-					continue;
-				if (buildType == B_ROOF and attachSocket != SOCKET_WALL)
-					continue;
-				if (partSocket == SOCKET_MIDDLE and !isFloorPiece(part))
-					continue;
-				if (partSocket == SOCKET_DOORWAY and attachType != B_DOORWAY)
-					continue;
-				if (partSocket == SOCKET_WINDOW and attachType != B_WINDOW)
-					continue;
-				if ((part.pev.origin - tr.vecEndPos).Length() > 256)
-					continue;
-				if (part.pev.colormap == B_LADDER_HATCH and part.pev.targetname != "") // don't attach to door
-					continue;
-				
-				float attachDist = 96;
-				if (partSocket == SOCKET_DOORWAY or partSocket == SOCKET_WINDOW)
-					attachDist = 200;
-				g_EngineFuncs.MakeVectors(part.pev.angles);
-				
-				Vector attachOri = tr.vecEndPos;
-				float attachYaw = part.pev.angles.y;
-				float minDist = 0;
-				
-				if (isFloorPiece(part) and partSocket != SOCKET_MIDDLE and 
-					!((buildType == B_FLOOR or buildType == B_LADDER_HATCH or buildType == B_FLOOR_TRI) and 
-					isFoundation(part)))
-				{
-					if (isTriangular(part))
+					Vector attachOri = tr.vecEndPos;
+					float attachYaw = part.pev.angles.y;
+					float minDist = 0;
+					
+					if (isFloorPiece(part) and partSocket != SOCKET_MIDDLE and 
+						!((buildType == B_FLOOR or buildType == B_LADDER_HATCH or buildType == B_FLOOR_TRI) and 
+						isFoundation(part)))
 					{
-						// Tri mathematical properties:
-						// Height = 110.851
-						// Center point = 64, 36.95
-						// edge mid point (relative to origin) = -32, 18.476
-						// Actual brush properties are different, but using floats instead of ints in the export fucks this up somehow
-						Vector left = part.pev.origin + g_Engine.v_right*-32 + g_Engine.v_forward*18.476;
-						Vector right = part.pev.origin + g_Engine.v_right*32 + g_Engine.v_forward*18.476;
-						Vector back = part.pev.origin + g_Engine.v_forward*-36.95;
-						
-						float dl = (left - tr.vecEndPos).Length();
-						float dr = (right - tr.vecEndPos).Length();
-						float db = (back - tr.vecEndPos).Length();
-						
-						if (dl > attachDist and dr > attachDist and db > attachDist)
-							continue;
-						if (dl > bestDist and dr > bestDist and db > bestDist)
-							continue;
+						if (isTriangular(part))
+						{
+							// Tri mathematical properties:
+							// Height = 110.851
+							// Center point = 64, 36.95
+							// edge mid point (relative to origin) = -32, 18.476
+							// Actual brush properties are different, but using floats instead of ints in the export fucks this up somehow
+							Vector left = part.pev.origin + g_Engine.v_right*-32 + g_Engine.v_forward*18.476;
+							Vector right = part.pev.origin + g_Engine.v_right*32 + g_Engine.v_forward*18.476;
+							Vector back = part.pev.origin + g_Engine.v_forward*-36.95;
 							
-						float oriDist = 73.9;
-						if (partSocket == SOCKET_WALL)
-							oriDist = 36.95;
-						if (buildType == B_FOUNDATION or buildType == B_FOUNDATION_STEPS or buildType == B_FLOOR or buildType == B_LADDER_HATCH)
-							oriDist = 64 + 36.95;
-						attachYaw = part.pev.angles.y;
-						minDist = dl;
-						if (dl < dr and dl < db)
-						{
-							attachOri = part.pev.origin + (left - part.pev.origin).Normalize()*oriDist;
-							attachYaw = part.pev.angles.y + (buildType == B_FOUNDATION_TRI ? -60 : 60);
+							float dl = (left - tr.vecEndPos).Length();
+							float dr = (right - tr.vecEndPos).Length();
+							float db = (back - tr.vecEndPos).Length();
+							
+							if (dl > attachDist and dr > attachDist and db > attachDist)
+								continue;
+							if (dl > bestDist and dr > bestDist and db > bestDist)
+								continue;
+								
+							float oriDist = 73.9;
+							if (partSocket == SOCKET_WALL)
+								oriDist = 36.95;
+							if (buildType == B_FOUNDATION or buildType == B_FOUNDATION_STEPS or buildType == B_FLOOR or buildType == B_LADDER_HATCH)
+								oriDist = 64 + 36.95;
+							attachYaw = part.pev.angles.y;
 							minDist = dl;
-						}
-						else if (dr < dl and dr < db)
-						{
-							attachOri = part.pev.origin + (right - part.pev.origin).Normalize()*oriDist;
-							attachYaw = part.pev.angles.y + (buildType == B_FOUNDATION_TRI ? 60 : -60);
-							minDist = dr;
-						}
-						else if (db < dl and db < dr)
-						{
-							attachOri = part.pev.origin + g_Engine.v_forward*-oriDist;
-							attachYaw = Math.VecToAngles(part.pev.origin - back).y + 180;
-							minDist = db;
-						}
-						if (buildType == B_FOUNDATION_STEPS) {
-							attachYaw += 180;
-						}
+							if (dl < dr and dl < db)
+							{
+								attachOri = part.pev.origin + (left - part.pev.origin).Normalize()*oriDist;
+								attachYaw = part.pev.angles.y + (buildType == B_FOUNDATION_TRI ? -60 : 60);
+								minDist = dl;
+							}
+							else if (dr < dl and dr < db)
+							{
+								attachOri = part.pev.origin + (right - part.pev.origin).Normalize()*oriDist;
+								attachYaw = part.pev.angles.y + (buildType == B_FOUNDATION_TRI ? 60 : -60);
+								minDist = dr;
+							}
+							else if (db < dl and db < dr)
+							{
+								attachOri = part.pev.origin + g_Engine.v_forward*-oriDist;
+								attachYaw = Math.VecToAngles(part.pev.origin - back).y + 180;
+								minDist = db;
+							}
+							if (buildType == B_FOUNDATION_STEPS) {
+								attachYaw += 180;
+							}
 
+						}
+						else
+						{
+							Vector left = part.pev.origin + g_Engine.v_right*-64;
+							Vector right = part.pev.origin + g_Engine.v_right*64;
+							Vector front = part.pev.origin + g_Engine.v_forward*64;
+							Vector back = part.pev.origin + g_Engine.v_forward*-64;
+							
+							float dl = (left - tr.vecEndPos).Length();
+							float dr = (right - tr.vecEndPos).Length();
+							float df = (front - tr.vecEndPos).Length();
+							float db = (back - tr.vecEndPos).Length();
+							
+							if (dl > attachDist and dr > attachDist and df > attachDist and db > attachDist)
+								continue;
+							if (dl > bestDist and dr > bestDist and df > bestDist and db > bestDist)
+								continue;
+								
+							float oriDist = 128;
+							if (partSocket == SOCKET_WALL)
+								oriDist = 64;
+							if (isTriangular(buildEnt))
+								oriDist = 36.95 + 64;
+							attachYaw = part.pev.angles.y;
+							minDist = dl;
+							if (dl < dr and dl < df and dl < db)
+							{
+								attachOri = part.pev.origin + g_Engine.v_right*-oriDist;
+								attachYaw = Math.VecToAngles(part.pev.origin - left).y;
+								minDist = dl;
+							}
+							else if (dr < dl and dr < df and dr < db)
+							{
+								attachOri = part.pev.origin + g_Engine.v_right*oriDist;
+								attachYaw = Math.VecToAngles(part.pev.origin - right).y;
+								minDist = dr;
+							}
+							else if (df < dl and df < dr and df < db)
+							{
+								attachOri = part.pev.origin + g_Engine.v_forward*oriDist;
+								attachYaw = Math.VecToAngles(part.pev.origin - front).y;
+								minDist = df;
+							}
+							else if (db < dl and db < dr and db < df)
+							{
+								attachOri = part.pev.origin + g_Engine.v_forward*-oriDist;
+								attachYaw = Math.VecToAngles(part.pev.origin - back).y;
+								minDist = db;
+							}
+								
+							if (isTriangular(buildEnt)) {
+								attachYaw += 180;
+							}
+						}
 					}
-					else
+					else if ((attachSocket == SOCKET_WALL and attachType != B_LOW_WALL) and (buildType == B_FLOOR or buildType == B_LADDER_HATCH or buildType == B_FLOOR_TRI))
 					{
-						Vector left = part.pev.origin + g_Engine.v_right*-64;
-						Vector right = part.pev.origin + g_Engine.v_right*64;
-						Vector front = part.pev.origin + g_Engine.v_forward*64;
-						Vector back = part.pev.origin + g_Engine.v_forward*-64;
-						
-						float dl = (left - tr.vecEndPos).Length();
-						float dr = (right - tr.vecEndPos).Length();
+						Vector front = part.pev.origin + g_Engine.v_forward*4 + Vector(0,0,128);
+						Vector back = part.pev.origin + g_Engine.v_forward*-4 + Vector(0,0,128);
 						float df = (front - tr.vecEndPos).Length();
 						float db = (back - tr.vecEndPos).Length();
 						
-						if (dl > attachDist and dr > attachDist and df > attachDist and db > attachDist)
+						if (df > attachDist and db > attachDist)
 							continue;
-						if (dl > bestDist and dr > bestDist and df > bestDist and db > bestDist)
+						if (df > bestDist and db > bestDist)
 							continue;
 							
-						float oriDist = 128;
-						if (partSocket == SOCKET_WALL)
-							oriDist = 64;
-						if (isTriangular(buildEnt))
-							oriDist = 36.95 + 64;
 						attachYaw = part.pev.angles.y;
-						minDist = dl;
-						if (dl < dr and dl < df and dl < db)
+						float oriDist = buildType == B_FLOOR_TRI ? 36.95 : 64;
+						minDist = df;
+						if (df < db)
 						{
-							attachOri = part.pev.origin + g_Engine.v_right*-oriDist;
-							attachYaw = Math.VecToAngles(part.pev.origin - left).y;
-							minDist = dl;
-						}
-						else if (dr < dl and dr < df and dr < db)
-						{
-							attachOri = part.pev.origin + g_Engine.v_right*oriDist;
-							attachYaw = Math.VecToAngles(part.pev.origin - right).y;
-							minDist = dr;
-						}
-						else if (df < dl and df < dr and df < db)
-						{
-							attachOri = part.pev.origin + g_Engine.v_forward*oriDist;
+							attachOri = part.pev.origin + g_Engine.v_forward*oriDist + Vector(0,0,128);
 							attachYaw = Math.VecToAngles(part.pev.origin - front).y;
 							minDist = df;
 						}
-						else if (db < dl and db < dr and db < df)
+						else if (db < df)
 						{
-							attachOri = part.pev.origin + g_Engine.v_forward*-oriDist;
+							attachOri = part.pev.origin + g_Engine.v_forward*-oriDist + Vector(0,0,128);
 							attachYaw = Math.VecToAngles(part.pev.origin - back).y;
 							minDist = db;
 						}
+						
+						if (buildType == B_FLOOR_TRI)
+							attachYaw += 180;
+					}
+					else if (partSocket == SOCKET_DOORWAY and attachType == B_DOORWAY)
+					{
+						Vector front = part.pev.origin + g_Engine.v_forward*32 + Vector(0,0,64);
+						Vector back = part.pev.origin + g_Engine.v_forward*-32 + Vector(0,0,64);
+						float df = (front - tr.vecEndPos).Length();
+						float db = (back - tr.vecEndPos).Length();
+						
+						if (df > attachDist or db > attachDist)
+							continue;
+						if (df > bestDist or db > bestDist)
+							continue;
 							
-						if (isTriangular(buildEnt)) {
-							attachYaw += 180;
+						attachYaw = part.pev.angles.y;
+						minDist = df;
+						if (df > db)
+						{
+							attachOri = part.pev.origin + g_Engine.v_right*-32 + Vector(0,0,64);
+							attachYaw = Math.VecToAngles(part.pev.origin - front).y;
+							minDist = df;
+						}
+						else if (db > df)
+						{
+							attachOri = part.pev.origin + g_Engine.v_right*32 + Vector(0,0,64);
+							attachYaw = Math.VecToAngles(part.pev.origin - back).y;
+							minDist = db;
 						}
 					}
-				}
-				else if ((attachSocket == SOCKET_WALL and attachType != B_LOW_WALL) and (buildType == B_FLOOR or buildType == B_LADDER_HATCH or buildType == B_FLOOR_TRI))
-				{
-					Vector front = part.pev.origin + g_Engine.v_forward*4 + Vector(0,0,128);
-					Vector back = part.pev.origin + g_Engine.v_forward*-4 + Vector(0,0,128);
-					float df = (front - tr.vecEndPos).Length();
-					float db = (back - tr.vecEndPos).Length();
-					
-					if (df > attachDist and db > attachDist)
-						continue;
-					if (df > bestDist and db > bestDist)
-						continue;
-						
-					attachYaw = part.pev.angles.y;
-					float oriDist = buildType == B_FLOOR_TRI ? 36.95 : 64;
-					minDist = df;
-					if (df < db)
+					else if (partSocket == SOCKET_WINDOW and attachType == B_WINDOW)
 					{
-						attachOri = part.pev.origin + g_Engine.v_forward*oriDist + Vector(0,0,128);
-						attachYaw = Math.VecToAngles(part.pev.origin - front).y;
+						Vector front = part.pev.origin + g_Engine.v_forward*32 + Vector(0,0,64);
+						Vector back = part.pev.origin + g_Engine.v_forward*-32 + Vector(0,0,64);
+						float df = (front - tr.vecEndPos).Length();
+						float db = (back - tr.vecEndPos).Length();
+						
+						if (df > attachDist or db > attachDist)
+							continue;
+						if (df > bestDist or db > bestDist)
+							continue;
+							
+						float oriDist = buildType == B_WOOD_SHUTTERS ? 4 : 0;
+						attachYaw = part.pev.angles.y;
 						minDist = df;
+						if (df > db)
+						{
+							attachOri = part.pev.origin + g_Engine.v_forward*-oriDist + Vector(0,0,64);
+							attachYaw = Math.VecToAngles(part.pev.origin - front).y;
+							minDist = df;
+						}
+						else if (db > df)
+						{
+							attachOri = part.pev.origin + g_Engine.v_forward*oriDist + Vector(0,0,64);
+							attachYaw = Math.VecToAngles(part.pev.origin - back).y;
+							minDist = db;
+						}
 					}
-					else if (db < df)
+					else if (attachSocket == SOCKET_WALL and attachType != B_LOW_WALL and buildType != B_ROOF) // stacking walls
 					{
-						attachOri = part.pev.origin + g_Engine.v_forward*-oriDist + Vector(0,0,128);
-						attachYaw = Math.VecToAngles(part.pev.origin - back).y;
-						minDist = db;
-					}
-					
-					if (buildType == B_FLOOR_TRI)
-						attachYaw += 180;
-				}
-				else if (partSocket == SOCKET_DOORWAY and attachType == B_DOORWAY)
-				{
-					Vector front = part.pev.origin + g_Engine.v_forward*32 + Vector(0,0,64);
-					Vector back = part.pev.origin + g_Engine.v_forward*-32 + Vector(0,0,64);
-					float df = (front - tr.vecEndPos).Length();
-					float db = (back - tr.vecEndPos).Length();
-					
-					if (df > attachDist or db > attachDist)
-						continue;
-					if (df > bestDist or db > bestDist)
-						continue;
+						Vector up = part.pev.origin + Vector(0,0,128);
+						float du = (up - tr.vecEndPos).Length();
 						
-					attachYaw = part.pev.angles.y;
-					minDist = df;
-					if (df > db)
+						if (du > attachDist or du > bestDist)
+							continue;
+							
+						attachOri = up;
+						attachYaw = part.pev.angles.y;
+						minDist = du;
+					}
+					else if (attachSocket == SOCKET_WALL and attachType != B_LOW_WALL and buildType == B_ROOF) // roof
 					{
-						attachOri = part.pev.origin + g_Engine.v_right*-32 + Vector(0,0,64);
-						attachYaw = Math.VecToAngles(part.pev.origin - front).y;
+						Vector front = part.pev.origin + g_Engine.v_forward*16 + Vector(0,0,128);
+						Vector back = part.pev.origin + g_Engine.v_forward*-16 + Vector(0,0,128);
+						float df = (front - tr.vecEndPos).Length();
+						float db = (back - tr.vecEndPos).Length();
+						
+						//attachDist = 112;
+						
+						if (df > attachDist or db > attachDist)
+							continue;
+						if (df > bestDist or db > bestDist)
+							continue;
+							
+						attachYaw = part.pev.angles.y;
 						minDist = df;
+						if (df < db)
+						{
+							attachOri = part.pev.origin + g_Engine.v_forward*64 + Vector(0,0,192);
+							attachYaw = Math.VecToAngles(part.pev.origin - front).y;
+							minDist = df;
+						}
+						else if (db < df)
+						{
+							attachOri = part.pev.origin + g_Engine.v_forward*-64 + Vector(0,0,192);
+							attachYaw = Math.VecToAngles(part.pev.origin - back).y;
+							minDist = db;
+						}
 					}
-					else if (db > df)
+					else if (partSocket == SOCKET_MIDDLE and attachType == B_FOUNDATION or attachType == B_FLOOR)
 					{
-						attachOri = part.pev.origin + g_Engine.v_right*32 + Vector(0,0,64);
-						attachYaw = Math.VecToAngles(part.pev.origin - back).y;
-						minDist = db;
+						Vector up = part.pev.origin + Vector(0,0,64);
+						float du = (up - tr.vecEndPos).Length();
+						
+						if (du > attachDist or du > bestDist)
+							continue;
+							
+						attachOri = up;
+						minDist = du;
 					}
-				}
-				else if (partSocket == SOCKET_WINDOW and attachType == B_WINDOW)
-				{
-					Vector front = part.pev.origin + g_Engine.v_forward*32 + Vector(0,0,64);
-					Vector back = part.pev.origin + g_Engine.v_forward*-32 + Vector(0,0,64);
-					float df = (front - tr.vecEndPos).Length();
-					float db = (back - tr.vecEndPos).Length();
-					
-					if (df > attachDist or db > attachDist)
-						continue;
-					if (df > bestDist or db > bestDist)
+					else
 						continue;
 						
-					float oriDist = buildType == B_WOOD_SHUTTERS ? 4 : 0;
-					attachYaw = part.pev.angles.y;
-					minDist = df;
-					if (df > db)
+					if (buildType == B_LADDER_HATCH or partSocket == SOCKET_MIDDLE and isFloorPiece(part))
 					{
-						attachOri = part.pev.origin + g_Engine.v_forward*-oriDist + Vector(0,0,64);
-						attachYaw = Math.VecToAngles(part.pev.origin - front).y;
-						minDist = df;
-					}
-					else if (db > df)
-					{
-						attachOri = part.pev.origin + g_Engine.v_forward*oriDist + Vector(0,0,64);
-						attachYaw = Math.VecToAngles(part.pev.origin - back).y;
-						minDist = db;
-					}
-				}
-				else if (attachSocket == SOCKET_WALL and attachType != B_LOW_WALL and buildType != B_ROOF) // stacking walls
-				{
-					Vector up = part.pev.origin + Vector(0,0,128);
-					float du = (up - tr.vecEndPos).Length();
-					
-					if (du > attachDist or du > bestDist)
-						continue;
+						// orient stairs according to where the player is looking
+						Vector floor_forward = g_Engine.v_forward;
+						Vector floor_right = g_Engine.v_right;
 						
-					attachOri = up;
-					attachYaw = part.pev.angles.y;
-					minDist = du;
-				}
-				else if (attachSocket == SOCKET_WALL and attachType != B_LOW_WALL and buildType == B_ROOF) // roof
-				{
-					Vector front = part.pev.origin + g_Engine.v_forward*16 + Vector(0,0,128);
-					Vector back = part.pev.origin + g_Engine.v_forward*-16 + Vector(0,0,128);
-					float df = (front - tr.vecEndPos).Length();
-					float db = (back - tr.vecEndPos).Length();
-					
-					//attachDist = 112;
-					
-					if (df > attachDist or db > attachDist)
-						continue;
-					if (df > bestDist or db > bestDist)
-						continue;
+						g_EngineFuncs.MakeVectors(plr.pev.angles);
+						Vector plr_forward = g_Engine.v_forward;
+						plr_forward.z = 0;
+						plr_forward.Normalize();
 						
-					attachYaw = part.pev.angles.y;
-					minDist = df;
-					if (df < db)
-					{
-						attachOri = part.pev.origin + g_Engine.v_forward*64 + Vector(0,0,192);
-						attachYaw = Math.VecToAngles(part.pev.origin - front).y;
-						minDist = df;
-					}
-					else if (db < df)
-					{
-						attachOri = part.pev.origin + g_Engine.v_forward*-64 + Vector(0,0,192);
-						attachYaw = Math.VecToAngles(part.pev.origin - back).y;
-						minDist = db;
-					}
-				}
-				else if (partSocket == SOCKET_MIDDLE and attachType == B_FOUNDATION or attachType == B_FLOOR)
-				{
-					Vector up = part.pev.origin + Vector(0,0,64);
-					float du = (up - tr.vecEndPos).Length();
-					
-					if (du > attachDist or du > bestDist)
-						continue;
+						float fdot = DotProduct(plr_forward, floor_forward);
+						float rdot = DotProduct(plr_forward, floor_right);
 						
-					attachOri = up;
-					minDist = du;
-				}
-				else
-					continue;
-					
-				if (buildType == B_LADDER_HATCH or partSocket == SOCKET_MIDDLE and isFloorPiece(part))
-				{
-					// orient stairs according to where the player is looking
-					Vector floor_forward = g_Engine.v_forward;
-					Vector floor_right = g_Engine.v_right;
-					
-					g_EngineFuncs.MakeVectors(plr.pev.angles);
-					Vector plr_forward = g_Engine.v_forward;
-					plr_forward.z = 0;
-					plr_forward.Normalize();
-					
-					float fdot = DotProduct(plr_forward, floor_forward);
-					float rdot = DotProduct(plr_forward, floor_right);
-					
-					if (buildType == B_LADDER_HATCH and attachSocket == SOCKET_WALL)
-					{
-						fdot = -fdot;
-						rdot = -rdot;
-					}
-					
-					if (abs(fdot) > abs(rdot)) {
-						if (fdot > 0) {
-							attachYaw += 0;
+						if (buildType == B_LADDER_HATCH and attachSocket == SOCKET_WALL)
+						{
+							fdot = -fdot;
+							rdot = -rdot;
+						}
+						
+						if (abs(fdot) > abs(rdot)) {
+							if (fdot > 0) {
+								attachYaw += 0;
+							} else {
+								attachYaw += 180;
+							}
 						} else {
-							attachYaw += 180;
-						}
-					} else {
-						if (rdot > 0) {
-							attachYaw += 270;
-						} else {
-							attachYaw += 90;
+							if (rdot > 0) {
+								attachYaw += 270;
+							} else {
+								attachYaw += 90;
+							}
 						}
 					}
-				}
-				
-				if (getPartAtPos(attachOri) !is null)
-					continue;
-				if (partSocket == SOCKET_DOORWAY and getPartsByParent(part.pev.team).length() > 0)
-					continue;
 					
-				if (buildType == B_FOUNDATION_TRI or buildType == B_FLOOR_TRI)
-				{
-					CBaseEntity@ ent = getPartAtPos(attachOri, 28);
-					if (ent !is null and (ent.pev.colormap == B_FOUNDATION or ent.pev.colormap == B_FLOOR))
-					{
-						// triangle would be completely inside a square piece
+					if (getPartAtPos(attachOri) !is null)
 						continue;
-					}
-				}
-				if (buildType == B_FOUNDATION or buildType == B_FLOOR)
-				{
-					CBaseEntity@ ent = getPartAtPos(attachOri, 28);
-					if (ent !is null and (ent.pev.colormap == B_FOUNDATION_TRI or ent.pev.colormap == B_FLOOR_TRI))
-					{
-						// square would be completely enclosing a tri piece
+					if (partSocket == SOCKET_DOORWAY and getPartsByParent(part.pev.team).length() > 0)
 						continue;
-					}
-				}
-				if (buildType == B_LADDER_HATCH)
-				{
-					CBaseEntity@ ent = getPartAtPos(attachOri + Vector(0,0,-64), 2);
-					if (ent !is null and socketType(ent.pev.colormap) == SOCKET_MIDDLE)
+						
+					if (buildType == B_FOUNDATION_TRI or buildType == B_FLOOR_TRI)
 					{
-						// ladder hatch opens into stairs or something
-						continue;
+						CBaseEntity@ ent = getPartAtPos(attachOri, 28);
+						if (ent !is null and (ent.pev.colormap == B_FOUNDATION or ent.pev.colormap == B_FLOOR))
+						{
+							// triangle would be completely inside a square piece
+							continue;
+						}
 					}
-				}
-				
-				if ((plr.pev.origin - attachOri).Length() > maxSnapDist)
-					continue;
+					if (buildType == B_FOUNDATION or buildType == B_FLOOR)
+					{
+						CBaseEntity@ ent = getPartAtPos(attachOri, 28);
+						if (ent !is null and (ent.pev.colormap == B_FOUNDATION_TRI or ent.pev.colormap == B_FLOOR_TRI))
+						{
+							// square would be completely enclosing a tri piece
+							continue;
+						}
+					}
+					if (buildType == B_LADDER_HATCH)
+					{
+						CBaseEntity@ ent = getPartAtPos(attachOri + Vector(0,0,-64), 2);
+						if (ent !is null and socketType(ent.pev.colormap) == SOCKET_MIDDLE)
+						{
+							// ladder hatch opens into stairs or something
+							continue;
+						}
+					}
 					
-				bestDist = minDist;
-				newOri = attachOri;
-				attaching = true;
-				validBuild = true;
-				@phit = @part;
-				
-				if ((buildType == B_FOUNDATION or buildType == B_FLOOR) and (attachType == B_FOUNDATION or attachType == B_FLOOR))
-					newYaw = part.pev.angles.y;
-				else
-					newYaw = attachYaw;
-			}
+					if ((plr.pev.origin - attachOri).Length() > maxSnapDist)
+						continue;
+						
+					bestDist = minDist;
+					newOri = attachOri;
+					attaching = true;
+					validBuild = true;
+					@phit = @part;
+					
+					if ((buildType == B_FOUNDATION or buildType == B_FLOOR) and (attachType == B_FOUNDATION or attachType == B_FLOOR))
+						newYaw = part.pev.angles.y;
+					else
+						newYaw = attachYaw;
+				}
+			} while (part !is null);
 			
 			if (buildType == B_FOUNDATION or buildType == B_FOUNDATION_STEPS or buildType == B_FOUNDATION_TRI)
 			{
@@ -1221,50 +1226,53 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 		g_EntityFuncs.SetOrigin(buildEnt, buildEnt.pev.origin); // fix collision
 		
 		// check collision
-		CBaseEntity@ ent = null;
-		do {
-			@ent = g_EntityFuncs.FindEntityInSphere(ent, newOri, 192, "*", "classname");
-			if (ent !is null)
-			{
-				if (ent.entindex() == buildEnt.entindex() or ent.entindex() == buildEnt2.entindex())
-					continue;
-				if (skipCollide !is null and skipCollide.entindex() == ent.entindex())
-					continue;
-				if (attachEnt !is null and ent.entindex() == attachEnt.entindex())
-					continue;
-				if (ent.pev.solid == SOLID_NOT)
-					continue;
-				//if (ent.pev.effects & EF_NODRAW != 0)
-				if (ent.pev.solid == SOLID_TRIGGER and ent.pev.classname != "func_build_clip")
-					continue;
-				if (buildType == B_CODE_LOCK or buildType == B_LADDER)
-					continue;
+		if (validBuild)
+		{
+			CBaseEntity@ ent = null;
+			do {
+				@ent = g_EntityFuncs.FindEntityInSphere(ent, newOri, 192, "*", "classname");
+				if (ent !is null)
+				{
+					if (ent.entindex() == buildEnt.entindex() or ent.entindex() == buildEnt2.entindex())
+						continue;
+					if (skipCollide !is null and skipCollide.entindex() == ent.entindex())
+						continue;
+					if (attachEnt !is null and ent.entindex() == attachEnt.entindex())
+						continue;
+					if (ent.pev.solid == SOLID_NOT)
+						continue;
+					//if (ent.pev.effects & EF_NODRAW != 0)
+					if (ent.pev.solid == SOLID_TRIGGER and ent.pev.classname != "func_build_clip")
+						continue;
+					if (buildType == B_CODE_LOCK or buildType == B_LADDER)
+						continue;
 
-				string cname = string(ent.pev.classname);
-				if ((cname == "func_breakable_custom" or cname == "func_door_rotating") && attaching) {
-					// still a small chance a separate base perfectly aligns, letting
-					// you build overlapping pieces, but that should be pretty rare.
-					float diff = (ent.pev.origin - buildEnt.pev.origin).Length();
+					string cname = string(ent.pev.classname);
+					if ((cname == "func_breakable_custom" or cname == "func_door_rotating") && attaching) {
+						// still a small chance a separate base perfectly aligns, letting
+						// you build overlapping pieces, but that should be pretty rare.
+						float diff = (ent.pev.origin - buildEnt.pev.origin).Length();
 
-					if (diff < 1.0f) {
-						validBuild = false; // socket already filled
+						if (diff < 1.0f) {
+							validBuild = false; // socket already filled
+							break;
+						} 
+					}
+					float maxOverlap = ent.IsBSPModel() and !isFloorItem(buildEnt) ? 9.95f : 2.0f;
+					float overlap = collisionBoxesYaw(buildEnt, ent);
+					if (overlap > maxOverlap) {
+						if (debug_mode)
+							println("BLOCKED BY: " + cname + " overlap " + overlap);
+						validBuild = false;
 						break;
 					} 
+					else if (debug_mode && overlap > 0)
+					{
+						//println("OVERLAP BY: " + cname + " overlap " + overlap);
+					}
 				}
-				float maxOverlap = ent.IsBSPModel() and !isFloorItem(buildEnt) ? 9.95f : 2.0f;
-				float overlap = collisionBoxesYaw(buildEnt, ent);
-				if (overlap > maxOverlap) {
-					if (debug_mode)
-						println("BLOCKED BY: " + cname + " overlap " + overlap);
-					validBuild = false;
-					break;
-				} 
-				else if (debug_mode && overlap > 0)
-				{
-					//println("OVERLAP BY: " + cname + " overlap " + overlap);
-				}
-			}
-		} while (ent !is null);
+			} while (ent !is null);
+		}
 		
 		// extra limitations in invasion mode
 		if (g_invasion_mode and g_EngineFuncs.PointContents(newOri) != CONTENTS_EMPTY)
@@ -1376,7 +1384,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 			}	
 			updateBuildPlaceholder();
 		}
-		pev.nextthink = g_Engine.time;
+		pev.nextthink = g_Engine.time + 0.05f;
 	}
 	
 	CBasePlayer@ getPlayer()
@@ -1393,6 +1401,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 		CBasePlayer@ plr = getPlayer();
 		PlayerState@ state = getPlayerState(plr);
 		
+		updateBuildPlaceholder();
 		
 		bool buildingBoat = buildType == E_BOAT_WOOD or buildType == E_BOAT_METAL;
 		
