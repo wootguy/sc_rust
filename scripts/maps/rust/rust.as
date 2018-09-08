@@ -1171,7 +1171,7 @@ void MapActivate()
 			ent.pev.effects |= EF_NODRAW;
 	} while (ent !is null);
 	
-	setupInvasionMode();
+	//setupInvasionMode();
 	//setupCreativeMode();
 	//setupPvpMode();
 }
@@ -1837,6 +1837,8 @@ void equipPlayer(CBasePlayer@ plr)
 		giveItem(plr, I_ROCKET, 5, false, true, true);
 		giveItem(plr, I_FUEL, 200, false, true, true);
 		giveItem(plr, I_GRENADE, 10, false, true, true);
+		giveItem(plr, I_SATCHEL, 10, false, true, true);
+		giveItem(plr, I_C4, 10, false, true, true);
 		plr.pev.armorvalue = 100;
 		plr.pev.health = 100;
 	}
