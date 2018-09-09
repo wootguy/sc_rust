@@ -582,7 +582,7 @@ class func_vehicle_custom : ScriptBaseEntity
 	bool ImpactDamage(CBaseEntity@ other, float speed)
 	{
 		float damage = (abs(speed)*0.05f);
-		if (damage < 10)
+		if (other is null or damage < 10)
 			return false;
 		damage = other.pev.takedamage == DAMAGE_YES ? Math.min(other.pev.health, damage) : damage;
 		other.TakeDamage(pev, pev, damage*2, DMG_CRUSH);
