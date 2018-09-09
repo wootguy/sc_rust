@@ -6,6 +6,7 @@
 #include "ByteBuffer"
 #include "saveload"
 #include "items"
+#include "map"
 #include "stability"
 #include "monster_c4"
 #include "airdrop"
@@ -22,6 +23,10 @@
 // apache getting stuck in one place?
 // update motd, no teams or raiders
 // not stopping with no driver, clipping way more easily
+// apache doesn't disappear from map after death/leaving
+// ladder save/load fails
+// boats gain health from breaking twig
+// floating fire when aprt breaks
 
 // Should do/fix but too lazy:
 // crashing/leaving players leave unusable items and sometimes duplicate player states
