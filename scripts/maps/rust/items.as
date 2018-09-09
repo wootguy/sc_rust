@@ -1164,7 +1164,11 @@ void playerMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CText
 	{
 		int imenu = atoi(action.SubString(6,1));
 		int itemType = atoi(action.SubString(8));
-		if (itemType >= 0 and itemType < int(g_items.size()))
+		if (itemType == I_LADDER or itemType == I_LADDER_HATCH)
+		{
+			g_PlayerFuncs.PrintKeyBindingString(plr, "Ladders are disabled until\nthe crash bug in sven is fixed.");
+		}
+		else if (itemType >= 0 and itemType < int(g_items.size()))
 		{
 			Item@ craftItem = g_items[itemType];
 			
@@ -2034,7 +2038,7 @@ void lock_object(CBaseEntity@ obj, string code, bool unlock)
 		newModel = "b_metal_door";
 	if (obj.pev.colormap == B_LADDER_HATCH)
 		newModel = "b_ladder_hatch_door";
-	newModel += unlock ? "_unlock" : "_lock";
+	newModel += unlock ? "_lock" : "_unlock";
 	
 	if (code.Length() > 0)
 		obj.pev.noise3 = code;

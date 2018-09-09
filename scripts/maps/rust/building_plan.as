@@ -401,7 +401,7 @@ array<Item> g_items = {
 		"Rapid-fire weapon. Uses pistol ammo."),
 	Item(I_SAW, 1, true, false, "weapon_custom_saw", "", "M249 SAW", RawItem(I_HQMETAL, 50), RawItem(I_SCRAP, 10),
 		"Powerful machine gun with a high firing rate and damage. Uses rifle ammo."),
-	Item(I_GUITAR, 1, true, false, "weapon_guitar", "", "Guitar", RawItem(I_WOOD, 50), RawItem(I_SCRAP, 1),
+	Item(I_GUITAR, 1, true, false, "weapon_guitar", "", "Guitar", RawItem(I_WOOD, 100), RawItem(I_SCRAP, 2),
 		"Play notes with primary fire, songs with secondary. Tertiary fire selects a song."),
 	
 	Item(I_ARROW, 50, false, true, "arrows", "", "Wooden Arrow", RawItem(I_WOOD, 40), RawItem(I_STONE, 20),
@@ -568,11 +568,9 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 	{
 		CBasePlayer@ plr = getPlayer();
 		
-		h_attachEnt = null;
-		
 		CBaseEntity@ buildEnt = h_buildEnt;
 		CBaseEntity@ buildEnt2 = h_buildEnt2;
-		CBaseEntity@ attachEnt = h_attachEnt;
+		
 		
 		// show building placeholder
 		if (buildEnt is null)
@@ -595,6 +593,9 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 		if ((newOri - lastLookOri).Length() < EPSILON)
 			return;
 		lastLookOri = newOri;
+		
+		h_attachEnt = null;
+		CBaseEntity@ attachEnt = h_attachEnt;
 			
 		float newYaw = plr.pev.angles.y;
 		float newPitch = buildEnt.pev.angles.x;
@@ -1328,7 +1329,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 				params.holdTime = 0.2f;
 				
 				params.x = 0.1;
-				params.channel = 1;
+				params.channel = 2;
 				
 				if (!g_build_anywhere)
 				{
@@ -1379,7 +1380,9 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 					params.x = 0.8;
 					params.channel = 0;
 					int total = state.getNumParts((g_creative_mode or g_shared_build_points_in_pvp_mode) ? zoneid : -1337);
-					g_PlayerFuncs.HudMessage(plr, params, "Built Parts:\n" + total + " / " + g_zone_info.partsPerZone);
+					int left = g_zone_info.partsPerZone - total;
+					g_PlayerFuncs.HudMessage(plr, params, "Build Points:\n" + left + " / " + g_zone_info.partsPerZone);
+					
 				}
 			}	
 			updateBuildPlaceholder();
@@ -1404,6 +1407,12 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 		updateBuildPlaceholder();
 		
 		bool buildingBoat = buildType == E_BOAT_WOOD or buildType == E_BOAT_METAL;
+		
+		if (buildType == B_LADDER or buildType == B_LADDER_HATCH)
+		{
+			g_PlayerFuncs.PrintKeyBindingString(plr, "Ladders are disabled until\nthe crash bug in sven is fixed.");
+			return false;
+		}
 		
 		if (buildEnt !is null and forbidden)
 		{
@@ -1564,16 +1573,16 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 			if (buildType == B_HIGH_STONE_WALL) soundFile = "rust/high_wall_place_stone.ogg";					
 			if (buildType == B_HIGH_WOOD_WALL) soundFile = "rust/high_wall_place_wood.ogg";					
 			
-			if (buildType == B_CODE_LOCK)
+			if (buildType == B_CODE_LOCK and attachEnt !is null)
 			{
 				// just change door model
 				string newModel = "";
 				if (attachEnt.pev.colormap == B_WOOD_DOOR)
-					newModel = "b_wood_door_unlock";
+					newModel = "b_wood_door_lock";
 				if (attachEnt.pev.colormap == B_METAL_DOOR)
-					newModel = "b_metal_door_unlock";
+					newModel = "b_metal_door_lock";
 				if (attachEnt.pev.colormap == B_LADDER_HATCH)
-					newModel = "b_ladder_hatch_door_unlock";
+					newModel = "b_ladder_hatch_door_lock";
 				
 				int oldcolormap = attachEnt.pev.colormap;
 				g_EntityFuncs.SetModel(attachEnt, getModelFromName(newModel));
@@ -1705,7 +1714,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 				// remove bushes
 				CBaseEntity@ bush = null;
 				do {
-					@bush = g_EntityFuncs.FindEntityInSphere(bush, ent.pev.origin, 90.0f, "bush", "targetname");
+					@bush = g_EntityFuncs.FindEntityInSphere(bush, ent.pev.origin, 128.0f, "bush", "targetname");
 					if (bush !is null)
 					{
 						g_EntityFuncs.Remove(bush);
@@ -1884,6 +1893,8 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 		}
 		
 		createBuildEnts();
+		lastLookOri = Vector(0,0,0);
+		updateBuildPlaceholder();
 		return true;
 	}
 	

@@ -16,23 +16,12 @@
 
 // TODO:
 // nobody voted shown when people voted
-// 400+ built parts on twlz
 // auto save plz
-// remove ladders cuz freezing :'<
 // mp_decals 2 message :<
 // less furnace menus plz
 // apache getting stuck in one place?
-// default minimap
 // update motd, no teams or raiders
-// guitar too cheap
-// boats super laggy
-// code locks reversed color
-// build points for building plan
-// boats not blowing up out of world, not stopping with no driver, clipping way more easily, can barely turn
-// fires blinking off not double
-// players sizzling after death on fire
-// boats do friendly damage in creative (maybe keep this?)
-// remove bush from ground, not actual ori
+// not stopping with no driver, clipping way more easily
 
 // Should do/fix but too lazy:
 // crashing/leaving players leave unusable items and sometimes duplicate player states
@@ -226,7 +215,7 @@ class ZoneInfo
 			case 1: return "Dune";
 			case 2: return "Bay";
 			case 3: return "Canyon";
-			case 4: return "Mountain";
+			case 4: return "Snow";
 			case 5: return "Middle";
 		}
 		return zoneid;
@@ -368,9 +357,9 @@ class PlayerState
 	bool inGame = true;
 	float lastDangerous = 0; // last time this player was dangerous (had guns)
 	float lastFireHeal = 0; // prevent fire heal stacking
-	int map_mode = 1;
-	int map_size = 0;
-	bool map_enabled = false;
+	int map_mode = 2;
+	int map_size = 1;
+	bool map_enabled = true;
 	bool map_update = true;
 	
 	uint64 tips = 0; // bitfield for shown tips
@@ -1997,7 +1986,7 @@ bool doRustCommand(CBasePlayer@ plr, const CCommand@ args)
 	{
 		if (args[0] == ".version")
 		{
-			g_PlayerFuncs.SayText(plr, "Script version: v6 (September, 2018)");
+			g_PlayerFuncs.SayText(plr, "Script version: v7 (September, 2018)");
 			return true;
 		}
 		if (args[0] == ".day")

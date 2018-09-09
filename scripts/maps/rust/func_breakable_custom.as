@@ -516,7 +516,7 @@ class func_breakable_custom : ScriptBaseEntity
 			CBaseEntity@ ent = null;
 			do {
 				@ent = g_EntityFuncs.FindEntityInSphere(ent, firePos, 96.0f, "player", "classname");
-				if (ent !is null)
+				if (ent !is null and ent.IsAlive())
 				{
 					float dist = ((ent.pev.origin - Vector(0,0,12)) - firePos).Length();
 					if (dist < 24)
@@ -534,13 +534,11 @@ class func_breakable_custom : ScriptBaseEntity
 							plr.pev.health += 1;
 						}
 					}
-					
-					
 				}
 			} while (ent !is null);
 		}
 		
-		g_Scheduler.SetTimeout("weird_think_bug_workaround", 0.385f, EHandle(self));
+		g_Scheduler.SetTimeout("weird_think_bug_workaround", 0.375f, EHandle(self));
 	}
 	
 	void DoorThink()
@@ -972,7 +970,7 @@ class func_breakable_custom : ScriptBaseEntity
 				if (attacker !is null and state !is null and state.plr.IsValid() and state.plr.GetEntity().entindex() == attacker.entindex())
 					attackingOwnPart = true;
 			}
-			if (!attackingOwnPart)
+			if (!attackingOwnPart and !isFire)
 				pev.teleport_time = g_Engine.time;
 		}
 		

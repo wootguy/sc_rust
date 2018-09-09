@@ -463,7 +463,7 @@ class func_vehicle_custom : ScriptBaseEntity
 				if (delta == 20)
 				{
 					m_iTurnAngle++;
-					m_flSteeringWheelDecay = g_Engine.time + 0.075;
+					m_flSteeringWheelDecay = g_Engine.time + 0.2;
 
 					if (m_iTurnAngle > 8)
 						m_iTurnAngle = 8;
@@ -471,7 +471,7 @@ class func_vehicle_custom : ScriptBaseEntity
 				else if (delta == 30)
 				{
 					m_iTurnAngle--;
-					m_flSteeringWheelDecay = g_Engine.time + 0.075;
+					m_flSteeringWheelDecay = g_Engine.time + 0.2;
 
 					if (m_iTurnAngle < -8)
 						m_iTurnAngle = -8;
@@ -720,7 +720,7 @@ class func_vehicle_custom : ScriptBaseEntity
 		m_vBack.z -= 24;
 		
 		if (g_EngineFuncs.PointContents(self.pev.origin + controlsCenterOffset) == CONTENTS_SOLID)
-			TakeDamage(pev, pev, 0.1, DMG_GENERIC);
+			TakeDamage(pev, pev, 0.2, DMG_GENERIC);
 		
 		CheckTurning();
 
@@ -874,12 +874,12 @@ class func_vehicle_custom : ScriptBaseEntity
 			
 		float twist = self.pev.angles.z > 180 ? self.pev.angles.z - 360 : self.pev.angles.z;
 		float targetZ = ocean_z + abs(self.pev.angles.x)*2 + abs(twist)*0.5f;
-		self.pev.velocity.z = (targetZ - self.pev.origin.z)*32;
-		if (self.pev.velocity.z > 512.0f)
-			self.pev.velocity.z = 512;
-		else if (self.pev.velocity.z < -512.0f)
-			self.pev.velocity.z = -512;
-		else if (abs(self.pev.velocity.z) < 1.0f)
+		self.pev.velocity.z = (targetZ - self.pev.origin.z)*8;
+		if (self.pev.velocity.z > 64.0f)
+			self.pev.velocity.z = 64;
+		else if (self.pev.velocity.z < -64.0f)
+			self.pev.velocity.z = -64;
+		else if (abs(targetZ - self.pev.origin.z) < 4.0f)
 			self.pev.velocity.z = 0;
 		
 		SetThink(ThinkFunction(this.Next));
