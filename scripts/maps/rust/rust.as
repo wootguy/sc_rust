@@ -21,9 +21,7 @@
 // mp_decals 2 message :<
 // less furnace menus plz
 // apache getting stuck in one place?
-// update motd, no teams or raiders
 // not stopping with no driver, clipping way more easily
-// apache doesn't disappear from map after death/leaving
 // ladder save/load fails
 // boats gain health from breaking twig
 // floating fire when aprt breaks
@@ -364,6 +362,7 @@ class PlayerState
 	float lastFireHeal = 0; // prevent fire heal stacking
 	int map_mode = 2;
 	int map_size = 1;
+	int lastMapIcons = 0;
 	bool map_enabled = true;
 	bool map_update = true;
 	

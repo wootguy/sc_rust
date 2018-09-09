@@ -165,6 +165,11 @@ void drawMap(PlayerState@ state)
 					break;
 			}
 		} while(enemy !is null);
+		
+		int numIcons = channel;
+		while (channel < state.lastMapIcons)
+			g_PlayerFuncs.HudToggleElement(plr, channel++, false);
+		state.lastMapIcons = numIcons;
 	}
 	
 	
