@@ -271,7 +271,7 @@ class func_vehicle_custom : ScriptBaseEntity
 			{
 				PlayerState@ state = getPlayerStateBySteamID(pev.noise1, pev.noise2);
 				CBaseEntity@ attacker = g_EntityFuncs.Instance( pevAttacker.get_pContainingEntity() );
-				if (attacker !is null and state.plr.IsValid() and state.plr.GetEntity().entindex() == attacker.entindex())
+				if (attacker !is null and state !is null and state.plr.IsValid() and state.plr.GetEntity().entindex() == attacker.entindex())
 					attackingOwnPart = true;
 			}
 			if (!attackingOwnPart)

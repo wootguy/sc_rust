@@ -140,7 +140,7 @@ void drawMap(PlayerState@ state)
 			do {
 				@enemy = g_EntityFuncs.FindEntityByTargetname(enemy, "node_xen");
 				
-				if (enemy !is null)
+				if (enemy !is null and enemy.IsAlive())
 				{
 					icon = getIconForEnt(state, enemy);
 					icon.channel = channel++;

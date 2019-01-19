@@ -493,6 +493,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 										   self.GetP_Model( "models/rust/p_blueprint.mdl" ), 0, "trip" );
 		
 		createBuildEnts();
+		updateBuildPlaceholder(true);
 		
 		active = true;
 		
@@ -564,13 +565,12 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 		return g_Engine.time; //g_WeaponFuncs.WeaponTimeBase();
 	}
 	
-	void updateBuildPlaceholder()
+	void updateBuildPlaceholder(bool force_update=false)
 	{
 		CBasePlayer@ plr = getPlayer();
 		
 		CBaseEntity@ buildEnt = h_buildEnt;
 		CBaseEntity@ buildEnt2 = h_buildEnt2;
-		
 		
 		// show building placeholder
 		if (buildEnt is null)
@@ -590,7 +590,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 		TraceResult tr = TraceLook(plr, buildDist);
 		
 		Vector newOri = tr.vecEndPos;
-		if ((newOri - lastLookOri).Length() < EPSILON)
+		if (!force_update and (newOri - lastLookOri).Length() < EPSILON)
 			return;
 		lastLookOri = newOri;
 		
@@ -1276,7 +1276,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 		}
 		
 		// extra limitations in invasion mode
-		if (g_invasion_mode and g_EngineFuncs.PointContents(newOri) != CONTENTS_EMPTY)
+		if (g_invasion_mode and g_EngineFuncs.PointContents(newOri) != CONTENTS_EMPTY and !buildingBoat)
 			validBuild = false;
 		
 		// only allow building in build zones
