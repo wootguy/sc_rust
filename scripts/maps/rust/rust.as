@@ -16,17 +16,31 @@
 #include "../weapon_custom/v5/weapon_custom"
 
 // TODO:
-// nobody voted shown when people voted
-// auto save plz
-// mp_decals 2 message :<
+// protect player parts in creative mode
 // less furnace menus plz
 // apache getting stuck in one place?
 // not stopping with no driver, clipping way more easily
 // ladder save/load fails
-// boats gain health from breaking twig
+// C4 griefing in co-op
 // floating fire when aprt breaks
+// console commands for save/load
+// rejoining you keep stuff even if dead
+// reduce ammo cost for shotgun?
+// death cause overflow from seeing all islands at once underground
+// delayed spawns in co-op
+// canyon ai is shitty
+// less gargs/volts?
+// co-op ended on garg level instead of kingpin (GOOD I HATE KINGPINS)
+// no limit on dropping items?
+// clipping triangles
+
+// can't reproduce:
+// number of items built not correct after load
+// toolbox not loaded right (protection disabled)
 
 // Should do/fix but too lazy:
+// auto save plz
+// nobody voted shown when people voted
 // crashing/leaving players leave unusable items and sometimes duplicate player states
 // window shutters have different hp each half
 // crash when farming with inv open
@@ -68,11 +82,11 @@
 // sniper doesn't zoom in after 
 // cant place doors in fused doorways
 // build ents aren't always see-through/tinted
-// "cryokeen succ my ween. notice me senpai" -Faith4Dead
 
 // note: impulse 197 = show node connections
+// CSG: cliptype simple (-scale 0.06 if taking a dev_overview screenshot)
 // BSP Settings: Max node size 65536
-// RAD settings: Default bounce, Direct Scale 1, Scale 1.2, Min light 16
+// RAD settings: bounce 0, Direct Scale 1, Scale 1.2, Min light 16, chop 64, no extra, no load textures
 
 //
 // Game settings
@@ -100,10 +114,6 @@ float g_chest_touch_dist = 96; // maximum distance from which a chest can be ope
 float g_gather_multiplier = 2.0f; // resource gather amount multiplied by this (for faster/slower games)
 float g_repair_time = 10.0f; // don't allow repairing parts that are under attack, until this amount of time has passed
 float g_monster_forget_time = 6.0f; // time it takes for a monster to calm down after not seeing any players
-int g_max_zone_monsters = 3;
-uint NODES_PER_ZONE = 150;
-uint BUSHES_PER_ZONE = 100;
-int SOLIDS_PER_ZONE = 320; // more than this + 32players/boats/corpses will cause crashes, stuck players or weird physics
 int SOLIDS_PER_ZONE_SAFE = 252; // absolute worst case = 32 players + 32 boats + 64 corpses
 float g_xen_agro_dist = 300.0f;
 
@@ -115,7 +125,6 @@ float g_apache_first_delay = 20.0f; // time (in minutes) between apache spawns
 
 bool g_shared_build_points_in_pvp_mode = true; // cool var name
 int g_global_solids = 0;
-int MAX_SOLIDS = 512-(NODES_PER_ZONE*8); // any more than this causes glitchy movement or getting stuck. Much more than this causes server crashes
 
 bool g_invasion_mode = false; // monsters spawn in waves and always attack
 float g_invasion_delay = 8.0f; // minutes between waves
@@ -139,6 +148,14 @@ float COOK_TIME_HQMETAL = 4.0f;
 int MAX_VISIBLE_ENTS = 500; // slightly reduced for global ents like airdrops and sky
 int VISIBLE_ENT_BUFFER = 100; // amount of player-related entities to expect in a zone (32 plrs + 64 misc + 32 boats)
 int MAX_VISIBLE_ZONE_ENTS = MAX_VISIBLE_ENTS - VISIBLE_ENT_BUFFER;
+
+float g_map_size = 65536; // loaded from a map_size entity later
+
+CCVar@ g_maxZoneSolids; // any more than this number causes glitchy movement or getting stuck. Much more than this causes server crashes
+CCVar@ g_maxZoneNodes; // cannot be higher than max solids
+CCVar@ g_maxZoneBushes;
+CCVar@ g_buildPoints; // should be about 20 slots less than max zone solids, to account for players and items and stuff
+CCVar@ g_maxZoneMonsters; // too many monsters and the server will lag hard
 
 //
 // End game settings
@@ -167,7 +184,7 @@ class ZoneInfo
 			return;
 		}
 		// each player entity counts towards limit, x2 is so each player can drop an item or spawn an effect or something.
-		int maxNodes = NODES_PER_ZONE;
+		int maxNodes = g_maxZoneNodes.GetInt();
 		maxNodes += 16; // airdops (plane + box + chute) + 6 water func_conveyors + worldspawn + sun/moon + skyboxes + heli + 1
 		// players + corpses + player item drops + trees/stones/animals
 		reservedParts = g_Engine.maxClients*2 + maxNodes; // minimum reserved (assumes half of players won't have a corpse/dropped item)
@@ -190,9 +207,11 @@ class ZoneInfo
 		wastedSettlers = g_Engine.maxClients - (settlersPerZone*g_build_zones.length());
 		partsPerPlayer = maxSettlerParts / settlersPerZone;
 		
-		if (true) {
+		if (!g_invasion_mode) {
 			// should work for 32 players. Client crashes more common after this(?)
-			partsPerZone = 300; 
+			partsPerZone = g_buildPoints.GetInt(); 
+		} else {
+			partsPerZone = Math.max(300, g_buildPoints.GetInt());
 		}
 		
 		for (uint i = 0; i < g_build_zones.length(); i++)
@@ -207,23 +226,24 @@ class ZoneInfo
 			reservedParts = MAX_VISIBLE_ENTS - (partsPerPlayer*settlersPerZone + raiderParts); // give remainder to reserved
 		}
 		
-		int maxExpectedEnts = (NODES_PER_ZONE*2 + (partsPerPlayer + raiderParts))*numZones;
+		int maxExpectedEnts = (g_maxZoneNodes.GetInt()*2 + (partsPerPlayer + raiderParts))*numZones;
 		maxExpectedEnts += 10 + g_Engine.maxClients*(3+g_max_item_drops+g_inventory_size);
 		println("Max expected ents: " + maxExpectedEnts);
 	}
 	
 	string getZoneName(int zoneid)
 	{
-		switch(zoneid) {
-			case 1: return "Dune";
-			case 2: return "Bay";
-			case 3: return "Canyon";
-			case 4: return "Snow";
-			case 5: return "Middle";
+		if (zone_names.exists("" + zoneid))
+		{
+			string name;
+			zone_names.get("" + zoneid, name);
+			return name;
 		}
-		return zoneid;
+		return "???";
 	}
 }
+
+dictionary zone_names;
 
 class Team
 {
@@ -868,6 +888,12 @@ void MapInit()
 	g_Hooks.RegisterHook( Hooks::Player::ClientDisconnect, @ClientLeave );
 	g_Hooks.RegisterHook( Hooks::Player::ClientPutInServer, @ClientJoin );
 	
+	@g_maxZoneSolids = CCVar( "max_zone_solids", 320, "Max number of solid objects per zone");
+	@g_maxZoneNodes = CCVar( "max_zone_nodes", 150, "Max number of trees/rocks/barrells/aliens per zone");
+	@g_maxZoneBushes = CCVar( "max_zone_bushes", 100, "Max number of bushes per zone");
+	@g_maxZoneMonsters = CCVar( "max_zone_monsters", 3, "Max number of monsters per zone");
+	@g_buildPoints = CCVar( "build_points", 300, "Max number of player-built structures per zone");
+	
 	PrecacheSound("tfc/items/itembk2.wav");
 	PrecacheSound("rust/bars_metal_place.ogg");
 	PrecacheSound("rust/bars_wood_place.ogg");
@@ -936,7 +962,7 @@ void MapInit()
 	PrecacheModel("models/rust/w_c4.mdl");
 	PrecacheModel("models/rust/b17.mdl");
 	PrecacheModel("models/rust/parachute.mdl");
-	PrecacheModel("sprites/rust/map_b6.spr");
+	PrecacheModel("sprites/rust/" + g_Engine.mapname + ".spr");
 	PrecacheModel("sprites/rust/map_plr.spr");
 	
 	for (uint i = 0; i < g_material_damage_sounds.length(); i++)
@@ -1107,7 +1133,8 @@ void MapActivate()
 				
 			zone.Enable();
 			g_build_zone_ents.insertLast(EHandle(ent));
-			g_build_zones.insertLast(BuildZone(id, "???"));
+			g_build_zones.insertLast(BuildZone(id, ent.pev.netname));
+			zone_names["" + id] = string(ent.pev.netname);
 		}
 	} while (ent !is null);
 	
@@ -1139,6 +1166,15 @@ void MapActivate()
 	} 
 	else 
 		println("ERROR: air_drop_height entity is missing. Planes will spawn at the wrong height.");
+	
+	CBaseEntity@ map_size = g_EntityFuncs.FindEntityByTargetname(null, "map_size");
+	if (map_size !is null)
+	{
+		g_map_size = map_size.pev.origin.x;
+		g_EntityFuncs.Remove(drop_height);
+	} 
+	else 
+		println("ERROR: map_size entity is missing. Minimap icons will be in the wrong position.");
 	
 	CBaseEntity@ heli_height = g_EntityFuncs.FindEntityByTargetname(null, "apache_height");
 	if (heli_height !is null)
@@ -1990,7 +2026,7 @@ bool doRustCommand(CBasePlayer@ plr, const CCommand@ args)
 	{
 		if (args[0] == ".version")
 		{
-			g_PlayerFuncs.SayText(plr, "Script version: v8 (September, 2018)");
+			g_PlayerFuncs.SayText(plr, "Script version: v9 (January, 2019)");
 			return true;
 		}
 		if (args[0] == ".day")

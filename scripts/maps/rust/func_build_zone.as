@@ -57,8 +57,8 @@ class func_build_zone : ScriptBaseEntity
 	int maxBarrels = 0;
 	int maxMonsters = 0;
 	
-	uint maxNodes = NODES_PER_ZONE;
-	uint maxBushes = BUSHES_PER_ZONE;
+	int maxNodes = g_maxZoneNodes.GetInt();
+	int maxBushes = g_maxZoneBushes.GetInt();
 	
 	array<EHandle> nodes; // trees & rocks
 	array<EHandle> animals;
@@ -98,7 +98,7 @@ class func_build_zone : ScriptBaseEntity
 		g_EntityFuncs.SetModel(self, self.pev.model);
 		g_EntityFuncs.SetOrigin(self, self.pev.origin);
 		
-		maxNodes = NODES_PER_ZONE;
+		maxNodes = g_maxZoneNodes.GetInt();
 	}
 	
 	void Enable()
@@ -165,8 +165,8 @@ class func_build_zone : ScriptBaseEntity
 		maxRocks = int(Math.Floor(maxNodes*rockRatio + 0.5f));
 		maxBarrels = int(Math.Floor(maxNodes*barrelRatio + 0.5f));
 		maxMonsters = int(Math.Floor(maxNodes*monsterRatio + 0.5f));
-		if (!g_invasion_mode and maxMonsters > g_max_zone_monsters)
-			maxMonsters = g_max_zone_monsters;
+		if (!g_invasion_mode and maxMonsters > g_maxZoneMonsters.GetInt())
+			maxMonsters = g_maxZoneMonsters.GetInt();
 		if (g_invasion_mode)
 			maxMonsters = g_invasion_monster_count;
 		
@@ -256,7 +256,7 @@ class func_build_zone : ScriptBaseEntity
 	bool canSpawn(Vector pos, float radius, Vector&out ground, bool isTree)
 	{
 		TraceResult tr;
-		Vector vecEnd = pos + Vector(0,0,-8192);
+		Vector vecEnd = pos + Vector(0,0,-65536);
 		g_Utility.TraceHull( pos, vecEnd, dont_ignore_monsters, human_hull, null, tr );
 		CBaseEntity@ phit = g_EntityFuncs.Instance( tr.pHit );
 		ground = tr.vecEndPos + Vector(0,0,-36);
@@ -390,17 +390,17 @@ class func_build_zone : ScriptBaseEntity
 		
 		if (buildZone !is null)
 		{
-			maxNodes = NODES_PER_ZONE;
-			maxBushes = BUSHES_PER_ZONE;
-			if (maxNodes + buildZone.numRaiderParts > SOLIDS_PER_ZONE)
+			maxNodes = g_maxZoneNodes.GetInt();
+			maxBushes = g_maxZoneBushes.GetInt();
+			if (maxNodes + buildZone.numRaiderParts > g_maxZoneSolids.GetInt())
 			{
-				maxNodes = SOLIDS_PER_ZONE - buildZone.numRaiderParts;
+				maxNodes = g_maxZoneSolids.GetInt() - buildZone.numRaiderParts;
 			}
 			if (maxBushes + maxNodes + buildZone.numRaiderParts > MAX_VISIBLE_ZONE_ENTS)
 			{
 				maxBushes = MAX_VISIBLE_ZONE_ENTS - (maxNodes + buildZone.numRaiderParts);
 			}
-			if (nodes.length() > maxNodes)
+			if (int(nodes.length()) > maxNodes)
 			{
 				DeleteNullNodes();
 				for (uint i = 0; i < nodes.size(); i++)
@@ -414,10 +414,10 @@ class func_build_zone : ScriptBaseEntity
 					}
 				}
 			}
-			if (bushes.length() > maxBushes)
+			if (int(bushes.length()) > maxBushes)
 			{
 				DeleteNullNodes();
-				if (bushes.length() > maxBushes and bushes.length() > 0)
+				if (int(bushes.length()) > maxBushes and bushes.length() > 0)
 				{
 					g_EntityFuncs.Remove(bushes[0]);
 					bushes.removeAt(0);
@@ -546,7 +546,7 @@ class func_build_zone : ScriptBaseEntity
 			
 			nextBush = g_Engine.time + 5;
 			
-			if (bushes.size() < maxBushes)
+			if (int(bushes.size()) < maxBushes)
 			{
 				Vector ori = getRandomPosition();
 				Vector ground;
@@ -615,7 +615,7 @@ class func_build_zone : ScriptBaseEntity
 				}
 			}
 			
-			if (!g_disable_ents and nodes.size() < maxNodes and choices.length() > 0)
+			if (!g_disable_ents and int(nodes.size()) < maxNodes and choices.length() > 0)
 			{
 				string brushModel;
 				string itemModel;
@@ -737,7 +737,7 @@ class func_build_zone : ScriptBaseEntity
 						ent2.pev.solid = SOLID_NOT;
 					}
 					
-					if (nodes.size() >= maxNodes)
+					if (int(nodes.size()) >= maxNodes)
 					{
 						if (debug_mode)
 							println("Zone " + id + " populated");

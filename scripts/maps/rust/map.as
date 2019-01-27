@@ -21,13 +21,14 @@ HUDSpriteParams getIconForEnt(PlayerState@ state, CBaseEntity@ ent)
 	if (angle < 0)
 		angle += 8;
 	
-	float MAP_SIZE = 31744.0f;
+	// old value was 31744 scaled to 475/512
+	float MAP_SIZE = g_map_size;
 	
 	float orix = Math.max(-MAP_SIZE, Math.min(ent.pev.origin.x, MAP_SIZE));
 	float oriy = Math.max(-MAP_SIZE, Math.min(ent.pev.origin.y, MAP_SIZE));
 	
-	float mx = (orix / MAP_SIZE)*475.5f*scale + 0.5f;
-	float my = (-oriy / MAP_SIZE)*475.5f*scale + 0.5f;
+	float mx = (orix / MAP_SIZE)*512.0f*scale + 0.5f;
+	float my = (-oriy / MAP_SIZE)*512.0f*scale + 0.5f;
 	if (state.map_mode == 2)
 	{
 		params.flags = HUD_SPR_MASKED | HUD_ELEM_ABSOLUTE_X | HUD_ELEM_ABSOLUTE_Y;
@@ -44,6 +45,18 @@ HUDSpriteParams getIconForEnt(PlayerState@ state, CBaseEntity@ ent)
 	
 	int frame = (7 - int(angle)) + size*8;
 	
+	if (state.map_mode == 2) {
+		// don't let the icon wrap around the screen
+		if (mx >= 0)
+			mx = -0.01;
+		if (my < 0)
+			my = 0;
+		if (mx < -960.0f*scale)
+			mx = -960.0f*scale;
+		if (my > 960.0f*scale)
+			my = 960.0f*scale;
+	}
+	
 	params.x = mx;
 	params.y = my;
 	params.frame = frame;
@@ -56,7 +69,7 @@ void drawMap(PlayerState@ state)
 	CBasePlayer@ plr = cast<CBasePlayer@>(state.plr.GetEntity());
 	
 	HUDSpriteParams params;
-	params.spritename = "sprites/rust/map_b6.spr".SubString("sprites/".Length());
+	params.spritename = "rust/" + g_Engine.mapname + ".spr";
 	//params.flags = HUD_SPR_OPAQUE | HUD_ELEM_ABSOLUTE_X | HUD_ELEM_ABSOLUTE_Y;
 	params.flags = HUD_SPR_OPAQUE | HUD_ELEM_ABSOLUTE_X | HUD_ELEM_ABSOLUTE_Y | HUD_ELEM_SCR_CENTER_X | HUD_ELEM_SCR_CENTER_Y;
 	params.holdTime = 99999.0f;

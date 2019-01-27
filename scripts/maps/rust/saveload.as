@@ -233,7 +233,7 @@ void loadNodesPartial(ByteBuffer@ buf, int zonesLoaded, int numZones, int nodesL
 			keys["TriggerCondition"] = "4";
 			keys["classify"] = "-1";
 			keys["spawnflags"] = "4"; // monsterclip
-			if (g_max_zone_monsters != 0) {
+			if (g_maxZoneMonsters.GetInt() != 0) {
 				CBaseEntity@ ent = g_EntityFuncs.CreateEntity(classname, keys, true);
 				ent.pev.armortype = g_Engine.time + 10.0f;
 				CBaseMonster@ mon = cast<CBaseMonster@>(ent);

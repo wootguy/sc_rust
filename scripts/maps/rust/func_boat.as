@@ -579,7 +579,7 @@ class func_vehicle_custom : ScriptBaseEntity
 			self.pev.speed -= m_speed * 0.1;
 	}
 	
-	bool ImpactDamage(CBaseEntity@ other, float speed)
+	bool ImpactDamage(CBaseEntity@ other, float speed, Vector forward)
 	{
 		float damage = (abs(speed)*0.05f);
 		if (other is null or damage < 10)
@@ -588,7 +588,16 @@ class func_vehicle_custom : ScriptBaseEntity
 		other.TakeDamage(pev, pev, damage*2, DMG_CRUSH);
 		TakeDamage(pev, pev, damage, DMG_CRUSH);
 		//println("DAMAGE " + damage);
-		return other.pev.health <= 0 and other.pev.takedamage == DAMAGE_YES;
+		
+		bool destroyedObject = other.pev.health <= 0 and other.pev.takedamage == DAMAGE_YES;
+		
+		// launch the player
+		if (speed > 512 and m_pDriver !is null and !destroyedObject) {
+			m_pDriver.TakeDamage(pev, pev, 0, DMG_LAUNCH);
+			m_pDriver.pev.velocity = m_pDriver.pev.velocity + forward*-speed;
+		}
+		
+		return destroyedObject;
 	}
 	
 	void CollisionDetection()
@@ -620,7 +629,7 @@ class func_vehicle_custom : ScriptBaseEntity
 				else if (tr.vecPlaneNormal.z < 0.65 || tr.fStartSolid != 0)
 				{
 					CBaseEntity@ other = g_EntityFuncs.Instance( tr.pHit );
-					if (!ImpactDamage(other, self.pev.speed))
+					if (!ImpactDamage(other, self.pev.speed, forward))
 						self.pev.speed *= -0.1;
 				}
 				else
@@ -648,7 +657,7 @@ class func_vehicle_custom : ScriptBaseEntity
 					return;
 			}
 			CBaseEntity@ other = g_EntityFuncs.Instance( tr.pHit );
-			if (!ImpactDamage(other, self.pev.speed))
+			if (!ImpactDamage(other, self.pev.speed, forward))
 				self.pev.speed *= -0.1f;
 		}
 		else if (self.pev.speed > 0)
@@ -675,7 +684,7 @@ class func_vehicle_custom : ScriptBaseEntity
 			}
 
 			CBaseEntity@ other = g_EntityFuncs.Instance( tr.pHit );
-			if (!ImpactDamage(other, self.pev.speed))
+			if (!ImpactDamage(other, self.pev.speed, forward))
 				self.pev.speed *= -0.1f;
 		}
 	}
