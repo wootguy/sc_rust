@@ -222,6 +222,8 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 		buildEnt.pev.effects |= EF_NODRAW;
 		if (phit is null or phit.pev.classname == "worldspawn" or (getCentroid(phit) - plr.pev.origin).Length() > upgradeDist)
 			return;
+		if (phit.IsPlayer() or phit.IsMonster())
+			return;
 			
 		buildEnt.pev.effects &= ~EF_NODRAW;
 		

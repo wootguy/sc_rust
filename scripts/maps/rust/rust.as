@@ -26,7 +26,6 @@
 // console commands for save/load
 // rejoining you keep stuff even if dead
 // reduce ammo cost for shotgun?
-// death cause overflow from seeing all islands at once underground
 // delayed spawns in co-op
 // canyon ai is shitty
 // less gargs/volts?
