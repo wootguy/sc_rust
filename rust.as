@@ -6,6 +6,7 @@
 #include "ByteBuffer"
 #include "saveload"
 #include "items"
+#include "craft"
 #include "map"
 #include "stability"
 #include "monster_c4"
@@ -16,6 +17,15 @@
 #include "../weapon_custom/v5/weapon_custom"
 
 // TODO:
+// spawning with ammo?
+// place a million shutters to crash the game
+// heli ascends to the heavens in mini island 
+// shocktroopers spawned slowly (maybe node spawned and disabled the fast spawning?) 
+//		caused multiple wave defeated messages + next wave didn't spawn for a full minute
+// voltigore gibbing blows u up across the map?
+// hud sprites go invisible after 3-4 hours of playing?
+// sharks
+// prevent zombies from going in water in pvp/creative
 // protect player parts in creative mode
 // less furnace menus plz
 // apache getting stuck in one place?
@@ -372,6 +382,11 @@ class PlayerState
 	Team@ team = null;
 	EHandle currentLock; // lock currently being interacted with
 	EHandle currentChest; // current corpse/chest being interacted with
+	EHandle menuCam; // current menu camera
+	int lastMenuHighlight = -1; // last menu option that was highlighted by the player
+	int lastCraftSubmenu = 0; // last crafting sub menu
+	int menuScale = 0; // hud menu icon scale
+	int gapScale = 0; // hud menu icon spacing scale
 	bool reviving = false;
 	float reviveStart = 0; // time this player started reviving someone
 	float lastBreakAll = 0; // last time the player used the breakall command
@@ -425,16 +440,16 @@ class PlayerState
 			case TIP_ACTION_MENU: msg = "Press +impulse to open the action menu"; break;
 			case TIP_HATCHET: msg = "Hatchets collect wood faster\n\nPress +impulse -> Craft -> Tools"; break;
 			case TIP_PICKAXE: msg = "Pickaxes collect stone/metal faster\n\nPress +impulse -> Craft -> Tools"; break;
-			case TIP_CUPBOARD: msg = "Tool Cupboards prevent griefing\n\nPress +impulse -> Craft -> Interior Items"; break;
+			case TIP_CUPBOARD: msg = "Tool Cupboards prevent griefing\n\nPress +impulse -> Craft -> Items"; break;
 			case TIP_PLACE_ITEMS: msg = "Place items by selecting the\n\nBuilding Plan and pressing +reload"; break;
 			case TIP_HAMMER: msg = "Upgrade your base with the Hammer\n\nPress +impulse -> Craft -> Tools"; break;
-			case TIP_SLEEP: msg = "Place a SleepingBag to respawn here\n\nPress +impulse -> Craft -> Interior Items"; break;
-			case TIP_CHEST: msg = "Build a Chest to store excess items\n\nPress +impulse -> Craft -> Interior Items"; break;
+			case TIP_SLEEP: msg = "Place a SleepingBag to respawn here\n\nPress +impulse -> Craft -> Items"; break;
+			case TIP_CHEST: msg = "Build a Chest to store excess items\n\nPress +impulse -> Craft -> Items"; break;
 			case TIP_ARMOR: msg = "Equip armor to protect yourself\n\nPress +impulse -> Craft -> Medical / Armor"; break;
 			case TIP_LOOT: msg = "A corpse is spawned when you die.\n\nPress +use on corpses to loot them."; break;
-			case TIP_LOCK_DOOR: msg = "You can place Code Locks on doors\n\nPress +impulse -> Craft -> Interior Items"; break;
-			case TIP_LOCK_HATCH: msg = "You can place Code Locks on hatches\n\nPress +impulse -> Craft -> Interior Items"; break;
-			case TIP_METAL: msg = "Metal is smelted in a furnace\n\nPress +impulse -> Craft -> Interior Items"; break;
+			case TIP_LOCK_DOOR: msg = "You can place Code Locks on doors\n\nPress +impulse -> Craft -> Items"; break;
+			case TIP_LOCK_HATCH: msg = "You can place Code Locks on hatches\n\nPress +impulse -> Craft -> Items"; break;
+			case TIP_METAL: msg = "Metal is smelted in a furnace\n\nPress +impulse -> Craft -> Items"; break;
 			case TIP_FURNACE: msg = "Press +USE to open the furnace.\n\nWood and Ore is required to make metal."; break;
 			case TIP_CODE: msg = "Hold +USE on the Code Lock\n\nto open the lock menu."; break;
 			case TIP_AUTH: msg = "Press +USE to authorize yourself.\n\nHold +USE to unauthorize all users."; break;
@@ -460,9 +475,12 @@ class PlayerState
 	{
 		if (!plr or !inGame)
 			return;
-		allItems = getAllItemsRaw(cast<CBasePlayer@>(plr.GetEntity()));
+		CBasePlayer@ p_plr = cast<CBasePlayer@>(plr.GetEntity());
+		allItems = getAllItemsRaw(p_plr);
 		
 		updateActiveItem();
+		
+		drawCraftingMenu(p_plr, -1, -1, -1, false, true);
 	}
 	
 	void updateActiveItem()
@@ -963,6 +981,7 @@ void MapInit()
 	PrecacheModel("models/rust/parachute.mdl");
 	PrecacheModel("sprites/rust/" + g_Engine.mapname + ".spr");
 	PrecacheModel("sprites/rust/map_plr.spr");
+	PrecacheModel("sprites/rust/menu.spr");
 	
 	for (uint i = 0; i < g_material_damage_sounds.length(); i++)
 		for (uint k = 0; k < g_material_damage_sounds[i].length(); k++)

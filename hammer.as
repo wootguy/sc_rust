@@ -334,15 +334,18 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 				params.r1 = 255;
 				params.g1 = 255;
 				params.b1 = 255;
-				if (!g_build_anywhere)
+				if (!state.menuCam.IsValid())
 				{
-					g_PlayerFuncs.HudMessage(plr, params, 
-						"Build Points:\n" + (state.maxPoints(zoneid)-state.getNumParts(zoneid)) + " / " + state.maxPoints(zoneid));
-				}
-				else
-				{
-					int total = state.getNumParts(-1337);
-					g_PlayerFuncs.HudMessage(plr, params, "Built Parts:\n" + total + " / 500");
+					if (!g_build_anywhere)
+					{
+						g_PlayerFuncs.HudMessage(plr, params, 
+							"Build Points:\n" + (state.maxPoints(zoneid)-state.getNumParts(zoneid)) + " / " + state.maxPoints(zoneid));
+					}
+					else
+					{
+						int total = state.getNumParts(-1337);
+						g_PlayerFuncs.HudMessage(plr, params, "Built Parts:\n" + total + " / 500");
+					}
 				}
 			}	
 		}
