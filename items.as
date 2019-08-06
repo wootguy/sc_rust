@@ -1814,7 +1814,7 @@ void lock_object(CBaseEntity@ obj, string code, bool unlock)
 		newModel = "b_metal_door";
 	if (obj.pev.colormap == B_LADDER_HATCH)
 		newModel = "b_ladder_hatch_door";
-	newModel += unlock ? "_lock" : "_unlock";
+	newModel += unlock ? "_unlock" : "_lock"; // swapped for some reason
 	
 	if (code.Length() > 0)
 		obj.pev.noise3 = code;

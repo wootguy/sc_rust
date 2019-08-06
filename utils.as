@@ -792,6 +792,16 @@ CBaseEntity@ respawnPart(int id)
 			keys["parent"] = "" + part.parent;
 			keys["zoneid"] = "" + part.zoneid;
 			
+			int type = part.pev.colormap;
+			int socket = socketType(type);
+			if (socket == SOCKET_DOORWAY or type == B_WOOD_SHUTTERS or type == B_LADDER_HATCH)
+			{
+				keys["distance"] = "9999";
+				keys["speed"] = "0.00000001";
+				keys["breakable"] = "1";
+				keys["targetname"] = "locked" + id;
+			}
+			
 			CBaseEntity@ ent = g_EntityFuncs.CreateEntity(part.pev.classname, keys, true);
 			ent.pev.angles = part.pev.angles;
 			ent.pev.team = part.pev.team;

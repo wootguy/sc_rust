@@ -1520,20 +1520,9 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 			if (buildType == B_CODE_LOCK and attachEnt !is null)
 			{
 				// just change door model
-				string newModel = "";
-				if (attachEnt.pev.colormap == B_WOOD_DOOR)
-					newModel = "b_wood_door_lock";
-				if (attachEnt.pev.colormap == B_METAL_DOOR)
-					newModel = "b_metal_door_lock";
-				if (attachEnt.pev.colormap == B_LADDER_HATCH)
-					newModel = "b_ladder_hatch_door_lock";
-				
-				int oldcolormap = attachEnt.pev.colormap;
-				g_EntityFuncs.SetModel(attachEnt, getModelFromName(newModel));
-				attachEnt.pev.colormap = oldcolormap;
-				
-				attachEnt.pev.button = 1;
-				attachEnt.pev.body = 0;
+				attachEnt.pev.button = 1; // indicates that the door has a lock
+				lock_object(attachEnt, "", true);
+				respawnPart(attachEnt.pev.team); // for some reason the wrong button textures is used at first
 				
 				g_SoundSystem.PlaySound(attachEnt.edict(), CHAN_STATIC, soundFile, 1.0f, 1.0f, 0, 90 + Math.RandomLong(0, 20));
 				return true;
