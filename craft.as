@@ -90,7 +90,8 @@ int drawCraftingMenu(CBasePlayer@ plr, int submenu=-1, float screenX=0, float sc
 	state.lastCraftSubmenu = submenu;
 	
 	HUDSpriteParams params;
-	params.spritename = "rust/menu.spr";
+	string makeResguyHappy = "menu"; // don't let it try to find the sprite. It will only FAIL (TODO: fix resguy)
+	params.spritename = "rust/" + makeResguyHappy + ".spr";
 	params.flags = HUD_SPR_MASKED | HUD_ELEM_SCR_CENTER_X | HUD_ELEM_SCR_CENTER_Y | HUD_ELEM_NO_BORDER;
 	//params.flags = HUD_SPR_OPAQUE | HUD_ELEM_SCR_CENTER_X | HUD_ELEM_SCR_CENTER_Y | HUD_ELEM_NO_BORDER;
 	params.holdTime = 99999.0f;
