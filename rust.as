@@ -14,7 +14,7 @@
 #include "DayNightCycle"
 #include "apache"
 #include "func_boat"
-#include "../weapon_custom/v5/weapon_custom"
+#include "../weapon_custom/v6/weapon_custom"
 
 // TODO:
 // spawning with ammo?
@@ -1230,7 +1230,7 @@ void MapActivate()
 	} while (ent !is null);
 	
 	//setupInvasionMode();
-	//setupCreativeMode();
+	setupCreativeMode();
 	//setupPvpMode();
 }
 
