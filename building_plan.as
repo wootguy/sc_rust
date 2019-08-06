@@ -1190,7 +1190,11 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 						if (diff < 1.0f) {
 							validBuild = false; // socket already filled
 							break;
-						} 
+						}
+						if (buildType == B_WOOD_SHUTTERS and diff < 50.0f) {
+							validBuild = false;
+							break;
+						}
 					}
 					float maxOverlap = ent.IsBSPModel() and !isFloorItem(buildEnt) ? 9.95f : 2.0f;
 					float overlap = collisionBoxesYaw(buildEnt, ent);
@@ -1364,6 +1368,10 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 		
 		if (buildEnt !is null && validBuild) 
 		{
+			int buildPointCost = 1;
+			if (buildType == B_WOOD_SHUTTERS or buildType == B_LADDER_HATCH)
+				buildPointCost = 2;
+						
 			if (g_invasion_mode)
 			{
 				func_build_zone@ zone = cast<func_build_zone@>(CastToScriptClass(g_invasion_zone.GetEntity()));
@@ -1408,7 +1416,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 					}
 				}
 				int zonePartTotal = g_invasion_mode ? -1337 : zoneid;
-				if (state.getNumParts(zonePartTotal) >= state.maxPoints(zonePartTotal) and !buildingBoat)
+				if (state.getNumParts(zonePartTotal) + buildPointCost > state.maxPoints(zonePartTotal) and !buildingBoat)
 				{
 					g_PlayerFuncs.PrintKeyBindingString(plr, "You're out of build points!\n\nFuse your parts (Hammer) for more points.");
 					return false;
@@ -1455,7 +1463,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 				if (!buildingBoat)
 				{
 					if ((zoneid != state.home_zone and !g_invasion_mode) or g_creative_mode or g_shared_build_points_in_pvp_mode)
-						getBuildZone(zoneid).addRaiderParts(1);
+						getBuildZone(zoneid).addRaiderParts(buildPointCost);
 				}
 			}
 		

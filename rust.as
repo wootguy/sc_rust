@@ -18,7 +18,6 @@
 
 // TODO:
 // spawning with ammo?
-// place a million shutters to crash the game
 // heli ascends to the heavens in mini island 
 // shocktroopers spawned slowly (maybe node spawned and disabled the fast spawning?) 
 //		caused multiple wave defeated messages + next wave didn't spawn for a full minute
