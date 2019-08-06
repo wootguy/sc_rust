@@ -14,7 +14,10 @@ array<Song> g_songs = {
 	Song("pokemon_battle.txt", "Pokemon - Red Battle", 12.0f),
 	Song("together_we_ride.txt", "Fire Emblem - Together, We Ride!", 15.0f),
 	Song("zelda2_palace.txt", "Zelda II - Palace", 10.5f),
-	Song("ayaya.txt", "Hermann Necke - Csikos Post", 32.0f)
+	Song("ayaya.txt", "Hermann Necke - Csikos Post", 32.0f),
+	Song("sewer_surfin.txt", "Sewer Surfin' - TMNT", 14.0f),
+	Song("star_wolf.txt", "Star Fox 64 - Star Wolf", 12.0f),
+	Song("objection.txt", "PWAA 2 - Objection!", 16.0f)
 };
 
 class SongRow
