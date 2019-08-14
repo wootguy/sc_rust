@@ -1900,12 +1900,14 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 				if (!CheckItemMode(oldBuildType))
 					return;
 				createBuildEnts();
+				updateBuildPlaceholder(true);
 				g_PlayerFuncs.PrintKeyBindingString(getPlayer(), "Item Placement Mode");
 			}
 			else
 			{
 				buildType = initialType;
 				createBuildEnts();
+				updateBuildPlaceholder(true);
 				g_PlayerFuncs.PrintKeyBindingString(getPlayer(), "Construction Mode");
 			}
 		}
