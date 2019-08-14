@@ -2043,7 +2043,7 @@ bool doRustCommand(CBasePlayer@ plr, const CCommand@ args)
 	{
 		if (args[0] == ".version")
 		{
-			g_PlayerFuncs.SayText(plr, "Script version: v10 (August, 2019)");
+			g_PlayerFuncs.SayText(plr, "Script version: v11 (August, 2019)");
 			return true;
 		}
 		if (args[0] == ".day")
