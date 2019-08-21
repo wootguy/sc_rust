@@ -472,7 +472,7 @@ void printItemCost(CBasePlayer@ plr, int type, int amt, float duration=0.5f)
 	params.fadeoutTime = 0.5f;
 	params.holdTime = duration;
 	params.channel = 2;
-	g_PlayerFuncs.HudMessage(plr, params, "" + amt + " " + g_items[type].title);
+	HudMessage(plr, params, "" + amt + " " + g_items[type].title);
 }
 
 void clearInventory(CBasePlayer@ plr)
@@ -1007,21 +1007,16 @@ int giveAmmo(CBasePlayer@ plr, int amt, string type)
 	return plr.m_rgAmmo(ammoIdx) - beforeAmmo;
 }
 
-void PrintKeyBindingString(CBasePlayer@ plr, string text)
-{
-	g_PlayerFuncs.PrintKeyBindingString(plr, text);
-}
-
 // display the text for a second longer
 void PrintKeyBindingStringLong(CBasePlayer@ plr, string text)
 {
-	g_PlayerFuncs.PrintKeyBindingString(plr, text);
+	PrintKeyBindingString(plr, text);
 	g_Scheduler.SetTimeout("PrintKeyBindingString", 1, @plr, text);
 }
 
 void PrintKeyBindingStringXLong(CBasePlayer@ plr, string text)
 {
-	g_PlayerFuncs.PrintKeyBindingString(plr, text);
+	PrintKeyBindingString(plr, text);
 	g_Scheduler.SetTimeout("PrintKeyBindingString", 1, @plr, text);
 	g_Scheduler.SetTimeout("PrintKeyBindingString", 2, @plr, text);
 	g_Scheduler.SetTimeout("PrintKeyBindingString", 3, @plr, text);
@@ -1030,18 +1025,13 @@ void PrintKeyBindingStringXLong(CBasePlayer@ plr, string text)
 	g_Scheduler.SetTimeout("PrintKeyBindingString", 6, @plr, text);
 }
 
-void PrintKeyBindingStringAll_delay(string text)
-{
-	g_PlayerFuncs.PrintKeyBindingStringAll(text);
-}
-
 void PrintKeyBindingStringAllLong(string text)
 {
-	g_PlayerFuncs.PrintKeyBindingStringAll(text);
-	g_Scheduler.SetTimeout("PrintKeyBindingStringAll_delay", 1, text);
-	g_Scheduler.SetTimeout("PrintKeyBindingStringAll_delay", 2, text);
-	g_Scheduler.SetTimeout("PrintKeyBindingStringAll_delay", 3, text);
-	g_Scheduler.SetTimeout("PrintKeyBindingStringAll_delay", 4, text);
+	PrintKeyBindingStringAll(text);
+	g_Scheduler.SetTimeout("PrintKeyBindingStringAll", 1, text);
+	g_Scheduler.SetTimeout("PrintKeyBindingStringAll", 2, text);
+	g_Scheduler.SetTimeout("PrintKeyBindingStringAll", 3, text);
+	g_Scheduler.SetTimeout("PrintKeyBindingStringAll", 4, text);
 }
 
 string format_float(float f)
@@ -1072,9 +1062,13 @@ void showTipAll(int tipType)
 	} while (ent !is null);
 }
 
-void sayPlayer(CBasePlayer@ plr, string text)
+void sayPlayer(EHandle h_plr, string text)
 {
-	g_PlayerFuncs.SayText(plr, text);
+	if (!h_plr) {
+		return;
+	}
+	CBasePlayer@ plr = cast<CBasePlayer@>(h_plr.GetEntity());
+	SayText(plr, text);
 }
 
 // actual center of the part, not the origin
@@ -1490,9 +1484,9 @@ CBasePlayer@ getPlayerByName(CBasePlayer@ caller, string name, bool quiet=false)
 	if (partialMatches == 1) {
 		return partialMatch;
 	} else if (partialMatches > 1) {
-		g_PlayerFuncs.SayText(caller, 'There are ' + partialMatches + ' players that have "' + name + '" in their name. Be more specific.');
+		SayText(caller, "{cmd_name_error}", partialMatches, name);
 	} else {
-		g_PlayerFuncs.SayText(caller, 'There is no player named "' + name + '"');
+		SayText(caller, "{cmd_name_error2}", name);
 	}
 	
 	return null;

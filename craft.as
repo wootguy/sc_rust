@@ -69,7 +69,7 @@ void enterMenuMode(PlayerState@ state)
 	textParams.fadeoutTime = 0.0f;
 	textParams.holdTime = 5.0f;
 	textParams.channel = 4;
-	g_PlayerFuncs.HudMessage(plr, textParams, "Left Click = Craft\nRight Click = Exit Menu");
+	HudMessage(plr, textParams, "{craft_controls}");
 }
 
 // returns currently selected item id
@@ -231,7 +231,7 @@ int drawCraftingMenu(CBasePlayer@ plr, int submenu=-1, float screenX=0, float sc
 		{
 			extraNewline = "\n";
 		}
-		g_PlayerFuncs.HudMessage(plr, textParams, item.title + "\n" + item.getCostText() + "\n\n" + item.desc + extraNewline);
+		HudMessage(plr, textParams, item.title + "\n" + item.getCostText() + "\n\n" + item.desc + extraNewline);
 	}
 	
 	return bestItemId;
@@ -291,7 +291,7 @@ bool menuMouseCallback(CBaseEntity@ cam, CBaseEntity@ pPlayer, CBaseEntity@ pEnt
 			textParams.holdTime = 0.0f;
 			textParams.channel = 3;
 			Item@ item = g_items[itemId];
-			g_PlayerFuncs.HudMessage(plr, textParams, "\n+" + given + " " + item.title);
+			HudMessage(plr, textParams, "\n+" + given + " " + item.title);
 			
 			drawCraftingMenu(plr, -1, screenX, screenY, true, true);
 		}

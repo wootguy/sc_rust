@@ -173,7 +173,7 @@ void inventoryCheck()
 				if ((state.currentChest.GetEntity().pev.origin - plr.pev.origin).Length() > touchDist)
 				{
 					state.currentChest = null;
-					g_PlayerFuncs.PrintKeyBindingString(plr, "Loot target too far away");
+					PrintKeyBindingString(plr, "{loot_too_far}");
 					state.closeMenus();
 				}
 			}
@@ -221,8 +221,8 @@ void inventoryCheck()
 						if (time > 0.5f)
 						{
 							if (!viewingGui) {
-								g_PlayerFuncs.HudMessage(plr, params, "Reviving " + revPlr.pev.netname + progress);
-								g_PlayerFuncs.HudMessage(revPlr, params, "" + plr.pev.netname + " is reviving you" + progress);
+								HudMessage(plr, params, "{player_reviving1}" + progress, revPlr.pev.netname);
+								HudMessage(revPlr, params, "{player_reviving2}" + progress, plr.pev.netname);
 							}
 						}
 						
@@ -242,7 +242,7 @@ void inventoryCheck()
 				{
 					state.reviving = false;
 					if (!viewingGui)
-						g_PlayerFuncs.HudMessage(plr, params, getItemDisplayName(closestItem));
+						HudMessage(plr, params, getItemDisplayName(closestItem));
 				}
 				continue;
 			}
@@ -255,7 +255,7 @@ void inventoryCheck()
 				continue;
 			
 			if (!viewingGui)
-				g_PlayerFuncs.HudMessage(plr, params, 
+				HudMessage(plr, params, 
 					string(prettyPartName(phit)) + "\n" + int(phit.pev.health) + " / " + int(phit.pev.max_health));
 		}
 	} while(e_plr !is null);
@@ -337,7 +337,7 @@ void item_collected(CBaseEntity@ pActivator, CBaseEntity@ pCaller, USE_TYPE useT
 	
 	if (pCaller.pev.team != 1)
 	{
-		g_PlayerFuncs.PrintKeyBindingString(plr, "" + amount + "x " + g_items[type].title);
+		PrintKeyBindingString(plr, "" + amount + "x " + g_items[type].title);
 		if (g_items[type].stackSize > 1)
 		{
 			Vector oldOri = pCaller.pev.origin;
@@ -362,7 +362,7 @@ void item_cant_collect(CBaseEntity@ pActivator, CBaseEntity@ pCaller, USE_TYPE u
 {
 	if (!pActivator.IsPlayer())
 		return;
-	g_PlayerFuncs.PrintKeyBindingString(cast<CBasePlayer@>(pActivator), "Your inventory is full");
+	PrintKeyBindingString(cast<CBasePlayer@>(pActivator), "{player_inv_full}");
 }
 
 void delay_remove(EHandle ent)
@@ -513,7 +513,7 @@ int combineItemStacks(CBasePlayer@ plr, int addedType)
 				giveItem(plr, type, Math.min(total, g_items[type].stackSize), false, false);
 			else
 			{
-				g_PlayerFuncs.PrintKeyBindingString(plr, "Your inventory is full");
+				PrintKeyBindingString(plr, "{player_inv_full}");
 				return total;
 			}
 			total -= g_items[type].stackSize;
@@ -738,7 +738,7 @@ int giveItem(CBasePlayer@ plr, int type, int amt, bool drop=false, bool combineS
 			{
 				if (spaceLeft-- <= 0 and !drop)
 				{
-					g_PlayerFuncs.PrintKeyBindingString(plr, "Your inventory is full");
+					PrintKeyBindingString(plr, "{player_inv_full}");
 					getPlayerState(plr).updateItemList();
 					return amt - i;
 				}
@@ -774,7 +774,7 @@ int giveItem(CBasePlayer@ plr, int type, int amt, bool drop=false, bool combineS
 			keys["button"] = "" + amt; // now button = ammo in clip
 			if (spaceLeft <= 0 and !drop)
 			{
-				g_PlayerFuncs.PrintKeyBindingString(plr, "Your inventory is full");
+				PrintKeyBindingString(plr, "{player_inv_full}");
 				getPlayerState(plr).updateItemList();
 				return 1;
 			}
@@ -865,7 +865,7 @@ int craftItem(CBasePlayer@ plr, int itemType)
 	int actuallyGiven = 0;
 	if (itemType == I_LADDER or itemType == I_LADDER_HATCH)
 	{
-		g_PlayerFuncs.PrintKeyBindingString(plr, "Ladders are disabled until\nthe crash bug in sven is fixed.");
+		PrintKeyBindingString(plr, "{build_ladder_bug}");
 	}
 	else if (itemType >= 0 and itemType < int(g_items.size()))
 	{
@@ -933,7 +933,7 @@ int craftItem(CBasePlayer@ plr, int itemType)
 			else
 			{
 				//println("Barfed " + barf + " of " + amt);
-				g_PlayerFuncs.PrintKeyBindingString(plr, "Inventory is full");
+				PrintKeyBindingString(plr, "{player_inv_full}");
 				g_Scheduler.SetTimeout("showTip", 3.0f, EHandle(plr), int(TIP_CHEST));
 				// undo cost
 				if (!g_free_build)
@@ -944,7 +944,7 @@ int craftItem(CBasePlayer@ plr, int itemType)
 			}
 		}
 		else
-			g_PlayerFuncs.PrintKeyBindingString(plr, "You need more " + needMore);			
+			PrintKeyBindingString(plr, "{player_need_more}", needMore);			
 	}
 	return actuallyGiven;
 }
@@ -988,7 +988,7 @@ void playerMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CText
 					plr.RemovePlayerItem(wep);
 					if (!invItem.isAmmo and invItem.stackSize > 1)
 						plr.m_rgAmmo(g_PlayerFuncs.GetAmmoIndex(invItem.ammoName), 0);
-					g_PlayerFuncs.PrintKeyBindingString(plr, invItem.title + " was moved your inventory");
+					PrintKeyBindingString(plr, "{player_unequip}", invItem.title);
 				}
 			}
 			else
@@ -1044,7 +1044,7 @@ void playerMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CText
 					g_Scheduler.SetTimeout("delay_remove", 0, EHandle(wep));
 			}
 			else
-				g_PlayerFuncs.PrintKeyBindingString(plr, "You already have one equipped");
+				PrintKeyBindingString(plr, "{player_equip_err}");
 		}
 		
 		g_Scheduler.SetTimeout("openPlayerMenu", 0.05, @plr, "equip-menu");
@@ -1162,19 +1162,19 @@ void openPlayerMenu(CBasePlayer@ plr, string subMenu)
 		
 		openCraftMenu(state, subIdx);
 		menuTime = 255;
-		state.menu.SetTitle("Actions -> Craft:\n");
-		state.menu.AddItem("Items" + (subIdx == 0 ? " <--" : ""), any("item-menu"));
-		state.menu.AddItem("Tools" + (subIdx == 1 ? " <--" : ""), any("tool-menu"));
-		state.menu.AddItem("Utility" + (subIdx == 2 ? " <--" : ""), any("util-menu"));
-		state.menu.AddItem("Weapons" + (subIdx == 3 ? " <--" : ""), any("weapon-menu"));
-		state.menu.AddItem("Ammo" + (subIdx == 4 ? " <--" : ""), any("ammo-menu"));
+		state.menu.SetTitle(translate(plr, "{menu_actions_title} -> {menu_craft}:\n"));
+		state.menu.AddItem(translate(plr, "{menu_items}") + (subIdx == 0 ? " <--" : ""), any("item-menu"));
+		state.menu.AddItem(translate(plr, "{menu_tools}") + (subIdx == 1 ? " <--" : ""), any("tool-menu"));
+		state.menu.AddItem(translate(plr, "{menu_util}") + (subIdx == 2 ? " <--" : ""), any("util-menu"));
+		state.menu.AddItem(translate(plr, "{menu_weapons}") + (subIdx == 3 ? " <--" : ""), any("weapon-menu"));
+		state.menu.AddItem(translate(plr, "{menu_ammo}") + (subIdx == 4 ? " <--" : ""), any("ammo-menu"));
 		state.menu.AddItem("\n\n", any("craft-menu"));
-		state.menu.AddItem("Resize Icons", any("resize-icons-menu"));
-		state.menu.AddItem("Resize Grid", any("resize-layout-menu"));
+		state.menu.AddItem(translate(plr, "{menu_resize_icons}"), any("resize-icons-menu"));
+		state.menu.AddItem(translate(plr, "{menu_resize_grid}"), any("resize-layout-menu"));
 	}
 	else if (subMenu == "equip-menu")
 	{
-		state.menu.SetTitle("Actions -> Equip:\n");
+		state.menu.SetTitle(translate(plr, "{menu_actions_title} -> {menu_equip}:\n"));
 		
 		array<Item@> all_items = getAllItems(plr);
 		int options = 0;
@@ -1192,19 +1192,19 @@ void openPlayerMenu(CBasePlayer@ plr, string subMenu)
 			string displayName = item.title;
 			if (item.stackSize > 1)
 				displayName += " (" + count + ")";
-			state.menu.AddItem(displayName, any("equip-" + item.type));
+			state.menu.AddItem(translate(plr, displayName), any("equip-" + item.type));
 		}
 		
 		if (options == 0)
 		{
-			g_PlayerFuncs.PrintKeyBindingString(plr, "You don't have any equippable items");
+			PrintKeyBindingString(plr, "{player_equip_err2}"); // You don't have any equippable items
 			openPlayerMenu(plr, "");
 			return;
 		}
 	}
 	else if (subMenu == "unequip-menu")
 	{
-		state.menu.SetTitle("Actions -> Unequip:\n");
+		state.menu.SetTitle(translate(plr, "{menu_actions_title} -> {menu_unequip}:\n"));
 		
 		array<Item@> all_items = getAllItems(plr);
 		int options = 0;
@@ -1220,19 +1220,19 @@ void openPlayerMenu(CBasePlayer@ plr, string subMenu)
 			string displayName = item.title;
 			if (item.stackSize > 1)
 				displayName += " (" + count + ")";
-			state.menu.AddItem(displayName, any("unequip-" + item.classname));
+			state.menu.AddItem(translate(plr, displayName), any("unequip-" + item.classname));
 		}
 		
 		if (options == 0)
 		{
-			g_PlayerFuncs.PrintKeyBindingString(plr, "You don't have any items equipped");
+			PrintKeyBindingString(plr, "{player_unequip_err}"); // You don't have any items equipped
 			openPlayerMenu(plr, "");
 			return;
 		}
 	}
 	else if (subMenu == "drop-stack-menu")
 	{
-		state.menu.SetTitle("Actions -> Drop Stackables:\n");
+		state.menu.SetTitle(translate(plr, "{menu_actions_title} -> {menu_drop_title}:\n"));
 		
 		array<Item@> all_items = getAllItems(plr);
 		int options = 0;
@@ -1250,12 +1250,12 @@ void openPlayerMenu(CBasePlayer@ plr, string subMenu)
 			string displayName = item.title;
 			if (item.stackSize > 1)
 				displayName += " (" + count + ")";
-			state.menu.AddItem(displayName, any("unstack-" + item.type));
+			state.menu.AddItem(translate(plr, displayName), any("unstack-" + item.type));
 		}
 		
 		if (options == 0)
 		{
-			g_PlayerFuncs.PrintKeyBindingString(plr, "You don't have any stackable items");
+			PrintKeyBindingString(plr, "{player_drop_err}");
 			openPlayerMenu(plr, "");
 			return;
 		}
@@ -1270,22 +1270,22 @@ void openPlayerMenu(CBasePlayer@ plr, string subMenu)
 			return;
 		}
 		
-		state.menu.SetTitle("Actions -> Drop " + stackOptions[0] + ":\n");
+		state.menu.SetTitle(translate(plr, "{menu_actions_title} -> {menu_drop2_title}:\n", stackOptions[0]));
 		for (uint i = 1; i < stackOptions.size(); i++)
 		{
 			int count = atoi(stackOptions[i]);
-			state.menu.AddItem("Drop " + prettyNumber(count), any("drop-" + stackOptions[i] + "-" + itemId));
+			state.menu.AddItem(translate(plr, "{menu_drop}") + " " + prettyNumber(count), any("drop-" + stackOptions[i] + "-" + itemId));
 		}
 	}
 	else
 	{
-		state.menu.SetTitle("Actions:\n");
-		state.menu.AddItem("Craft", any("craft-menu"));
-		state.menu.AddItem("Equip", any("equip-menu"));
-		state.menu.AddItem("Unequip", any("unequip-menu"));
-		state.menu.AddItem("Drop Stackables", any("drop-stack-menu"));
-		state.menu.AddItem("Map Toggle", any("map-toggle"));
-		state.menu.AddItem("Map Mode", any("map-mode"));
+		state.menu.SetTitle(translate(plr, "{menu_actions_title}:\n"));
+		state.menu.AddItem(translate(plr, "{menu_craft}"), any("craft-menu"));
+		state.menu.AddItem(translate(plr, "{menu_equip}"), any("equip-menu"));
+		state.menu.AddItem(translate(plr, "{menu_unequip}"), any("unequip-menu"));
+		state.menu.AddItem(translate(plr, "{menu_drop_title}"), any("drop-stack-menu"));
+		state.menu.AddItem(translate(plr, "{menu_map_toggle}"), any("map-toggle"));
+		state.menu.AddItem(translate(plr, "{menu_map_mode}"), any("map-mode"));
 	}
 	
 	state.openMenu(plr, menuTime);
@@ -1380,14 +1380,13 @@ void lootMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextMe
 			}
 			
 			if (overflow > 0)
-				g_PlayerFuncs.PrintKeyBindingString(plr, chestName + " is full");
+				PrintKeyBindingString(plr, "{chest_full}", chestName);
 			
 			if (overflow < amt)
 			{
 				g_SoundSystem.PlaySound(plr.edict(), CHAN_ITEM, "player/pl_jump2.wav", 1.0f, 1.0f, 0, Math.RandomLong(80,100));
-				g_PlayerFuncs.PrintKeyBindingString(plr, depositItem.title + " (" + (amt - overflow) + ") was put into the " 
-																+ chestName + "\n\n" + chestName + " capacity: " + 
-																c_chest.items.size() + " / " + c_chest.capacity());
+				PrintKeyBindingString(plr, "{chest_give2}", depositItem.title, (amt - overflow), chestName, chestName, 
+					c_chest.items.size(), c_chest.capacity());
 			}
 		}
 	}
@@ -1417,9 +1416,8 @@ void lootMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextMe
 					c_chest.depositItem(EHandle(newItem));
 					
 					plr.RemovePlayerItem(wep);
-					g_PlayerFuncs.PrintKeyBindingString(plr, depositItem.title + " was put into the " + chestName + "\n\n" + 
-															chestName + " capacity: " + 
-															c_chest.items.size() + " / " + c_chest.capacity());
+					PrintKeyBindingString(plr, "{chest_give}", depositItem.title, chestName, chestName, 
+						c_chest.items.size(), c_chest.capacity());
 				}
 				else
 				{
@@ -1443,7 +1441,7 @@ void lootMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextMe
 				g_SoundSystem.PlaySound(plr.edict(), CHAN_ITEM, "player/pl_jump2.wav", 1.0f, 1.0f, 0, Math.RandomLong(80,100));
 			}
 			else
-				g_PlayerFuncs.PrintKeyBindingString(plr, chestName + " is full");
+				PrintKeyBindingString(plr, "{chest_full}", chestName);
 		}			
 	}
 	else if (action.Find("loot-") == 0)
@@ -1584,7 +1582,7 @@ void lootMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextMe
 		}
 		if (!found)
 		{
-			g_PlayerFuncs.PrintKeyBindingString(plr, "Item no longer exists");
+			PrintKeyBindingString(plr, "{chest_take_err}"); // Item no longer exists
 		}
 		else
 		{
@@ -1610,7 +1608,7 @@ void openLootMenu(EHandle h_plr, EHandle h_corpse, string submenu="")
 	state.initMenu(plr, lootMenuCallback);
 	state.currentChest = corpse;
 	
-	string title = "Loot " + corpse.pev.netname + "'s corpse:\n";
+	string title = translate(plr, "{menu_loot_corpse}:\n", corpse.pev.netname);
 	
 	int numItems = 0;
 	if (corpse.IsPlayer())
@@ -1653,24 +1651,24 @@ void openLootMenu(EHandle h_plr, EHandle h_corpse, string submenu="")
 		switch(corpse.pev.colormap)
 		{
 			case B_SMALL_CHEST:
-				title = "Small Chest:";
+				title = translate(plr, "{b_small_chest}:");
 				break;
 			case B_LARGE_CHEST:
-				title = "Large Chest:";
+				title = translate(plr, "{b_large_chest}:");
 				break;
 			case B_FURNACE:
-				title = "Furnace:";
+				title = translate(plr, "{b_furnace}:");
 				break;
 			case E_SUPPLY_CRATE:
-				title = "Supply Crate:";
+				title = translate(plr, "{b_supply_crate}:");
 				break;
 		}
 		
 		bool isAirdrop = corpse.pev.colormap == E_SUPPLY_CRATE;
 		
 		if (submenu == "give")
-		{			
-			title += " -> Give";
+		{
+			title += " -> " + translate(plr, "{menu_give}");
 			bool isFurnace = corpse.pev.colormap == B_FURNACE;
 		
 			array<Item@> all_items = getAllItems(plr);
@@ -1692,11 +1690,11 @@ void openLootMenu(EHandle h_plr, EHandle h_corpse, string submenu="")
 				string displayName = item.title;
 				if (item.stackSize > 1)
 					displayName += " (" + count + ")";
-				state.menu.AddItem(displayName, any("give-" + item.type));
+				state.menu.AddItem(translate(plr, displayName), any("give-" + item.type));
 			}
 			
 			if (options == 0)
-				state.menu.AddItem("(no items to give)", any(""));
+				state.menu.AddItem(translate(plr,"({chest_give_no_item})"), any(""));
 		}
 		else if (submenu.Find("givestack-") == 0)
 		{
@@ -1708,33 +1706,33 @@ void openLootMenu(EHandle h_plr, EHandle h_corpse, string submenu="")
 				return;
 			}
 			
-			title += " -> Give " + stackOptions[0];
+			title += " -> " + translate(plr, "{menu_give} " + stackOptions[0]);
 			for (uint i = 1; i < stackOptions.size(); i++)
 			{
 				int count = atoi(stackOptions[i]);
-				state.menu.AddItem("Give " + prettyNumber(count), any("givestack-" + stackOptions[i] + "-" + itemId));
+				state.menu.AddItem(translate(plr,"{menu_give} ") + prettyNumber(count), any("givestack-" + stackOptions[i] + "-" + itemId));
 			}
 		}
 		else if (submenu == "take" or isAirdrop)
 		{
 			if (!isAirdrop)
-				title += " -> Take";
+				title += " -> " + translate(plr, "{menu_take}");
 			
 			func_breakable_custom@ c_chest = cast<func_breakable_custom@>(CastToScriptClass(corpse));
 			
 			for (uint i = 0; i < c_chest.items.size(); i++)
 			{
 				CBaseEntity@ item = c_chest.items[i];
-				state.menu.AddItem(getItemDisplayName(item), any("loot-" + item.pev.colormap + "," + item.pev.button));
+				state.menu.AddItem(translate(plr, getItemDisplayName(item)), any("loot-" + item.pev.colormap + "," + item.pev.button));
 			}
 			
 			if (c_chest.items.size() == 0)
-				state.menu.AddItem("(empty)", any(""));
+				state.menu.AddItem(translate(plr,"({chest_empty})"), any(""));
 		}
 		else
 		{
-			state.menu.AddItem("Give", any("do-give"));
-			state.menu.AddItem("Take", any("do-take"));
+			state.menu.AddItem(translate(plr,"{menu_give}"), any("do-give"));
+			state.menu.AddItem(translate(plr,"{menu_take}"), any("do-take"));
 		}
 		
 	}
@@ -1743,7 +1741,7 @@ void openLootMenu(EHandle h_plr, EHandle h_corpse, string submenu="")
 	
 	if (numItems == 0)
 	{
-		g_PlayerFuncs.PrintKeyBindingString(plr, "Nothing left to loot");
+		PrintKeyBindingString(plr, "{loot_empty}");
 		state.currentChest = null;
 		return;
 	}
@@ -1835,7 +1833,7 @@ void waitForCode(CBasePlayer@ plr)
 	if (state.codeTime > 0)
 	{
 		state.codeTime = 0;
-		g_PlayerFuncs.PrintKeyBindingString(plr, "Time expired");
+		PrintKeyBindingString(plr, "{code_timeout}");
 	}
 }
 
@@ -1890,7 +1888,7 @@ void openCodeLockMenu(CBasePlayer@ plr, CBaseEntity@ door)
 	PlayerState@ state = getPlayerState(plr);
 	state.initMenu(plr, codeLockMenuCallback);
 	
-	state.menu.SetTitle("Code Lock:\n\n");
+	state.menu.SetTitle(translate(plr, "{b_code_lock}:\n\n"));
 	
 	bool authed = state.isAuthed(door);
 	
@@ -1898,23 +1896,23 @@ void openCodeLockMenu(CBasePlayer@ plr, CBaseEntity@ door)
 	{
 		if (authed)
 		{
-			state.menu.AddItem("Change Code\n", any("code"));
-			state.menu.AddItem("Unlock\n", any("unlock"));
-			state.menu.AddItem("Remove Lock\n", any("remove"));
+			state.menu.AddItem(translate(plr, "{code_change}\n"), any("code"));
+			state.menu.AddItem(translate(plr, "{code_unlock}\n"), any("unlock"));
+			state.menu.AddItem(translate(plr, "{code_remove}\n"), any("remove"));
 		}
 		else
 		{
-			state.menu.AddItem("Unlock with code\n", any("unlock-code"));
+			state.menu.AddItem(translate(plr, "{code_unlock_code}\n"), any("unlock-code"));
 		}
 		
 	}
 	else // unlocked
 	{
-		state.menu.AddItem("Change Code\n", any("code"));
+		state.menu.AddItem(translate(plr, "{code_change}\n"), any("code"));
 		if (string(door.pev.noise3).Length() > 0) {
-			state.menu.AddItem("Lock\n", any("lock"));
+			state.menu.AddItem(translate(plr, "{code_lock}\n"), any("lock"));
 		}
-		state.menu.AddItem("Remove Lock\n", any("remove"));
+		state.menu.AddItem(translate(plr, "{code_remove}\n"), any("remove"));
 	}
 	
 	state.openMenu(plr);
@@ -2002,7 +2000,7 @@ HookReturnCode PlayerUse( CBasePlayer@ plr, uint& out )
 				if (heldUse)
 				{
 					clearDoorAuths(phit);
-					g_PlayerFuncs.PrintKeyBindingString(plr, "Authorization List Cleared");
+					PrintKeyBindingString(plr, "{tc_auth_clear}");
 				}
 				else if (authed)
 				{
@@ -2015,13 +2013,13 @@ HookReturnCode PlayerUse( CBasePlayer@ plr, uint& out )
 							k--;
 						}
 					}
-					g_PlayerFuncs.PrintKeyBindingString(plr, "You are no longer authorized to build");
+					PrintKeyBindingString(plr, "{tc_unauth}");
 				} 
 				else 
 				{
 					EHandle h_phit = phit;
 					state.authedLocks.insertLast(h_phit);
-					g_PlayerFuncs.PrintKeyBindingString(plr, "You are now authorized to build");
+					PrintKeyBindingString(plr, "{tc_auth}");
 				}
 			}
 			else if (phit.pev.colormap == B_LARGE_CHEST or phit.pev.colormap == B_SMALL_CHEST or phit.pev.colormap == B_FURNACE
