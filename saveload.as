@@ -118,7 +118,7 @@ void saveMapData()
 		
 	saveLoadInProgress = false;
 	
-	g_PlayerFuncs.SayTextAll(getAnyPlayer(), "Save complete\n");
+	SayTextAll("{cmd_save_complete}\n");
 }
 
 void unlockSaveLoad()
@@ -192,13 +192,13 @@ void loadBoatsPartial(ByteBuffer@ buf, int partsLoaded, int numParts)
 		else
 		{
 			saveLoadInProgress = false;
-			g_PlayerFuncs.SayTextAll(getAnyPlayer(), "Load complete\n");
+			SayTextAll("{cmd_load_complete}\n");
 		}
 	}
 	else
 	{
 		saveLoadInProgress = false;
-		g_PlayerFuncs.SayTextAll(getAnyPlayer(), "Load complete\n");
+		SayTextAll("{cmd_load_complete}\n");
 	}
 }
 

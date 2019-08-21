@@ -318,7 +318,7 @@ void guitar_song_menu(CBaseEntity@ pActivator, CBaseEntity@ pCaller, USE_TYPE us
 	PlayerState@ state = getPlayerState(plr);
 	
 	state.initMenu(plr, guitarMenuCallback);
-	state.menu.SetTitle("Song Select:\n");
+	state.menu.SetTitle(translate(plr, "{guitar_song_select}:\n"));
 	for (uint i = 0; i < g_songs.size(); i++)
 		state.menu.AddItem(g_songs[i].title, any("" + i));
 	state.openMenu(plr);
