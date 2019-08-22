@@ -904,7 +904,7 @@ class func_breakable_custom : ScriptBaseEntity
 				giveAmount = int(giveAmount*g_gather_multiplier);
 				
 				if (hasSpace and giveAmount > 0)
-					g_PlayerFuncs.HudMessage(plr, params, "+" + int(giveAmount) + " " + g_items[giveType].title);
+					HudMessage(plr, params, "+" + int(giveAmount) + " " + g_items[giveType].title);
 				
 				giveItem(plr, giveType, giveAmount, false, true);
 				

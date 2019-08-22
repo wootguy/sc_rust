@@ -721,8 +721,8 @@ int giveItem(CBasePlayer@ plr, int type, int amt, bool drop=false, bool combineS
 	keys["colormap"] = "" + (type+1); // +1 so that normal items don't appear as my custom ones
 	keys["team"] = drop ? "0" : "1"; // so we ignore this in the item_collected callback
 	
-	keys["display_name"] = g_items[type].title;
-	keys["description"] =  g_items[type].desc;
+	keys["display_name"] = translate(plr, g_items[type].title);
+	keys["description"] =  translate(plr, g_items[type].desc);
 	
 	//if (showText)
 	//	g_PlayerFuncs.PrintKeyBindingString(plr, "" + amt + "x " + g_items[type].title);
@@ -792,7 +792,7 @@ int giveItem(CBasePlayer@ plr, int type, int amt, bool drop=false, bool combineS
 	else
 	{
 		keys["button"] = "" + amt;
-		keys["display_name"] = item.title + "  (" + prettyNumber(amt) + ")";
+		keys["display_name"] = translate(plr, item.title) + "  (" + prettyNumber(amt) + ")";
 		
 		CBaseEntity@ ent = g_EntityFuncs.CreateEntity("item_inventory", keys, true);
 		if (drop)
