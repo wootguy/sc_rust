@@ -336,16 +336,9 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 				params.b1 = 255;
 				if (!state.menuCam.IsValid())
 				{
-					if (!g_build_anywhere)
-					{
-						g_PlayerFuncs.HudMessage(plr, params, 
-							"Build Points:\n" + (state.maxPoints(zoneid)-state.getNumParts(zoneid)) + " / " + state.maxPoints(zoneid));
-					}
-					else
-					{
-						int total = state.getNumParts(-1337);
-						g_PlayerFuncs.HudMessage(plr, params, "Built Parts:\n" + total + " / 500");
-					}
+					int total = state.getNumParts((g_creative_mode or g_shared_build_points_in_pvp_mode) ? zoneid : -1337);
+					int left = g_zone_info.partsPerZone - total;
+					HudMessage(plr, params, "{build_hud2}", left, g_zone_info.partsPerZone);
 				}
 			}	
 		}
@@ -622,7 +615,7 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 		
 		state.initMenu(plr, upgradeMenuCallback);
 
-		state.menu.SetTitle("Upgrade to:\n");
+		state.menu.SetTitle(translate(plr, "{hammer_up_to}:\n"));
 		string woodCost = " (" + getUpgradeCost(0, h_lookEnt).amt + " " + getUpgradeItem(0).title + ")";
 		string stoneCost = " (" + getUpgradeCost(1, h_lookEnt).amt + " " + getUpgradeItem(1).title + ")";
 		string metalCost = " (" + getUpgradeCost(2, h_lookEnt).amt + " " + getUpgradeItem(2).title + ")";
@@ -674,7 +667,7 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 			int mat = getMaterialTypeInt(lookEnt);
 			if (mat == material)
 			{
-				array<string> material_names = {"Wood", "Stone", "Metal", "Armor"};
+				array<string> material_names = {"{i_wood}", "{i_stone}", "{i_metal}", "{hammer_up_armor}"};
 				PrintKeyBindingString(plr, "{hammer_upgrade_same}", material_names[mat]);
 				upgrading = false;
 				return;

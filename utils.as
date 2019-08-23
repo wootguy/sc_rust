@@ -692,11 +692,11 @@ string prettyNumber(int number)
 	return pretty;
 }
 
-string getItemDisplayName(CBaseEntity@ item)
+string getItemDisplayName(CBasePlayer@ plr, CBaseEntity@ item)
 {
 	if (item.pev.classname == "player_corpse" or item.IsPlayer())
 	{
-		return "" + item.pev.netname + "'s corpse";
+		return translate(plr, "{player_corpse}", item.pev.netname);
 	}
 	int type = item.pev.colormap-1;
 	if (type >= 0 and type < ITEM_TYPES)
@@ -704,14 +704,14 @@ string getItemDisplayName(CBaseEntity@ item)
 		string name = g_items[type].title;
 		if (g_items[type].stackSize > 1)
 			name += "  (" + prettyNumber(item.pev.button) + ")";
-		return name;	
+		return translate(plr, name);	
 	}
 	else
 	{
 		for (uint i = 0; i < ITEM_TYPES; i++)
 		{
 			if (g_items[i].classname == item.pev.classname)
-				return g_items[i].title;
+				return translate(plr, g_items[i].title);
 		}
 	}
 	return item.pev.classname;
@@ -1017,12 +1017,12 @@ void PrintKeyBindingStringLong(CBasePlayer@ plr, string text)
 void PrintKeyBindingStringXLong(CBasePlayer@ plr, string text)
 {
 	PrintKeyBindingString(plr, text);
-	g_Scheduler.SetTimeout("PrintKeyBindingString", 1, @plr, text);
-	g_Scheduler.SetTimeout("PrintKeyBindingString", 2, @plr, text);
-	g_Scheduler.SetTimeout("PrintKeyBindingString", 3, @plr, text);
-	g_Scheduler.SetTimeout("PrintKeyBindingString", 4, @plr, text);
-	g_Scheduler.SetTimeout("PrintKeyBindingString", 5, @plr, text);
-	g_Scheduler.SetTimeout("PrintKeyBindingString", 6, @plr, text);
+	g_Scheduler.SetTimeout("PrintKeyBindingString", 1, @plr, text, "", "", "", "", "", "");
+	g_Scheduler.SetTimeout("PrintKeyBindingString", 2, @plr, text, "", "", "", "", "", "");
+	g_Scheduler.SetTimeout("PrintKeyBindingString", 3, @plr, text, "", "", "", "", "", "");
+	g_Scheduler.SetTimeout("PrintKeyBindingString", 4, @plr, text, "", "", "", "", "", "");
+	g_Scheduler.SetTimeout("PrintKeyBindingString", 5, @plr, text, "", "", "", "", "", "");
+	g_Scheduler.SetTimeout("PrintKeyBindingString", 6, @plr, text, "", "", "", "", "", "");
 }
 
 void PrintKeyBindingStringAllLong(string text)

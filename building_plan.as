@@ -268,7 +268,7 @@ array<Item> g_items = {
 	Item(I_METAL_PICKAXE, 1, true, false, "weapon_metal_pickaxe", "", "{i_metal_pickaxe}", RawItem(I_WOOD, 100), RawItem(I_METAL, 125), "{d_metal_pickaxe}"),
 	Item(I_CROWBAR, 1, true, false, "weapon_custom_crowbar", "", "{i_crowbar}", RawItem(I_METAL, 50), null, "{d_crowbar}"),
 	Item(I_BOW, 1, true, false, "weapon_bow", "", "{i_bow}", RawItem(I_WOOD, 200), null, "{d_bow}"),
-	Item(I_SYRINGE, 100, true, false, "weapon_syringe", "health", "Syringe", RawItem(I_FUEL, 10), RawItem(I_SCRAP, 1), "{d_syringe}"),
+	Item(I_SYRINGE, 100, true, false, "weapon_syringe", "health", "{i_syringe}", RawItem(I_FUEL, 10), RawItem(I_SCRAP, 1), "{d_syringe}"),
 	Item(I_ARMOR, 10, false, false, "item_battery", "", "{i_armor}", RawItem(I_HQMETAL, 10), RawItem(I_SCRAP, 5), "{d_armor}"),
 	Item(I_FLAMETHROWER, 1, true, false, "weapon_flamethrower", "", "{i_flamethrower}", RawItem(I_HQMETAL, 20), RawItem(I_SCRAP, 20), "{d_flamethrower}"),
 	Item(I_RPG, 1, true, false, "weapon_custom_rpg", "", "{i_rpg}", RawItem(I_HQMETAL, 80), RawItem(I_SCRAP, 10), "{d_rpg}"),
@@ -1403,7 +1403,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 					params.holdTime = 0.5f;
 					params.channel = 2;
 				
-					g_PlayerFuncs.HudMessage(plr, params, cost);
+					HudMessage(plr, params, cost);
 					giveItem(plr, BUILD_MATERIAL, -g_part_info[buildType].cost, false);
 				}
 				
