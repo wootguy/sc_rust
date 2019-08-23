@@ -242,7 +242,7 @@ void inventoryCheck()
 				{
 					state.reviving = false;
 					if (!viewingGui)
-						HudMessage(plr, params, getItemDisplayName(closestItem));
+						HudMessage(plr, params, getItemDisplayName(plr, closestItem));
 				}
 				continue;
 			}
@@ -874,6 +874,8 @@ int craftItem(CBasePlayer@ plr, int itemType)
 		bool canCraft = true;
 		bool tipShown = false;
 		string needMore = "";
+		string firstNeedItem = "";
+		string secondNeedItem = "";
 		if (!g_free_build)
 		{
 			for (uint i = 0; i < craftItem.costs.size(); i++)
@@ -896,8 +898,12 @@ int craftItem(CBasePlayer@ plr, int itemType)
 						g_Scheduler.SetTimeout("showTip", 3.0f, EHandle(plr), int(TIP_SCRAP));
 						tipShown = true;
 					}
-						
-					needMore = needMore.Length() > 0 ? needMore + " and " + g_items[costType].title : g_items[costType].title;
+					
+					if (firstNeedItem.Length() > 0) {
+						secondNeedItem = g_items[costType].title;
+					} else {
+						firstNeedItem = g_items[costType].title;
+					}
 					canCraft = false;
 				}
 			}
@@ -944,7 +950,13 @@ int craftItem(CBasePlayer@ plr, int itemType)
 			}
 		}
 		else
-			PrintKeyBindingString(plr, "{player_need_more}", needMore);			
+		{
+			if (secondNeedItem.Length() > 0) {
+				PrintKeyBindingString(plr, "{player_need_more2}", firstNeedItem, secondNeedItem);
+			} else {
+				PrintKeyBindingString(plr, "{player_need_more}", firstNeedItem);
+			}
+		}			
 	}
 	return actuallyGiven;
 }
@@ -1640,7 +1652,7 @@ void openLootMenu(EHandle h_plr, EHandle h_corpse, string submenu="")
 				continue;
 				
 			CBaseEntity@ item = pcorpse.items[i];
-			state.menu.AddItem(getItemDisplayName(item), any("loot-" + item.pev.colormap + "," + item.pev.button));
+			state.menu.AddItem(getItemDisplayName(plr, item), any("loot-" + item.pev.colormap + "," + item.pev.button));
 		}
 		numItems = pcorpse.items.size();
 	}
@@ -1660,7 +1672,7 @@ void openLootMenu(EHandle h_plr, EHandle h_corpse, string submenu="")
 				title = translate(plr, "{b_furnace}:");
 				break;
 			case E_SUPPLY_CRATE:
-				title = translate(plr, "{b_supply_crate}:");
+				title = translate(plr, "{e_supply_crate}:");
 				break;
 		}
 		
@@ -1723,7 +1735,7 @@ void openLootMenu(EHandle h_plr, EHandle h_corpse, string submenu="")
 			for (uint i = 0; i < c_chest.items.size(); i++)
 			{
 				CBaseEntity@ item = c_chest.items[i];
-				state.menu.AddItem(translate(plr, getItemDisplayName(item)), any("loot-" + item.pev.colormap + "," + item.pev.button));
+				state.menu.AddItem(translate(plr, getItemDisplayName(plr, item)), any("loot-" + item.pev.colormap + "," + item.pev.button));
 			}
 			
 			if (c_chest.items.size() == 0)
