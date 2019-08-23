@@ -1290,8 +1290,6 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 		CBasePlayer@ plr = getPlayer();
 		PlayerState@ state = getPlayerState(plr);
 		
-		updateBuildPlaceholder();
-		
 		bool buildingBoat = buildType == E_BOAT_WOOD or buildType == E_BOAT_METAL;
 		
 		if (buildType == B_LADDER or buildType == B_LADDER_HATCH)
@@ -1401,7 +1399,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 					params.fadeinTime = 0;
 					params.fadeoutTime = 0.5f;
 					params.holdTime = 0.5f;
-					params.channel = 2;
+					params.channel = 3;
 				
 					HudMessage(plr, params, cost);
 					giveItem(plr, BUILD_MATERIAL, -g_part_info[buildType].cost, false);
@@ -1711,6 +1709,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 					}
 				}
 			}
+			updateBuildPlaceholder(true);
 			return true;
 		}
 		return false;
