@@ -801,7 +801,10 @@ CBaseEntity@ respawnPart(int id)
 				keys["distance"] = "9999";
 				keys["speed"] = "0.00000001";
 				keys["breakable"] = "1";
-				keys["targetname"] = "locked" + id;
+				if (type == B_LADDER_HATCH)
+					keys["targetname"] = string(part.pev.targetname); // probably can just always do this but too afraid to break something
+				else
+					keys["targetname"] = "locked" + id;
 			}
 			
 			CBaseEntity@ ent = g_EntityFuncs.CreateEntity(part.pev.classname, keys, true);
