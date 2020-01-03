@@ -1361,12 +1361,6 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 		
 		bool buildingBoat = buildType == E_BOAT_WOOD or buildType == E_BOAT_METAL;
 		
-		if (buildType == B_LADDER or buildType == B_LADDER_HATCH)
-		{
-			PrintKeyBindingString(plr, "{build_ladder_bug}");
-			return false;
-		}
-		
 		if (buildEnt !is null and forbidden)
 		{
 			PrintKeyBindingString(plr, "{build_cupboard}");

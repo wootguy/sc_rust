@@ -863,11 +863,7 @@ int craftItem(CBasePlayer@ plr, int itemType)
 {
 	PlayerState@ state = getPlayerState(plr);
 	int actuallyGiven = 0;
-	if (itemType == I_LADDER or itemType == I_LADDER_HATCH)
-	{
-		PrintKeyBindingString(plr, "{build_ladder_bug}");
-	}
-	else if (itemType >= 0 and itemType < int(g_items.size()))
+	if (itemType >= 0 and itemType < int(g_items.size()))
 	{
 		Item@ craftItem = g_items[itemType];
 		
