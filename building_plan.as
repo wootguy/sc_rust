@@ -72,6 +72,75 @@ class Item
 		ret += ")";
 		return ret;
 	}
+	
+	string getCraftText(CBasePlayer@ plr)
+	{
+		if (g_free_build)
+			return translate(plr, title);
+			
+		string cost = getCostText();
+
+		// The menu font isn't monospace, so we can only try to get items aligned...
+		// It looks different on every resolution, but it's still better than using multiple lines imo
+		string tabs;
+		switch(type)
+		{
+			case I_WOOD_DOOR: tabs = "                   "; break;
+			case I_WOOD_SHUTTERS: tabs = "               "; break;
+			case I_WOOD_BARS: tabs = "         "; break;
+			case I_METAL_DOOR: tabs = "                    "; break;
+			case I_METAL_BARS: tabs = "         "; break;
+			case I_HIGH_WOOD_WALL: tabs = "  "; break;
+			case I_HIGH_STONE_WALL: tabs = "  "; break;
+			
+			case I_CODE_LOCK: tabs = "        "; break;
+			case I_SMALL_CHEST: tabs = "      "; break;
+			case I_LARGE_CHEST: tabs = "      "; break;
+			case I_FURNACE: tabs = "           "; break;
+			case I_LADDER: tabs = "            "; break;
+			case I_LADDER_HATCH: tabs = "    "; break;
+			case I_TOOL_CUPBOARD: tabs = "  "; break;
+			case I_BED: tabs = "    "; break;
+			
+			case I_ROCK: tabs = "              "; break;
+			case I_BUILDING_PLAN: tabs = "    "; break;
+			case I_HAMMER: tabs = "          "; break;
+			case I_STONE_HATCHET: tabs = "  "; break;
+			case I_STONE_PICKAXE: tabs = "  "; break;
+			case I_METAL_HATCHET: tabs = "  "; break;
+			case I_METAL_PICKAXE: tabs = "  "; break;
+			
+			case I_SYRINGE: tabs = "        "; break;
+			case I_ARMOR: tabs = "  "; break;
+			case I_GUITAR: tabs = "          "; break;
+			case I_BOAT_WOOD: tabs = "   "; break;
+			case I_BOAT_METAL: tabs = "    "; break;
+			
+			case I_CROWBAR: tabs = "        "; break;
+			case I_BOW: tabs = "  "; break;
+			case I_DEAGLE: tabs = "  "; break;
+			case I_SHOTGUN: tabs = "        "; break;
+			case I_SNIPER: tabs = "    "; break;
+			case I_UZI: tabs = "               "; break;
+			case I_SAW: tabs = "     "; break;
+		
+			case I_FLAMETHROWER: tabs = "   "; break;
+			case I_RPG: tabs = "                 "; break;
+			case I_GRENADE: tabs = "   "; break;
+			case I_SATCHEL: tabs = "  "; break;
+			case I_C4: tabs = "                   "; break;
+			
+			case I_ARROW: tabs = "  "; break;
+			case I_9MM: tabs = "      "; break;
+			case I_556: tabs = "       "; break;
+			case I_BUCKSHOT: tabs = "    "; break;
+			case I_ROCKET: tabs = "             "; break;
+			
+			default: tabs = "  "; break;
+		}
+		
+		return translate(plr, title + tabs + cost);
+	}
 }
 
 enum build_types

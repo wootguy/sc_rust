@@ -1111,6 +1111,28 @@ void playerMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CText
 			g_Scheduler.SetTimeout("openPlayerMenu", 0, @plr, "unstack-" + dropType);
 		}
 	}
+	else if (action.Find("craft-") == 0)
+	{
+		int imenu = atoi(action.SubString(6,1));
+		int itemType = atoi(action.SubString(8));
+		
+		string submenu;
+		switch(imenu)
+		{
+			case 0: submenu = "build-menu"; break;
+			case 1: submenu = "item-menu"; break;
+			case 2: submenu = "tool-menu"; break;
+			case 3: submenu = "medical-menu"; break;
+			case 4: submenu = "weapon-menu"; break;
+			case 5: submenu = "explode-menu"; break;
+			case 6: submenu = "ammo-menu"; break;
+			default: submenu = "craft-menu"; break;
+		}
+		
+		craftItem(plr, itemType);
+		
+		g_Scheduler.SetTimeout("openPlayerMenu", 0, @plr, submenu);
+	}
 	else if (action.Find("map-toggle") == 0)
 	{
 		state.map_enabled = !state.map_enabled;
@@ -1136,7 +1158,40 @@ void playerMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CText
 		state.map_update = true;
 		g_Scheduler.SetTimeout("openPlayerMenu", 0, @plr, "");
 	}
+	else if (action.Find("menu-configure") == 0) {
+		g_Scheduler.SetTimeout("openPlayerMenu", 0, @plr, "menu-configure");
+	}
+	else if (action.Find("configure-craft") == 0) {
+		state.graphicalCraftingMenu = !state.graphicalCraftingMenu;
 	
+		//craft_gfx_warning
+		if (state.graphicalCraftingMenu) {
+			PrintKeyBindingStringXLong(plr, "{craft_gfx_warning}");
+		}
+		
+		g_Scheduler.SetTimeout("openPlayerMenu", 0, @plr, "menu-configure");
+	}
+	else if (action.Find("configure-language") == 0) {
+		
+		array<string>@ langKeys = g_languages.getKeys();
+		
+		if (langKeys.size() > 1) {
+			for (uint i = 0; i < langKeys.length(); i++)
+			{
+				if (langKeys[i] == state.language) {
+					int nextIdx = (i + 1) % langKeys.size();
+					state.language = langKeys[nextIdx];
+					break;
+				}
+			}
+		} else {
+			PrintKeyBindingStringLong(plr, "{lang_no_options}");
+		}
+		
+		
+		
+		g_Scheduler.SetTimeout("openPlayerMenu", 0, @plr, "menu-configure");
+	}
 	menu.Unregister();
 	@menu = null;
 }
@@ -1149,40 +1204,148 @@ void openPlayerMenu(CBasePlayer@ plr, string subMenu)
 	
 	if (subMenu == "craft-menu" or subMenu == "item-menu" or subMenu == "tool-menu" or 
 		subMenu == "weapon-menu" or subMenu == "ammo-menu" or subMenu == "util-menu" or 
-		subMenu == "resize-icons-menu" or subMenu == "resize-layout-menu")
+		subMenu == "resize-icons-menu" or subMenu == "resize-layout-menu" 
+		or subMenu == "build-menu" or subMenu == "medical-menu" or subMenu == "explode-menu") // text-menu categories
 	{
-		int subIdx = state.lastCraftSubmenu;
-		if (subMenu == "item-menu")
-			subIdx = 0;
-		if (subMenu == "tool-menu")
-			subIdx = 1;
-		if (subMenu == "util-menu")
-			subIdx = 2;
-		if (subMenu == "weapon-menu")
-			subIdx = 3;
-		if (subMenu == "ammo-menu")
-			subIdx = 4;
+		if (state.graphicalCraftingMenu)
+		{
+			int subIdx = state.lastCraftSubmenu;
+			if (subMenu == "item-menu")
+				subIdx = 0;
+			if (subMenu == "tool-menu")
+				subIdx = 1;
+			if (subMenu == "util-menu")
+				subIdx = 2;
+			if (subMenu == "weapon-menu")
+				subIdx = 3;
+			if (subMenu == "ammo-menu")
+				subIdx = 4;
+				
+			if (subMenu == "resize-icons-menu")
+			{
+				state.menuScale = (state.menuScale + 1) % 3;
+			}
+			if (subMenu == "resize-layout-menu")
+			{
+				state.gapScale = (state.gapScale + 1) % 3;
+			}
 			
-		if (subMenu == "resize-icons-menu")
-		{
-			state.menuScale = (state.menuScale + 1) % 3;
+			openCraftMenu(state, subIdx);
+			menuTime = 255;
+			state.menu.SetTitle(translate(plr, "{menu_actions_title} -> {menu_craft}:\n"));
+			state.menu.AddItem(translate(plr, "{menu_items}") + (subIdx == 0 ? " <--" : ""), any("item-menu"));
+			state.menu.AddItem(translate(plr, "{menu_tools}") + (subIdx == 1 ? " <--" : ""), any("tool-menu"));
+			state.menu.AddItem(translate(plr, "{menu_util}") + (subIdx == 2 ? " <--" : ""), any("util-menu"));
+			state.menu.AddItem(translate(plr, "{menu_weapons}") + (subIdx == 3 ? " <--" : ""), any("weapon-menu"));
+			state.menu.AddItem(translate(plr, "{menu_ammo}") + (subIdx == 4 ? " <--" : ""), any("ammo-menu"));
+			state.menu.AddItem("\n\n", any("craft-menu"));
+			state.menu.AddItem(translate(plr, "{menu_resize_icons}"), any("resize-icons-menu"));
+			state.menu.AddItem(translate(plr, "{menu_resize_grid}"), any("resize-layout-menu"));
 		}
-		if (subMenu == "resize-layout-menu")
+		else 
 		{
-			state.gapScale = (state.gapScale + 1) % 3;
+			if (subMenu == "build-menu") 
+			{
+				state.menu.SetTitle(translate(plr, "{menu_actions_title} -> {menu_craft} -> {menu_exterior_items}:\n"));
+				state.menu.AddItem(translate(plr, "{menu_back}\n"), any("craft-menu"));
+				state.menu.AddItem(g_items[I_WOOD_DOOR].getCraftText(plr), any("craft-0-" + I_WOOD_DOOR));
+				state.menu.AddItem(g_items[I_METAL_DOOR].getCraftText(plr), any("craft-0-" + I_METAL_DOOR));
+				state.menu.AddItem(g_items[I_WOOD_BARS].getCraftText(plr), any("craft-0-" + I_WOOD_BARS));
+				state.menu.AddItem(g_items[I_METAL_BARS].getCraftText(plr), any("craft-0-" + I_METAL_BARS));
+				state.menu.AddItem(g_items[I_WOOD_SHUTTERS].getCraftText(plr), any("craft-0-" + I_WOOD_SHUTTERS));
+				state.menu.AddItem(g_items[I_HIGH_WOOD_WALL].getCraftText(plr), any("craft-0-" + I_HIGH_WOOD_WALL));
+				state.menu.AddItem(g_items[I_HIGH_STONE_WALL].getCraftText(plr) + "\n", any("craft-0-" + I_HIGH_STONE_WALL));
+			}
+			else if (subMenu == "item-menu") 
+			{
+				state.menu.SetTitle(translate(plr, "{menu_actions_title} -> {menu_craft} -> {menu_interior_items}:\n"));
+				state.menu.AddItem(translate(plr, "{menu_back}\n"), any("craft-menu"));
+				state.menu.AddItem(g_items[I_CODE_LOCK].getCraftText(plr), any("craft-1-" + I_CODE_LOCK));
+				state.menu.AddItem(g_items[I_SMALL_CHEST].getCraftText(plr), any("craft-1-" + I_SMALL_CHEST));
+				state.menu.AddItem(g_items[I_LARGE_CHEST].getCraftText(plr), any("craft-1-" + I_LARGE_CHEST));
+				//state.menu.AddItem("Camp Fire", any("fire")); // let's keep things simple and not have a hunger/thirst system
+				state.menu.AddItem(g_items[I_FURNACE].getCraftText(plr), any("craft-1-" + I_FURNACE));
+				state.menu.AddItem(g_items[I_LADDER].getCraftText(plr), any("craft-1-" + I_LADDER));
+				state.menu.AddItem(g_items[I_LADDER_HATCH].getCraftText(plr), any("craft-1-" + I_LADDER_HATCH));
+				state.menu.AddItem(g_items[I_TOOL_CUPBOARD].getCraftText(plr), any("craft-1-" + I_TOOL_CUPBOARD));
+				//state.menu.AddItem("Large Furnace", any("large-furnace"));
+				//state.menu.AddItem("Stash", any("stash"));
+				state.menu.AddItem(g_items[I_BED].getCraftText(plr), any("craft-1-" + I_BED));
+			}
+			else if (subMenu == "tool-menu")
+			{
+				state.menu.SetTitle(translate(plr, "{menu_actions_title} -> {menu_craft} -> {menu_tools}:\n"));
+				state.menu.AddItem(translate(plr, "{menu_back}\n"), any("craft-menu"));
+				state.menu.AddItem(g_items[I_ROCK].getCraftText(plr), any("craft-2-" + I_ROCK));
+				//state.menu.AddItem("Torch", any("craft-" + I_TORCH)); // no night time due to sc bug
+				state.menu.AddItem(g_items[I_BUILDING_PLAN].getCraftText(plr), any("craft-2-" + I_BUILDING_PLAN));
+				state.menu.AddItem(g_items[I_HAMMER].getCraftText(plr), any("craft-2-" + I_HAMMER));
+				state.menu.AddItem(g_items[I_STONE_HATCHET].getCraftText(plr), any("craft-2-" + I_STONE_HATCHET));
+				state.menu.AddItem(g_items[I_STONE_PICKAXE].getCraftText(plr), any("craft-2-" + I_STONE_PICKAXE));
+				state.menu.AddItem(g_items[I_METAL_HATCHET].getCraftText(plr), any("craft-2-" + I_METAL_HATCHET));
+				state.menu.AddItem(g_items[I_METAL_PICKAXE].getCraftText(plr) + "\n", any("craft-2-" + I_METAL_PICKAXE));
+			}
+			else if (subMenu == "medical-menu")
+			{
+				state.menu.SetTitle(translate(plr, "{menu_actions_title} -> {menu_craft} -> {menu_util}:\n"));
+				
+				state.menu.AddItem(translate(plr, "{menu_back}\n"), any("craft-menu"));
+				//state.menu.AddItem("Bandage", any("bandage"));
+				state.menu.AddItem(g_items[I_SYRINGE].getCraftText(plr), any("craft-3-" + I_SYRINGE));
+				//state.menu.AddItem("Medkit", any("small-medkit"));
+				state.menu.AddItem(g_items[I_ARMOR].getCraftText(plr) , any("craft-3-" + I_ARMOR));
+				//state.menu.AddItem("Large Medkit", any("large-medkit"));
+				state.menu.AddItem(g_items[I_GUITAR].getCraftText(plr), any("craft-3-" + I_GUITAR));
+				state.menu.AddItem(g_items[I_FIRE].getCraftText(plr), any("craft-3-" + I_FIRE));
+				state.menu.AddItem(g_items[I_BOAT_WOOD].getCraftText(plr), any("craft-3-" + I_BOAT_WOOD));
+				state.menu.AddItem(g_items[I_BOAT_METAL].getCraftText(plr) + "\n\n", any("craft-3-" + I_BOAT_METAL));
+				
+			}
+			else if (subMenu == "weapon-menu")
+			{
+				state.menu.SetTitle(translate(plr, "{menu_actions_title} -> {menu_craft} -> {menu_weapons}:\n"));
+				state.menu.AddItem(translate(plr, "{menu_back}\n"), any("craft-menu"));
+				state.menu.AddItem(g_items[I_CROWBAR].getCraftText(plr), any("craft-4-" + I_CROWBAR));
+				state.menu.AddItem(g_items[I_BOW].getCraftText(plr), any("craft-4-" + I_BOW));
+				state.menu.AddItem(g_items[I_DEAGLE].getCraftText(plr), any("craft-4-" + I_DEAGLE));
+				state.menu.AddItem(g_items[I_SHOTGUN].getCraftText(plr), any("craft-4-" + I_SHOTGUN));
+				state.menu.AddItem(g_items[I_SNIPER].getCraftText(plr), any("craft-4-" + I_SNIPER));
+				state.menu.AddItem(g_items[I_UZI].getCraftText(plr), any("craft-4-" + I_UZI));
+				state.menu.AddItem(g_items[I_SAW].getCraftText(plr) + "\n", any("craft-4-" + I_SAW));
+			}
+			else if (subMenu == "explode-menu")
+			{
+				state.menu.SetTitle(translate(plr, "{menu_actions_title} -> {menu_craft} -> {menu_explosives}:\n"));
+				state.menu.AddItem(translate(plr, "{menu_back}\n"), any("craft-menu"));
+				state.menu.AddItem(g_items[I_FLAMETHROWER].getCraftText(plr), any("craft-5-" + I_FLAMETHROWER));
+				state.menu.AddItem(g_items[I_RPG].getCraftText(plr), any("craft-5-" + I_RPG));
+				state.menu.AddItem(g_items[I_GRENADE].getCraftText(plr), any("craft-5-" + I_GRENADE));
+				state.menu.AddItem(g_items[I_SATCHEL].getCraftText(plr), any("craft-5-" + I_SATCHEL));
+				state.menu.AddItem(g_items[I_C4].getCraftText(plr) + "\n\n", any("craft-5-" + I_C4));
+			}
+			else if (subMenu == "ammo-menu")
+			{
+				state.menu.SetTitle(translate(plr, "{menu_actions_title} -> {menu_craft} -> {menu_ammo}:\n"));
+				state.menu.AddItem(translate(plr, "{menu_back}\n"), any("craft-menu"));
+				state.menu.AddItem(g_items[I_ARROW].getCraftText(plr), any("craft-6-" + I_ARROW));
+				state.menu.AddItem(g_items[I_9MM].getCraftText(plr), any("craft-6-" + I_9MM));
+				state.menu.AddItem(g_items[I_556].getCraftText(plr), any("craft-6-" + I_556));
+				state.menu.AddItem(g_items[I_BUCKSHOT].getCraftText(plr), any("craft-6-" + I_BUCKSHOT));
+				state.menu.AddItem(g_items[I_ROCKET].getCraftText(plr) + "\n\n", any("craft-6-" + I_ROCKET));
+				//state.menu.AddItem(g_items[I_FUEL].getCraftText(plr) + "\n", any("craft-6-" + I_FUEL));
+			}
+			else if (subMenu == "craft-menu")
+			{
+				state.menu.SetTitle(translate(plr, "{menu_actions_title} -> Craft:\n"));
+				state.menu.AddItem(translate(plr, "{menu_exterior_items}"), any("build-menu"));
+				state.menu.AddItem(translate(plr, "{menu_interior_items}"), any("item-menu"));
+				state.menu.AddItem(translate(plr, "{menu_tools}"), any("tool-menu"));
+				state.menu.AddItem(translate(plr, "{menu_util}"), any("medical-menu"));
+				state.menu.AddItem(translate(plr, "{menu_weapons}"), any("weapon-menu"));
+				state.menu.AddItem(translate(plr, "{menu_explosives}"), any("explode-menu"));
+				state.menu.AddItem(translate(plr, "{menu_ammo}\n\n\n"), any("ammo-menu"));
+			}
 		}
-		
-		openCraftMenu(state, subIdx);
-		menuTime = 255;
-		state.menu.SetTitle(translate(plr, "{menu_actions_title} -> {menu_craft}:\n"));
-		state.menu.AddItem(translate(plr, "{menu_items}") + (subIdx == 0 ? " <--" : ""), any("item-menu"));
-		state.menu.AddItem(translate(plr, "{menu_tools}") + (subIdx == 1 ? " <--" : ""), any("tool-menu"));
-		state.menu.AddItem(translate(plr, "{menu_util}") + (subIdx == 2 ? " <--" : ""), any("util-menu"));
-		state.menu.AddItem(translate(plr, "{menu_weapons}") + (subIdx == 3 ? " <--" : ""), any("weapon-menu"));
-		state.menu.AddItem(translate(plr, "{menu_ammo}") + (subIdx == 4 ? " <--" : ""), any("ammo-menu"));
-		state.menu.AddItem("\n\n", any("craft-menu"));
-		state.menu.AddItem(translate(plr, "{menu_resize_icons}"), any("resize-icons-menu"));
-		state.menu.AddItem(translate(plr, "{menu_resize_grid}"), any("resize-layout-menu"));
 	}
 	else if (subMenu == "equip-menu")
 	{
@@ -1289,6 +1452,13 @@ void openPlayerMenu(CBasePlayer@ plr, string subMenu)
 			state.menu.AddItem(translate(plr, "{menu_drop}") + " " + prettyNumber(count), any("drop-" + stackOptions[i] + "-" + itemId));
 		}
 	}
+	else if (subMenu == "menu-configure") {
+		state.menu.SetTitle("Actions -> Configure:\n");
+		
+		string craftMode = state.graphicalCraftingMenu ? "{configure_craft_gfx}" : "{configure_craft_txt}";
+		state.menu.AddItem(translate(plr, "{configure_language}: " + state.language), any("configure-language"));
+		state.menu.AddItem(translate(plr, "{configure_craft}: " + craftMode), any("configure-craft"));
+	}
 	else
 	{
 		state.menu.SetTitle(translate(plr, "{menu_actions_title}:\n"));
@@ -1298,6 +1468,7 @@ void openPlayerMenu(CBasePlayer@ plr, string subMenu)
 		state.menu.AddItem(translate(plr, "{menu_drop_title}"), any("drop-stack-menu"));
 		state.menu.AddItem(translate(plr, "{menu_map_toggle}"), any("map-toggle"));
 		state.menu.AddItem(translate(plr, "{menu_map_mode}"), any("map-mode"));
+		state.menu.AddItem(translate(plr, "{menu_configure}"), any("menu-configure"));
 	}
 	
 	state.openMenu(plr, menuTime);
