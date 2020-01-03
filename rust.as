@@ -397,9 +397,10 @@ class PlayerState
 	int map_mode = 2;
 	int map_size = 1;
 	int lastMapIcons = 0;
-	bool map_enabled = true;
+	bool map_enabled = false;
 	bool map_update = true;
 	string language = g_default_language;
+	bool graphicalCraftingMenu = false;
 	
 	uint64 tips = 0; // bitfield for shown tips
 	

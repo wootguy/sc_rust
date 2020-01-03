@@ -57,7 +57,7 @@ void loadLanguageFile(string language) {
 		
 		translations[key] = value;
 		
-		println(key + " = \"" + value + "\"");
+		//println(key + " = \"" + value + "\"");
 	}
 	
 	g_languages[language] = translations;
