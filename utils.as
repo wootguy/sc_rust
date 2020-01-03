@@ -775,6 +775,7 @@ int getModelSizei(CBaseEntity@ part)
 
 CBaseEntity@ respawnPart(int id)
 {
+	CBaseEntity@ lastEnt = null;
 	for (uint i = 0; i < g_build_parts.size(); i++)
 	{	
 		func_breakable_custom@ part = cast<func_breakable_custom@>(CastToScriptClass(g_build_parts[i].GetEntity()));
@@ -791,6 +792,7 @@ CBaseEntity@ respawnPart(int id)
 			keys["id"] = "" + id;
 			keys["parent"] = "" + part.parent;
 			keys["zoneid"] = "" + part.zoneid;
+			keys["spawnflags"] = "" + part.pev.spawnflags;
 			
 			int type = part.pev.colormap;
 			int socket = socketType(type);
@@ -821,10 +823,11 @@ CBaseEntity@ respawnPart(int id)
 			
 			g_EntityFuncs.Remove(g_build_parts[i]);
 			g_build_parts[i] = ent;
-			return @ent;
+			@lastEnt = @ent;
 		}
 	}
-	return null;
+	
+	return lastEnt;
 }
 
 void breakPart(EHandle h_ent)
