@@ -265,7 +265,7 @@ class func_build_zone : ScriptBaseEntity
 		if (phit.pev.classname != "worldspawn")
 			return false;
 
-		if (tr.vecPlaneNormal.z < 0.3f)
+		if (tr.vecPlaneNormal.z < 0.7f)
 			return false;
 			
 		// check radius around node for collisions
@@ -675,6 +675,7 @@ class func_build_zone : ScriptBaseEntity
 						if (spawner !is null)
 						{
 							spawner.pev.origin = ori;
+							spawner.pev.origin.z += 16; // big monsters get stuck on steep slopes without this
 							if (spawnerName == "controller_spawner")
 								spawner.pev.origin.z += 512;
 							spawner.pev.angles = Vector(0, Math.RandomLong(-180, 180), 0);
