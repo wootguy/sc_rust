@@ -2048,7 +2048,7 @@ bool doRustCommand(CBasePlayer@ plr, const CCommand@ args)
 	{
 		if (args[0] == ".version")
 		{
-			SayText(plr, "{cmd_version}\n", "v11 (August, 2019)");
+			SayText(plr, "{cmd_version}\n", "v12 (January, 2020)");
 			return true;
 		}
 		if (args[0] == ".day")
