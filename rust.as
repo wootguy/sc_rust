@@ -1659,7 +1659,9 @@ void updateWaveStatus()
 {
 	bool old_state = g_wave_in_progress;
 	g_wave_in_progress = checkWaveStatus();
-	if (!g_wave_in_progress and old_state)
+	
+	float timePassed = g_Engine.time - (g_next_invasion_wave - g_invasion_delay*60); // don't show wave defeated right after wave spawns
+	if (!g_wave_in_progress and old_state and g_invasion_round < int(invasion_wave_titles.size()) and timePassed > 2)
 	{
 		SayTextAll("{coop_wave_defeated}\n", invasion_wave_titles[g_invasion_round]);
 	}

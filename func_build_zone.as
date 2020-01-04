@@ -362,12 +362,14 @@ class func_build_zone : ScriptBaseEntity
 				CBaseMonster@ mon = cast<CBaseMonster@>(ent);
 				wave_extra_health += ent.pev.health;
 				mon.GibMonster();
+				mon.pev.button = -1234; // prevent race conditions later when counting monsters
 			}
 		}
 		
-		wave_extra_health = (wave_extra_health / maxMonsters)*2;
+		DeleteNullNodes();
+		
+		wave_extra_health = (wave_extra_health / maxMonsters);
 		wave_extra_health = (int(wave_extra_health)/10)*10;
-		wave_extra_health = 0;
 		
 		spawning_wave = true;
 		spawnDelay = 0;
@@ -584,7 +586,7 @@ class func_build_zone : ScriptBaseEntity
 			for (uint i = 0; i < nodes.size(); i++)
 			{
 				CBaseEntity@ node = nodes[i];
-				if (node.IsMonster() and node.IsAlive())
+				if (node.IsMonster() and node.IsAlive() and node.pev.button != -1234)
 				{
 					numMonsters++;
 				}
@@ -750,6 +752,9 @@ class func_build_zone : ScriptBaseEntity
 						spawnDelay = g_node_spawn_time_invasion;
 						if (debug_mode)
 							println("Wave spawn complete");
+					}
+					if (spawning_wave) {
+						spawnDelay = 0;
 					}
 					nextSpawn = g_Engine.time + spawnDelay;
 				}
