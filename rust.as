@@ -15,7 +15,7 @@
 #include "apache"
 #include "func_boat"
 #include "translations"
-#include "../weapon_custom/v6/weapon_custom"
+#include "../weapon_custom/v7/weapon_custom"
 
 // TODO:
 // spawning with ammo?
