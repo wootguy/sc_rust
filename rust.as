@@ -30,7 +30,6 @@
 // less furnace menus plz
 // apache getting stuck in one place?
 // not stopping with no driver, clipping way more easily
-// ladder save/load fails
 // C4 griefing in co-op
 // floating fire when aprt breaks
 // console commands for save/load
@@ -2156,7 +2155,7 @@ bool doRustCommand(CBasePlayer@ plr, const CCommand@ args)
 				for (uint i = 0; i < g_items.size(); i++)
 				{
 					string title = g_items[i].title;
-					string titleLower = title.ToLowercase();
+					string titleLower = translate(plr, title).ToLowercase();
 					string nameLower = name.ToLowercase();
 					string cnameLower = string(g_items[i].classname).ToLowercase();
 					if (cnameLower == nameLower or titleLower == nameLower)
