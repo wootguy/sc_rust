@@ -630,8 +630,21 @@ int equipItem(CBasePlayer@ plr, int type, int amt)
 	else if (item.isWeapon and @plr.HasNamedPlayerItem(item.classname) == null)
 	{
 		plr.SetItemPickupTimes(0);
-		plr.GiveNamedItem(item.classname, getSpawnFlagsForWeapon(item.classname));
-		CBasePlayerWeapon@ wep = cast<CBasePlayerWeapon@>(@plr.HasNamedPlayerItem(item.classname));
+		
+		dictionary keys;
+		keys["origin"] = plr.pev.origin.ToString();
+		keys["spawnflags"] = "" + getSpawnFlagsForWeapon(item.classname);
+		
+		CBaseEntity@ dummyWep = g_EntityFuncs.CreateEntity(item.classname, keys, false);
+		CBaseEntity@ ent = g_EntityFuncs.CreateEntity(item.classname, keys, false);
+		CBasePlayerWeapon@ wep = cast<CBasePlayerWeapon@>(@ent);
+		
+		WeaponCustom::WeaponCustomBase@ customWep = cast<WeaponCustom::WeaponCustomBase@>(CastToScriptClass(@ent));
+		if (customWep !is null)
+			customWep.shouldBypassAmmoExtraction = true;
+		
+		g_EntityFuncs.DispatchSpawn(wep.edict());
+		
 		if (amt != -1)
 			wep.m_iClip = amt;
 		barf = -2;
