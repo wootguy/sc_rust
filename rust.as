@@ -980,7 +980,13 @@ void MapInit()
 	PrecacheModel("models/rust/w_c4.mdl");
 	PrecacheModel("models/rust/b17.mdl");
 	PrecacheModel("models/rust/parachute.mdl");
-	PrecacheModel("sprites/rust/" + g_Engine.mapname + ".spr");
+	
+	if (g_Engine.mapname == "rust_mini_b9") {
+		PrecacheModel("sprites/rust/rust_mini_b9_fix.spr");
+	} else {
+		PrecacheModel("sprites/rust/" + g_Engine.mapname + ".spr");
+	}
+	
 	PrecacheModel("sprites/rust/map_plr.spr");
 	PrecacheModel("sprites/rust/menu.spr");
 	
