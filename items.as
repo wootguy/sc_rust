@@ -1675,13 +1675,22 @@ void lootMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextMe
 				CBasePlayerItem@ hasItem = corpse.HasNamedPlayerItem(itemDesc);
 				if (hasItem !is null and gItem !is null)
 				{
+					int ammo = 1;
+					if (gItem.isWeapon && (gItem.type == I_SYRINGE or gItem.type == I_C4 or gItem.type == I_SATCHEL or gItem.type == I_GRENADE))
+					{
+						int ammoIdx = g_PlayerFuncs.GetAmmoIndex(gItem.ammoName);
+						int takeAmmo = corpse.m_rgAmmo(ammoIdx);
+						ammo = takeAmmo;
+						corpse.m_rgAmmo(ammoIdx, 0);
+					}
+				
 					if (plr.HasNamedPlayerItem(itemDesc) is null)
 					{
 						plr.SetItemPickupTimes(0);
 						plr.GiveNamedItem(itemDesc);
 						corpse.RemovePlayerItem(hasItem);
 					}
-					else if (giveItem(plr, gItem.type, 1) == 0)
+					else if (giveItem(plr, gItem.type, ammo) == 0)
 						corpse.RemovePlayerItem(hasItem);
 						
 					found = true;
@@ -1717,6 +1726,9 @@ void lootMenuCallback(CTextMenu@ menu, CBasePlayer@ plr, int page, const CTextMe
 			
 			if (found)
 			{
+				PlayerState@ corpseState = getPlayerState(corpse);
+				corpseState.updateItemList();
+				
 				// update items in corpse
 				for (uint i = 0; i < g_corpses.size(); i++)
 				{
@@ -1820,7 +1832,7 @@ void openLootMenu(EHandle h_plr, EHandle h_corpse, string submenu="")
 			string displayName = item.title;
 			if (item.stackSize > 1)
 				displayName += " (" + count + ")";
-			state.menu.AddItem(displayName, any("loot-" + item.classname));
+			state.menu.AddItem(translate(plr, displayName), any("loot-" + item.classname));
 		}
 	}
 	else if (corpse.pev.classname == "player_corpse")
