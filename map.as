@@ -70,6 +70,11 @@ void drawMap(PlayerState@ state)
 	
 	HUDSpriteParams params;
 	params.spritename = "rust/" + g_Engine.mapname + ".spr";
+	
+	if (g_Engine.mapname == "rust_mini_b9") {
+		params.spritename = "rust/rust_mini_b9_fix.spr";
+	}
+	
 	//params.flags = HUD_SPR_OPAQUE | HUD_ELEM_ABSOLUTE_X | HUD_ELEM_ABSOLUTE_Y;
 	params.flags = HUD_SPR_OPAQUE | HUD_ELEM_ABSOLUTE_X | HUD_ELEM_ABSOLUTE_Y | HUD_ELEM_SCR_CENTER_X | HUD_ELEM_SCR_CENTER_Y;
 	params.holdTime = 99999.0f;
