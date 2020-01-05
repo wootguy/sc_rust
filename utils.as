@@ -569,8 +569,12 @@ array<RawItem> getAllItemsRaw(CBasePlayer@ plr)
 			if (invItem !is null)
 			{
 				int amt = 1;
-				if (invItem.isWeapon)
+				if (invItem.isWeapon) {
 					amt = cast<CBasePlayerWeapon@>(item).m_iClip;
+					if (invItem.type == I_SYRINGE or invItem.type == I_C4 or invItem.type == I_SATCHEL or invItem.type == I_GRENADE) {
+						amt = plr.m_rgAmmo(g_PlayerFuncs.GetAmmoIndex(invItem.ammoName));
+					}
+				}
 				all_items.insertLast(RawItem(invItem.type, amt));
 			}
 			@item = cast<CBasePlayerItem@>(item.m_hNextItem.GetEntity());		
