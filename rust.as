@@ -15,7 +15,7 @@
 #include "apache"
 #include "func_boat"
 #include "translations"
-#include "../weapon_custom/v7/weapon_custom"
+#include "../weapon_custom/v8/weapon_custom"
 
 // TODO:
 // spawning with ammo?
@@ -1955,7 +1955,7 @@ void player_respawn(CBaseEntity@ pActivator, CBaseEntity@ pCaller, USE_TYPE useT
 	
 	// Monster angry -> hate player, dislike bases
 	// apache -> dislike player, ignore bases, ignore unarmed players
-	plr.SetClassification(CLASS_PLAYER); // monsters will give this higher priority
+	plr.KeyValue("classify", CLASS_PLAYER); // monsters will give this higher priority
 }
 
 EHandle createCorpse(CBasePlayer@ plr)
@@ -2054,7 +2054,7 @@ bool doRustCommand(CBasePlayer@ plr, const CCommand@ args)
 	{
 		if (args[0] == ".version")
 		{
-			SayText(plr, "{cmd_version}\n", "v13 (January, 2020)");
+			SayText(plr, "{cmd_version}\n", "v14 (January, 2020)");
 			return true;
 		}
 		if (args[0] == ".day")

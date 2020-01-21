@@ -116,14 +116,14 @@ void inventoryCheck()
 			}
 			
 			if (g_Engine.time - state.lastDangerous > g_apache_forget_time)
-				plr.SetClassification(CLASS_XRACE_PITDRONE);
+				plr.KeyValue("classify", CLASS_XRACE_PITDRONE);
 				
 			// check if player has armor or weapons (apache should target this player)
 			if (!g_invasion_mode)
 			{
 				if (plr.pev.armorvalue > 10)
 				{
-					plr.SetClassification(CLASS_ALIEN_MILITARY);						
+					plr.KeyValue("classify", CLASS_ALIEN_MILITARY);						
 					state.lastDangerous = g_Engine.time;
 				}
 				else
@@ -140,7 +140,7 @@ void inventoryCheck()
 								and cname != "weapon_hammer" and cname != "weapon_building_plan")	
 							{
 								//println("YOU ARE DANGEROUS BECAUSE " + cname);
-								plr.SetClassification(CLASS_ALIEN_MILITARY);
+								plr.KeyValue("classify", CLASS_ALIEN_MILITARY);
 								state.lastDangerous = g_Engine.time;
 								break;
 							}
