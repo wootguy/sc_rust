@@ -220,7 +220,7 @@ class func_vehicle_custom : ScriptBaseEntity
 		m_dir = 1;
 		m_flTurnStartTime = -1;
 		
-		self.SetClassification(CLASS_ALIEN_MONSTER);
+		self.KeyValue("classify", CLASS_ALIEN_MONSTER);
 
 		//if( string( self.pev.target ).IsEmpty() )
 		//	g_Game.AlertMessage(at_console, "Vehicle with no target\n");

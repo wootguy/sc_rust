@@ -453,7 +453,7 @@ class func_build_zone : ScriptBaseEntity
 						if (ent !is null)
 						{
 							mon.PushEnemy(ent, ent.pev.origin);
-							mon.SetClassification(CLASS_HUMAN_MILITARY); // Hate players, dislike player allies
+							mon.KeyValue("classify", CLASS_HUMAN_MILITARY); // Hate players, dislike player allies
 							mon.m_FormattedName = "" + mon.pev.noise3 + " (angry)";
 							mon.pev.teleport_time = g_Engine.time;
 							isAgro = true;
@@ -479,7 +479,7 @@ class func_build_zone : ScriptBaseEntity
 							{
 								if (!isAgro)
 								{
-									mon.SetClassification(CLASS_HUMAN_MILITARY); // Hate players, dislike player allies
+									mon.KeyValue("classify", CLASS_HUMAN_MILITARY); // Hate players, dislike player allies
 									mon.m_FormattedName = "" + mon.pev.noise3 + " (angry)";
 									mon.MonsterUse(ent, ent, USE_TOGGLE, 0);
 									//mon.PushEnemy(ent, ent.pev.origin);
@@ -506,7 +506,7 @@ class func_build_zone : ScriptBaseEntity
 				}	
 				if (isAgro and mon.pev.teleport_time + g_monster_forget_time < g_Engine.time and !g_invasion_mode)
 				{
-					mon.SetClassification(CLASS_FORCE_NONE);
+					mon.KeyValue("classify", CLASS_FORCE_NONE);
 					mon.ClearEnemyList();
 					mon.ClearSchedule();
 					if (string(mon.pev.noise3).Length() > 0)
@@ -706,7 +706,7 @@ class func_build_zone : ScriptBaseEntity
 										if (ent.pev.classname == "monster_kingpin")
 											ent.pev.health = 2;
 										ent.pev.health += wave_extra_health;
-										ent.SetClassification(CLASS_ALIEN_MILITARY);
+										ent.KeyValue("classify", CLASS_ALIEN_MILITARY);
 									}
 								}
 							} while (ent !is null);

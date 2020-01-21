@@ -238,7 +238,7 @@ void spawn_heli()
 	
 	g_SoundSystem.PlaySound(ent.edict(), CHAN_ITEM, "rust/heli_far.ogg", 1.0f, 0.04f, SND_FORCE_LOOP, 100);
 	
-	ent.SetClassification(CLASS_XRACE_PITDRONE);
+	ent.KeyValue("classify", CLASS_XRACE_PITDRONE);
 	
 	g_Scheduler.SetTimeout("heli_think", 1.0f, EHandle(ent));
 }
