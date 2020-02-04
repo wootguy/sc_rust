@@ -321,6 +321,8 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 				zoneid = getBuildZone(plr);
 				if (g_invasion_mode)
 					zoneid = -1337;
+				if (g_build_anywhere)
+					zoneid = 1;
 			
 				HUDTextParams params;
 				params.effect = 0;
@@ -757,7 +759,7 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 		string size = getModelSize(ent);
 		string material = getMaterialType(ent);
 		int imat = getMaterialTypeInt(ent);
-		int fuseZone = getBuildZone(ent);
+		int fuseZone = g_build_anywhere ? 1 : getBuildZone(ent);
 		
 		array<CBaseEntity@> parts = { @ent };
 		
@@ -974,8 +976,8 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 			return;
 		}
 		
-		int fuseZone = getBuildZone(part1);
-		if (fuseZone != getBuildZone(part2))
+		int fuseZone = g_build_anywhere ? 1 : getBuildZone(part1);
+		if (fuseZone != getBuildZone(part2) && !g_build_anywhere)
 		{
 			cancelFuse("{hammer_fuse_err8}"); // Can only fuse parts in the same zone
 			return;

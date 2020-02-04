@@ -1239,6 +1239,8 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 			if (zoneid == -1)
 				validBuild = false;
 		}
+		if (g_build_anywhere)
+			zoneid = 1;
 
 		bool isCupboard = buildEnt.pev.colormap == B_TOOL_CUPBOARD;
 		forbidden = forbiddenByCupboard(plr, buildEnt.pev.origin, isCupboard);	
@@ -1388,91 +1390,89 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 					return false;
 				}
 			}
-			if (!g_build_anywhere)
+
+			if (zoneid == -1 and !buildingBoat)
 			{
-				if (zoneid == -1 and !buildingBoat)
+				PrintKeyBindingString(plr, "{build_outskirts}");
+				return false;
+			}
+			if (state.home_zone == -1 and !g_invasion_mode and !g_creative_mode and !g_shared_build_points_in_pvp_mode)
+			{
+				// TODO: Renable this or remove all this code
+				BuildZone@ zone = getBuildZone(zoneid);
+				int needSpace = state.team !is null ? state.team.members.size() : 1;
+				if (zone.maxSettlers - zone.numSettlers >= needSpace)
 				{
-					PrintKeyBindingString(plr, "{build_outskirts}");
-					return false;
-				}
-				if (state.home_zone == -1 and !g_invasion_mode and !g_creative_mode and !g_shared_build_points_in_pvp_mode)
-				{
-					// TODO: Renable this or remove all this code
-					BuildZone@ zone = getBuildZone(zoneid);
-					int needSpace = state.team !is null ? state.team.members.size() : 1;
-					if (zone.maxSettlers - zone.numSettlers >= needSpace)
-					{
-						zone.numSettlers += needSpace;
-						state.home_zone = zoneid;
-						
-						string msg = "{build_new_home}\n";
-						if (state.team !is null)
-						{
-							state.team.sendMessage(msg);
-							state.team.setHomeZone(zoneid);
-						}
-						else
-							SayText(plr, msg, zoneid);
-						
-						int previousRaiderParts = state.getNumParts(zoneid);
-						zone.addRaiderParts(-previousRaiderParts); // parts built by this player no longer count as raider parts
-					}
-					else
-					{
-						println("Too many settlers in zone");
-						//g_PlayerFuncs.SayText(plr, "This zone has too many settlers.");
-					}
-				}
-				int zonePartTotal = g_invasion_mode ? -1337 : zoneid;
-				if (state.getNumParts(zonePartTotal) + buildPointCost > state.maxPoints(zonePartTotal) and !buildingBoat)
-				{
-					PrintKeyBindingString(plr, "{build_no_points}");
-					return false;
-				}
-				
-				if (!g_free_build)
-				{
-					string cost = "";
-					if (alternateBuild)
-					{
-						Item@ itemCost = getItemByClassname(g_part_info[buildType].copy_ent);
-						if (getItemCount(plr, itemCost.type, false, true) > 0)
-						{
-							giveItem(plr, itemCost.type, -1);
-							cost = "-1 " + itemCost.title;
-						}
-					}
-					else
-					{
-						if (getItemCount(plr, BUILD_MATERIAL, false, true) < g_part_info[buildType].cost)
-						{
-							PrintKeyBindingString(plr, "{player_need_more}", g_items[BUILD_MATERIAL].title);
-							return false;
-						}
-						cost = "-" + g_part_info[buildType].cost + " " + g_items[BUILD_MATERIAL].title;
-					}
+					zone.numSettlers += needSpace;
+					state.home_zone = zoneid;
 					
-					HUDTextParams params;
-					params.x = -1;
-					params.y = -1;
-					params.effect = 0;
-					params.r1 = 255;
-					params.g1 = 255;
-					params.b1 = 255;
-					params.fadeinTime = 0;
-					params.fadeoutTime = 0.5f;
-					params.holdTime = 0.5f;
-					params.channel = 3;
-				
-					HudMessage(plr, params, cost);
-					giveItem(plr, BUILD_MATERIAL, -g_part_info[buildType].cost, false);
+					string msg = "{build_new_home}\n";
+					if (state.team !is null)
+					{
+						state.team.sendMessage(msg);
+						state.team.setHomeZone(zoneid);
+					}
+					else
+						SayText(plr, msg, zoneid);
+					
+					int previousRaiderParts = state.getNumParts(zoneid);
+					zone.addRaiderParts(-previousRaiderParts); // parts built by this player no longer count as raider parts
 				}
-				
-				if (!buildingBoat)
+				else
 				{
-					if ((zoneid != state.home_zone and !g_invasion_mode) or g_creative_mode or g_shared_build_points_in_pvp_mode)
-						getBuildZone(zoneid).addRaiderParts(buildPointCost);
+					println("Too many settlers in zone");
+					//g_PlayerFuncs.SayText(plr, "This zone has too many settlers.");
 				}
+			}
+			int zonePartTotal = g_invasion_mode ? -1337 : zoneid;
+			if (state.getNumParts(zonePartTotal) + buildPointCost > state.maxPoints(zonePartTotal) and !buildingBoat)
+			{
+				PrintKeyBindingString(plr, "{build_no_points}");
+				return false;
+			}
+			
+			if (!g_free_build)
+			{
+				string cost = "";
+				if (alternateBuild)
+				{
+					Item@ itemCost = getItemByClassname(g_part_info[buildType].copy_ent);
+					if (getItemCount(plr, itemCost.type, false, true) > 0)
+					{
+						giveItem(plr, itemCost.type, -1);
+						cost = "-1 " + itemCost.title;
+					}
+				}
+				else
+				{
+					if (getItemCount(plr, BUILD_MATERIAL, false, true) < g_part_info[buildType].cost)
+					{
+						PrintKeyBindingString(plr, "{player_need_more}", g_items[BUILD_MATERIAL].title);
+						return false;
+					}
+					cost = "-" + g_part_info[buildType].cost + " " + g_items[BUILD_MATERIAL].title;
+				}
+				
+				HUDTextParams params;
+				params.x = -1;
+				params.y = -1;
+				params.effect = 0;
+				params.r1 = 255;
+				params.g1 = 255;
+				params.b1 = 255;
+				params.fadeinTime = 0;
+				params.fadeoutTime = 0.5f;
+				params.holdTime = 0.5f;
+				params.channel = 3;
+			
+				HudMessage(plr, params, cost);
+				giveItem(plr, BUILD_MATERIAL, -g_part_info[buildType].cost, false);
+			}
+			
+			if (!buildingBoat)
+			{
+				if ((zoneid != state.home_zone and !g_invasion_mode) or g_creative_mode or g_shared_build_points_in_pvp_mode)
+					getBuildZone(zoneid).addRaiderParts(buildPointCost);
 			}
 		
 			plr.SetAnimation( PLAYER_ATTACK1 );
