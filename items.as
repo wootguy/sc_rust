@@ -1345,7 +1345,7 @@ void openPlayerMenu(CBasePlayer@ plr, string subMenu)
 			}
 			else if (subMenu == "craft-menu")
 			{
-				state.menu.SetTitle(translate(plr, "{menu_actions_title} -> Craft:\n"));
+				state.menu.SetTitle(translate(plr, "{menu_actions_title} -> {menu_craft}:\n"));
 				state.menu.AddItem(translate(plr, "{menu_exterior_items}"), any("build-menu"));
 				state.menu.AddItem(translate(plr, "{menu_interior_items}"), any("item-menu"));
 				state.menu.AddItem(translate(plr, "{menu_tools}"), any("tool-menu"));
@@ -1462,7 +1462,7 @@ void openPlayerMenu(CBasePlayer@ plr, string subMenu)
 		}
 	}
 	else if (subMenu == "menu-configure") {
-		state.menu.SetTitle("Actions -> Configure:\n");
+		state.menu.SetTitle(translate(plr, "{menu_actions_title} -> {menu_configure}:\n"));
 		
 		string craftMode = state.graphicalCraftingMenu ? "{configure_craft_gfx}" : "{configure_craft_txt}";
 		state.menu.AddItem(translate(plr, "{configure_language}: " + state.language), any("configure-language"));
