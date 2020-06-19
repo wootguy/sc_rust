@@ -1020,19 +1020,19 @@ int giveAmmo(CBasePlayer@ plr, int amt, string type)
 // display the text for a second longer
 void PrintKeyBindingStringLong(CBasePlayer@ plr, string text)
 {
-	PrintKeyBindingString(plr, text);
-	g_Scheduler.SetTimeout("PrintKeyBindingString", 1, @plr, text);
+	PrintKeyBindingString(EHandle(plr), text);
+	g_Scheduler.SetTimeout("PrintKeyBindingString", 1, EHandle(plr), text);
 }
 
 void PrintKeyBindingStringXLong(CBasePlayer@ plr, string text)
 {
 	PrintKeyBindingString(plr, text);
-	g_Scheduler.SetTimeout("PrintKeyBindingString", 1, @plr, text, "", "", "", "", "", "");
-	g_Scheduler.SetTimeout("PrintKeyBindingString", 2, @plr, text, "", "", "", "", "", "");
-	g_Scheduler.SetTimeout("PrintKeyBindingString", 3, @plr, text, "", "", "", "", "", "");
-	g_Scheduler.SetTimeout("PrintKeyBindingString", 4, @plr, text, "", "", "", "", "", "");
-	g_Scheduler.SetTimeout("PrintKeyBindingString", 5, @plr, text, "", "", "", "", "", "");
-	g_Scheduler.SetTimeout("PrintKeyBindingString", 6, @plr, text, "", "", "", "", "", "");
+	g_Scheduler.SetTimeout("PrintKeyBindingString", 1, EHandle(plr), text, "", "", "", "", "", "");
+	g_Scheduler.SetTimeout("PrintKeyBindingString", 2, EHandle(plr), text, "", "", "", "", "", "");
+	g_Scheduler.SetTimeout("PrintKeyBindingString", 3, EHandle(plr), text, "", "", "", "", "", "");
+	g_Scheduler.SetTimeout("PrintKeyBindingString", 4, EHandle(plr), text, "", "", "", "", "", "");
+	g_Scheduler.SetTimeout("PrintKeyBindingString", 5, EHandle(plr), text, "", "", "", "", "", "");
+	g_Scheduler.SetTimeout("PrintKeyBindingString", 6, EHandle(plr), text, "", "", "", "", "", "");
 }
 
 void PrintKeyBindingStringAllLong(string text)

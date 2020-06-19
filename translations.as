@@ -161,9 +161,13 @@ void PrintKeyBindingStringAll(string text)
 	} while (ent !is null);
 }
 
-void PrintKeyBindingString(CBasePlayer@ plr, string text, 
+void PrintKeyBindingString(EHandle h_plr, string text, 
 	string replace0="", string replace1="", string replace2="", string replace3="", string replace4="", string replace5="")
 {
+	CBasePlayer@ plr = cast<CBasePlayer@>(h_plr.GetEntity());
+	if (plr is null || !plr.IsConnected()) {
+		return;
+	}
 	g_PlayerFuncs.PrintKeyBindingString(plr, translate(plr, text, replace0, replace1, replace2, replace3, replace4, replace5));
 }
 
