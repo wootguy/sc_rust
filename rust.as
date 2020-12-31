@@ -41,6 +41,7 @@
 // co-op ended on garg level instead of kingpin (GOOD I HATE KINGPINS)
 // no limit on dropping items?
 // clipping triangles
+// duplicate tools by dropping before throwing
 
 // can't reproduce:
 // number of items built not correct after load
@@ -1795,12 +1796,14 @@ void dropNodes()
 
 void dropWater()
 {
+	float offset = 0;
 	CBaseEntity@ ent = null;
 	do {
 		@ent = g_EntityFuncs.FindEntityByTargetname(ent, "wawa*");
 		if (ent !is null)
 		{
-			g_EntityFuncs.SetOrigin(ent, Vector(0,0,0));
+			g_EntityFuncs.SetOrigin(ent, Vector(0,0,offset));
+			offset += 1; // fix flickering water bug in SC 5.23
 		}
 	} while (ent !is null);
 }
