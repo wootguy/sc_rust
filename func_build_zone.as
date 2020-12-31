@@ -462,9 +462,9 @@ class func_build_zone : ScriptBaseEntity
 					} while (ent !is null);
 				}
 				
-				if (mon.pev.armorvalue < g_Engine.time)
+				if (mon.pev.fuser1 < g_Engine.time) // fuser1 used as a "think" timer
 				{
-					mon.pev.armorvalue = g_Engine.time + 1.0f;
+					mon.pev.fuser1 = g_Engine.time + 1.0f;
 					CBaseEntity@ ent = null;
 					do {
 						float radius = isAgro ? mon.m_flDistLook : g_xen_agro_dist;
@@ -513,9 +513,9 @@ class func_build_zone : ScriptBaseEntity
 						mon.m_FormattedName = mon.pev.noise3;
 				}
 				/*
-				if (mon.GetClassification(0) == CLASS_NONE and mon.pev.armortype < g_Engine.time)
+				if (mon.GetClassification(0) == CLASS_NONE and mon.pev.fuser2 < g_Engine.time)
 				{
-					mon.pev.armortype = g_Engine.time + 10.0f;
+					mon.pev.fuser2 = g_Engine.time + 10.0f;
 					println("SEQUENCE BEGINS NOW");
 					
 					Vector sequencePos;
@@ -690,7 +690,7 @@ class func_build_zone : ScriptBaseEntity
 								if (ent !is null)
 								{
 									ent.pev.targetname = "node_xen";
-									ent.pev.armortype = g_Engine.time + 10.0f;
+									ent.pev.fuser2 = g_Engine.time + 10.0f;
 									CBaseMonster@ mon = cast<CBaseMonster@>(ent);
 									ent.pev.noise3 = mon.m_FormattedName;
 									nodes.insertLast(EHandle(ent));

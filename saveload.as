@@ -235,7 +235,7 @@ void loadNodesPartial(ByteBuffer@ buf, int zonesLoaded, int numZones, int nodesL
 			keys["spawnflags"] = "4"; // monsterclip
 			if (g_maxZoneMonsters.GetInt() != 0) {
 				CBaseEntity@ ent = g_EntityFuncs.CreateEntity(classname, keys, true);
-				ent.pev.armortype = g_Engine.time + 10.0f;
+				ent.pev.fuser2 = g_Engine.time + 10.0f;
 				CBaseMonster@ mon = cast<CBaseMonster@>(ent);
 				ent.pev.noise3 = mon.m_FormattedName;
 				
@@ -257,7 +257,7 @@ void loadNodesPartial(ByteBuffer@ buf, int zonesLoaded, int numZones, int nodesL
 			else if (nodeType == NODE_BARREL)
 			{
 				brushModel = getModelFromName("e_barrel");
-				itemModel = "models/rust/tr_barrel.mdl";
+				itemModel = "models/rust/barrel.mdl";
 				itemHeight = 32;
 			}
 			else if (nodeType == NODE_ROCK)

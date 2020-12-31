@@ -1085,7 +1085,7 @@ void sayPlayer(EHandle h_plr, string text)
 Vector getCentroid(CBaseEntity@ ent)
 {
 	array<Vector2D> verts = getBoundingVerts2D(ent, Vector2D(0,0));
-	Vector2D centroid2D;
+	Vector2D centroid2D = Vector2D(); // new in 5.23: Vector2D requires initialization or else it sets random values
 	for (uint i = 0; i < verts.length(); i++)
 	{
 		centroid2D = centroid2D + verts[i];
@@ -1180,7 +1180,7 @@ float collisionSA(CBaseEntity@ b1, CBaseEntity@ b2)
 	axes[idx++] = getPerp(b2Verts[0] - b2Verts[b2NumVerts-1]);
 
 	float minPen = 1E9; // minimum penetration vector;
-	Vector2D fix; // vector for fixing the collision
+	Vector2D fix = Vector2D(); // vector for fixing the collision
 	float ba1_min = 0;
 	float ba1_max = 0;
 	float ba2_min = 0;

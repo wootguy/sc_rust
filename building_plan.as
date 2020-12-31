@@ -1256,6 +1256,15 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 		}
 		buildEnt2.pev.renderamt = c2;
 		//println(phit.pev.classname);
+		
+		buildEnt.pev.effects |= EF_NODRAW; // TODO: use this again in a future sven update? overlapping brushes jitter too much in 5.23
+		if (validBuild && !forbidden) {
+			buildEnt2.pev.rendermode = 2;
+			buildEnt2.pev.renderamt = 128;
+		} else {
+			buildEnt2.pev.rendercolor = buildEnt.pev.rendercolor;
+			buildEnt2.pev.rendermode = 1;
+		}
 	}
 	
 	void WeaponThink()
