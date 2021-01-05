@@ -257,7 +257,7 @@ void loadNodesPartial(ByteBuffer@ buf, int zonesLoaded, int numZones, int nodesL
 			else if (nodeType == NODE_BARREL)
 			{
 				brushModel = getModelFromName("e_barrel");
-				itemModel = "models/rust/barrel.mdl";
+				itemModel = "models/rust/tr_barrel.mdl";
 				itemHeight = 32;
 			}
 			else if (nodeType == NODE_ROCK)
