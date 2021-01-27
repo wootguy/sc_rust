@@ -89,7 +89,7 @@ class func_build_zone : ScriptBaseEntity
 	{
 		self.pev.solid = SOLID_TRIGGER;
 		self.pev.movetype = MOVETYPE_NONE;
-		self.pev.team = id;
+		self.pev.weapons = id;
 		
 		self.pev.effects = EF_NODRAW;
 		self.pev.rendermode = 2;

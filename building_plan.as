@@ -983,7 +983,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 					
 					if (getPartAtPos(attachOri) !is null)
 						continue;
-					if (partSocket == SOCKET_DOORWAY and getPartsByParent(part.pev.team).length() > 0)
+					if (partSocket == SOCKET_DOORWAY and getPartsByParent(part.pev.weapons).length() > 0)
 						continue;
 						
 					if (buildType == B_FOUNDATION_TRI or buildType == B_FLOOR_TRI)
@@ -1493,7 +1493,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 			if (buildSocket == SOCKET_DOORWAY or buildType == B_WOOD_SHUTTERS or buildType == B_LADDER or 
 				buildSocket == SOCKET_WINDOW or isFloorItem(buildEnt))
 			{
-				parent = attachEnt.pev.team;
+				parent = attachEnt.pev.weapons;
 			}
 			
 			string soundFile = nextSnd == 0 ? "rust/build1.ogg" : "rust/build2.ogg";
@@ -1539,7 +1539,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 				// just change door model
 				attachEnt.pev.button = 1; // indicates that the door has a lock
 				lock_object(attachEnt, "", true);
-				respawnPart(attachEnt.pev.team); // for some reason the wrong button textures is used at first
+				respawnPart(attachEnt.pev.weapons); // for some reason the wrong button textures is used at first
 				
 				g_SoundSystem.PlaySound(attachEnt.edict(), CHAN_STATIC, soundFile, 1.0f, 1.0f, 0, 90 + Math.RandomLong(0, 20));
 				return true;
@@ -1695,7 +1695,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 					
 					CBaseEntity@ ent2 = g_EntityFuncs.CreateEntity("func_ladder", keys, true);
 					ent2.pev.colormap = buildEnt.pev.colormap;
-					ent2.pev.team = g_part_id - 1;
+					ent2.pev.weapons = g_part_id - 1;
 					g_build_items.insertLast(EHandle(ent2));
 				}
 				
@@ -1721,7 +1721,7 @@ class weapon_building_plan : ScriptBasePlayerWeaponEntity
 					keys["targetname"] = "ladder_hatch" + (g_part_id - 1);
 					keys["spawnflags"] = "1"; // start off
 					CBaseEntity@ ent3 = g_EntityFuncs.CreateEntity("func_ladder", keys, true);	
-					ent3.pev.team = g_part_id - 1;
+					ent3.pev.weapons = g_part_id - 1;
 					g_build_items.insertLast(EHandle(ent3));
 					
 					state.addPart(ent2, zoneid);

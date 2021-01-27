@@ -889,7 +889,7 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 			if (!g_build_parts[i].IsValid())
 				continue;
 			func_breakable_custom@ part = cast<func_breakable_custom@>(CastToScriptClass(g_build_parts[i].GetEntity()));
-			if (part.parent == ent.pev.team) 
+			if (part.parent == ent.pev.weapons) 
 			{
 				part.parent = -1;
 			}
@@ -910,7 +910,7 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 			parts[i].pev.model = getModelFromName(prefix + material);
 			if (socket == SOCKET_WALL)
 				parts[i].pev.angles.y = ent.pev.angles.y;
-			respawnPart(parts[i].pev.team);
+			respawnPart(parts[i].pev.weapons);
 			
 			func_breakable_custom@ bpart = cast<func_breakable_custom@>(CastToScriptClass(parts[i]));
 			bpart.parent = -1;
@@ -1058,7 +1058,7 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 							println("Failed to get adjacent square during fusion");
 							return;
 						}
-						@part1 = respawnPart(part1.pev.team);
+						@part1 = respawnPart(part1.pev.weapons);
 						part1.pev.angles.y = part2.pev.angles.y;
 						justDoIt = true;
 					}
@@ -1202,7 +1202,7 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 						println("Failed to get adjacent tri during fusion");
 						return;
 					}
-					@part1 = respawnPart(part1.pev.team);
+					@part1 = respawnPart(part1.pev.weapons);
 					part1.pev.angles.y = newAngle;
 				}
 				
@@ -1254,7 +1254,7 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 						println("Failed to get adjacent tri during fusion");
 						return;
 					}
-					@part1 = respawnPart(part1.pev.team);
+					@part1 = respawnPart(part1.pev.weapons);
 					part1.pev.angles.y = newAngle;
 				}
 				else if ((DotProduct(dir, -g_Engine.v_forward) > 0.7f and size1 == "_2x1"))
@@ -1271,7 +1271,7 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 						println("Failed to get adjacent tri during fusion");
 						return;
 					}
-					@part1 = respawnPart(part1.pev.team);
+					@part1 = respawnPart(part1.pev.weapons);
 					part1.pev.angles.y = newAngle;
 				}
 				else if (DotProduct(dir, -g_Engine.v_right) > 0.7f) // left
@@ -1441,7 +1441,7 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 			if (g_creative_mode or g_shared_build_points_in_pvp_mode)
 				getBuildZone(fuseZone).addRaiderParts(-1);
 			
-			func_breakable_custom@ b1 = getBuildPartByID(part1.pev.team);
+			func_breakable_custom@ b1 = getBuildPartByID(part1.pev.weapons);
 			int oldParent = b1.parent;
 			b1.parent = -1;
 			
@@ -1458,11 +1458,11 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 				if (part !is null)
 				{
 					// reparent attachment point and its children
-					if (part.pev.team == part2.pev.team or part.parent == part2.pev.team or 
-						(oldParent != -1 and part.parent == oldParent or part.pev.team == oldParent))
+					if (part.pev.weapons == part2.pev.weapons or part.parent == part2.pev.weapons or 
+						(oldParent != -1 and part.parent == oldParent or part.pev.weapons == oldParent))
 					{
-						//println("REPARENT " + part.pev.team + " FROM " + part.parent + " TO " + part1.pev.team);
-						part.parent = part1.pev.team;
+						//println("REPARENT " + part.pev.weapons + " FROM " + part.parent + " TO " + part1.pev.weapons);
+						part.parent = part1.pev.weapons;
 					}
 				}
 			}
@@ -1580,7 +1580,7 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 						string modelSize = getModelSize(lookEnt);
 						if (modelSize == "_2x1" or modelSize == "_2x2" or modelSize == "_3x1" or modelSize == "_4x1")
 						{
-							int oldParent = lookEnt.pev.team;
+							int oldParent = lookEnt.pev.weapons;
 							float dist = 128;
 							if (modelSize == "_3x1")
 								dist = 256;
@@ -1601,7 +1601,7 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 								right.pev.angles.y += 180;
 								
 								// can't just turn on solidity or else the part will become semi-solid (game bug)
-								@right = respawnPart(right.pev.team);
+								@right = respawnPart(right.pev.weapons);
 								right.pev.health = lookEnt.pev.health;
 								right.pev.max_health = lookEnt.pev.max_health;
 								
@@ -1611,7 +1611,7 @@ class weapon_hammer : ScriptBasePlayerWeaponEntity
 									func_breakable_custom@ part = cast<func_breakable_custom@>(CastToScriptClass(g_build_parts[i].GetEntity()));
 									if (part !is null and (part.entindex() == lookEnt.entindex() or part.parent == oldParent))
 									{
-										part.parent = right.pev.team;
+										part.parent = right.pev.weapons;
 									}
 									if (part !is null and (part.entindex() == right.entindex()))
 									{

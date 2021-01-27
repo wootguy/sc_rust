@@ -74,7 +74,7 @@ void propogate_part_destruction(CBaseEntity@ ent)
 	}
 
 	// destroy objects parented to this one
-	array<EHandle> children = getPartsByParent(ent.pev.team);
+	array<EHandle> children = getPartsByParent(ent.pev.weapons);
 	for (uint i = 0; i < children.length(); i++)
 	{
 		CBaseEntity@ child = children[i];
@@ -90,7 +90,7 @@ void propogate_part_destruction(CBaseEntity@ ent)
 	if (type == B_LADDER_HATCH or type == B_LADDER or type == B_WOOD_SHUTTERS)
 	{
 		// kill tied entities (ladder, secondary door)
-		array<EHandle> parents = getPartsByID(ent.pev.team);
+		array<EHandle> parents = getPartsByID(ent.pev.weapons);
 		for (uint i = 0; i < parents.length(); i++)
 		{
 			CBaseEntity@ parent = parents[i].GetEntity();
@@ -150,7 +150,7 @@ void stabilityCheck()
 		
 		bool supported = searchFromPart(bpart);
 
-		//println("Stability for part " + src_part.pev.team + " finished in " + numChecks + " checks (" + numSkip + " skipped). Result is " + supported);
+		//println("Stability for part " + src_part.pev.weapons + " finished in " + numChecks + " checks (" + numSkip + " skipped). Result is " + supported);
 		
 		if (!supported) {			
 			propogate_part_destruction(src_part);
@@ -186,10 +186,10 @@ void deleteNullBuildEnts()
 		}
 		else
 		{
-			if (ent.pev.team != ent.id)
+			if (ent.pev.weapons != ent.id)
 			{
-				println("stabilityCheck: Bad ID! " + ent.id + " != " + ent.pev.team);
-				ent.pev.team = ent.id;
+				println("stabilityCheck: Bad ID! " + ent.id + " != " + ent.pev.weapons);
+				ent.pev.weapons = ent.id;
 			}
 		}
 	}
