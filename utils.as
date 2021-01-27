@@ -292,7 +292,7 @@ array<EHandle> getPartsByID(int id)
 	for (uint i = 0; i < g_build_items.size(); i++)
 	{	
 		CBaseEntity@ part = g_build_items[i].GetEntity();
-		if (part !is null and part.pev.team == id) 
+		if (part !is null and part.pev.weapons == id) 
 			ents.insertLast(g_build_items[i]);
 	}
 	return ents;
@@ -813,7 +813,7 @@ CBaseEntity@ respawnPart(int id)
 			
 			CBaseEntity@ ent = g_EntityFuncs.CreateEntity(part.pev.classname, keys, true);
 			ent.pev.angles = part.pev.angles;
-			ent.pev.team = part.pev.team;
+			ent.pev.weapons = part.pev.weapons;
 			ent.pev.button = part.pev.button;
 			ent.pev.body = part.pev.body;
 			ent.pev.vuser1 = part.pev.vuser1;

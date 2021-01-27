@@ -1241,7 +1241,7 @@ void MapActivate()
 	} while (ent !is null);
 	
 	//setupInvasionMode();
-	//setupCreativeMode();
+	setupCreativeMode();
 	//setupPvpMode();
 }
 
@@ -1764,10 +1764,10 @@ void dropNodes()
 			
 			/*
 			int zone = getBuildZone(ent);
-			ent.pev.team = zone;
+			ent.pev.weapons = zone;
 			if (zone >= 0 and zone < int(g_build_zone_ents.length()))
 			{
-				println("Assigned node to zone " + ent.pev.team);
+				println("Assigned node to zone " + ent.pev.weapons);
 				func_build_zone@ zoneEnt = cast<func_build_zone@>(CastToScriptClass(g_build_zone_ents[zone]));
 				zoneEnt.ainodes.insertLast(nodePos);
 			}

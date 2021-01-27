@@ -206,7 +206,7 @@ class func_breakable_custom : ScriptBaseEntity
 		self.pev.solid = SOLID_BSP;
 		self.pev.movetype = MOVETYPE_PUSH;
 		self.pev.takedamage = DAMAGE_YES;
-		self.pev.team = id;
+		self.pev.weapons = id;
 		self.pev.effects = EF_NODECALS;
 		//self.pev.effects = EF_FRAMEANIMTEXTURES;
 		//self.pev.frame = 1;

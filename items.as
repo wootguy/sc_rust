@@ -1990,7 +1990,7 @@ void rotate_door(CBaseEntity@ door, bool playSound)
 		AngularMove(door, dest, speed);
 		
 		if (door.pev.colormap == B_LADDER_HATCH) {
-			CBaseEntity@ ladder = g_EntityFuncs.FindEntityByTargetname(null, "ladder_hatch" + door.pev.team);
+			CBaseEntity@ ladder = g_EntityFuncs.FindEntityByTargetname(null, "ladder_hatch" + door.pev.weapons);
 			
 			if (ladder !is null)
 			{
@@ -1999,7 +1999,7 @@ void rotate_door(CBaseEntity@ door, bool playSound)
 				ladder.pev.colormap = oldcolormap;
 			}
 			else
-				println("ladder_hatch" + door.pev.team + " not found!");
+				println("ladder_hatch" + door.pev.weapons + " not found!");
 			
 		}
 	}

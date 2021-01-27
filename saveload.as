@@ -414,7 +414,7 @@ void loadMapPartial(ByteBuffer@ buf, int partsLoaded, int numParts)
 		ent.pev.noise1 = steamid;
 		ent.pev.noise2 = netname;
 		ent.pev.noise3 = code;
-		ent.pev.team = id;
+		ent.pev.weapons = id;
 		ent.pev.effects = effects | EF_NODECALS;
 		
 		for (int i = 0; i < itemCount; i++)
