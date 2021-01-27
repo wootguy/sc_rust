@@ -596,10 +596,10 @@ int getSpawnFlagsForWeapon(string cname)
 	{
 		WeaponCustom::weapon_custom@ wep = cast<WeaponCustom::weapon_custom@>( WeaponCustom::custom_weapons[keys[i]] );
 		if (wep.weapon_classname == cname) {
-			return wep.pev.spawnflags & 31; // flags that are only handled in the engine
+			return (wep.pev.spawnflags & 31) | 1024; // flags that are only handled in the engine
 		}
 	}
-	return 0;
+	return 1024; // disable respawn
 }
 
 // try to equip a weapon/item/ammo. Returns amount that couldn't be equipped
