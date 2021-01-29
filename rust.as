@@ -1241,7 +1241,7 @@ void MapActivate()
 	} while (ent !is null);
 	
 	//setupInvasionMode();
-	setupCreativeMode();
+	//setupCreativeMode();
 	//setupPvpMode();
 }
 
@@ -2057,7 +2057,7 @@ bool doRustCommand(CBasePlayer@ plr, const CCommand@ args)
 	{
 		if (args[0] == ".version")
 		{
-			SayText(plr, "{cmd_version}\n", "v14 (January, 2020)");
+			SayText(plr, "{cmd_version}\n", "v15 (January, 2021)");
 			return true;
 		}
 		if (args[0] == ".day")
