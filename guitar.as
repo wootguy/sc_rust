@@ -18,7 +18,8 @@ array<Song> g_songs = {
 	Song("sewer_surfin.txt", "TMNT - Sewer Surfin'", 14.0f),
 	Song("star_wolf.txt", "Star Fox 64 - Star Wolf", 12.0f),
 	Song("objection.txt", "PWAA 2 - Objection!", 16.0f),
-	Song("megalovania.txt", "Undertale - Megalovania", 34.0f)
+	Song("megalovania.txt", "Undertale - Megalovania", 34.0f),
+	Song("un_olga_was_her.txt", "U.N. Owen Was Her?", 23.0f)
 };
 
 class SongRow
@@ -328,6 +329,10 @@ void guitar_song_menu(CBaseEntity@ pActivator, CBaseEntity@ pCaller, USE_TYPE us
 void guitar_note_play2(CBaseEntity@ pActivator, CBaseEntity@ pCaller, USE_TYPE useType, float flValue)
 {
 	CBasePlayer@ plr = cast<CBasePlayer@>(pActivator);
+	if (plr is null) {
+		return;
+	}
+	
 	PlayerState@ state = getPlayerState(plr);
 	float pitchShift = 44 + ((pActivator.pev.angles.x + 29.664917) / 59.329834) * (179.0f + 155.0f); // high E at 224
 	
