@@ -60,6 +60,9 @@ void inventoryCheck()
 			if (owner !is null and owner.IsPlayer())
 			{
 				CBasePlayer@ plr = cast<CBasePlayer@>(owner);
+				if (plr is null or !plr.IsConnected()) {
+					continue;
+				}
 				PlayerState@ state = getPlayerState(plr);
 
 				ammo.pev.noise3 = "killme";
@@ -86,6 +89,9 @@ void inventoryCheck()
 			}
 		
 			CBasePlayer@ plr = cast<CBasePlayer@>(e_plr);
+			if (plr is null or !plr.IsConnected()) {
+				continue;
+			}
 			PlayerState@ state = getPlayerState(plr);
 			if (!state.inGame)
 				continue;
