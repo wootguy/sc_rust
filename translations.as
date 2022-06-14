@@ -84,6 +84,10 @@ string getTranslation(string language, string key) {
 
 string translate(CBasePlayer@ plr, string msg, string replace0="", string replace1="", string replace2="", string replace3="", string replace4="", string replace5="")
 {
+	if (plr is null or !plr.IsConnected()) {
+		return msg;
+	}
+	
 	string language = getPlayerState(plr).language;
 	
 	for (int i = 0; i < 10; i++) {

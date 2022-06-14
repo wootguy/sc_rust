@@ -1420,6 +1420,9 @@ void AngularMoveDone( EHandle h_ent, Vector finalAngle )
 // Will create a new state if the requested one does not exit
 PlayerState@ getPlayerState(CBasePlayer@ plr)
 {
+	if (plr is null) {
+		return null;
+	}
 	string steamId = g_EngineFuncs.GetPlayerAuthId( plr.edict() );
 	if (steamId == 'STEAM_ID_LAN') {
 		steamId = plr.pev.netname;
